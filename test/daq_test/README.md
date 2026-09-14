@@ -1,12 +1,22 @@
 
 # Daq test
 
+Use CANape or 
+
+```bash
+xcpclient --udp --test
+xcpclient --udp --upload-a2l --mea . 
+```
+
+Test results (producer acquire lock time histogram) shown on termination (ctrl-c):
+
+
 ```
 
 // Test parameters
 
 #define THREAD_COUNT 8            // Number of threads to create
-#define THREAD_DELAY_US 1000      // Default delay in microseconds for the thread loops, calibration parameter
+#define THREAD_DELAY_US 500      // Default delay in microseconds for the thread loops, calibration parameter
 #define THREAD_DELAY_OFFSET_US 50 // Default offset  added to the delay (* task index) for each thread instance, to create different sampling rates
 #define THREAD_TIME_SHIFT_NS                                                                                                                                                       \
     (1000000000 / THREAD_COUNT) // Default time shift in nanoseconds (* task index) for each thread instance, to disturb the sequential time ordering of events
@@ -93,6 +103,40 @@ Lock time histogram (418221 events):
   80000-160000ns                 1    0.00%  
   160000-320000ns                1    0.00%  
   >320000ns                      0    0.00%  
+
+
+
+Apple silicon: 13816 event/s, 0.263 Mbyte/s
+Producer acquire lock time statistics:
+  count=337241  max=2565102ns  avg=77ns (cal=23ns)
+
+Lock time histogram (337241 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-10ns                     30248    8.97%  #####
+  10-20ns                    49729   14.75%  #########
+  20-40ns                        0    0.00%  
+  40-80ns                   160010   47.45%  ##############################
+  80-120ns                   79789   23.66%  ##############
+  120-160ns                  10323    3.06%  #
+  160-200ns                   1906    0.57%  
+  200-300ns                   1634    0.48%  
+  300-400ns                   1575    0.47%  
+  400-500ns                    503    0.15%  
+  500-600ns                    262    0.08%  
+  600-700ns                    318    0.09%  
+  700-800ns                    132    0.04%  
+  800-900ns                    105    0.03%  
+  900-1000ns                    99    0.03%  
+  1000-1250ns                  402    0.12%  
+  1250-1500ns                   29    0.01%  
+  1500-1750ns                   21    0.01%  
+  1750-2000ns                   31    0.01%  
+  2000-3000ns                   53    0.02%  
+  3000-4000ns                   21    0.01%  
+  4000-5000ns                   10    0.00%  
+  5000-7500ns                    9    0.00%  
+  >7500ns                       32    0.01%  
 
 
   ```

@@ -11,7 +11,6 @@ use std::io::Cursor;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use super::xcp::*;
 use super::*;
 
 impl XcpClient {

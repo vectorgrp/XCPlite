@@ -1,6 +1,6 @@
 [package]
 name = "xcpclient"
-version = "3.0.9"
+version = "4.0.0"
 edition = "2024"
 resolver = "2"
 authors = ["RainerZ"]
@@ -39,9 +39,9 @@ cpp_demangle = "0.5"
 
 # Registry
 # From VectorGrp/xcp-lite
-#xcp_registry = { git = "https://github.com/vectorgrp/xcp-lite", features = ["a2l_reader"] }
-# From fork RainerZ/xcp-lite
-xcp_registry = { git = "https://github.com/RainerZ/xcp-lite.git", branch = "V3.0.9", features = ["a2l_reader"] }
+xcp_registry = { git = "https://github.com/vectorgrp/xcp-lite", features = ["a2l_reader"] }
+# From fork RainerZ/xcp-lite V3.0.9
+# xcp_registry = { git = "https://github.com/RainerZ/xcp-lite.git", branch = "V3.0.9", features = ["a2l_reader"] }
 # From local directory current branch
 # xcp_registry = { path = "../../../xcp-lite-RainerZ/xcp_registry", features = ["a2l_reader"] } 
 

@@ -114,6 +114,13 @@ list_mea = ""
 # Example: mea = [".*"]
 mea = []
 
+# Event for variables without a fixed event (global variables and static variables in
+# functions without an event trigger), given by event id or event name.
+# Used for their measurement and assigned to them when an A2L file is created from an ELF file.
+# Example: default_event = 0
+# Example: default_event = "mainloop"
+# default_event = 0   # omit to leave such variables without an event
+
 # Measurement duration in seconds (0 = run until Ctrl-C)
 time = 0
 

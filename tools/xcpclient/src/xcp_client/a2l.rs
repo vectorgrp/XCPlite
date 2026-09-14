@@ -11,7 +11,6 @@ use std::io::Write;
 
 use xcp_registry::McEvent;
 
-use super::xcp::*;
 use super::*;
 
 impl XcpClient {

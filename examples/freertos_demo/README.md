@@ -6,7 +6,7 @@ There are 3 different demos:
 - freertos_esp32_demo for ESP32 with PlatformIO
 - freertos_stm32_demo for STM32 with CubeMX
 
-All examples are based on the same demo application code in `xcp_demo.c` and `xcp_demo.h`.  
+All examples are based on the same demo application code in `xcp_demo.c` and `xcp_demo.h`, which compiles as C or C++.  
 
 Refer to the README.md files in the demo folders for more specific details.  
 
@@ -20,14 +20,14 @@ The included CANape projects and the XCP instrumentation in `xcp_demo.c` show:
 - Create a high priority FreeRTOS task (fastTask) with precise cyclic execution timing
 - Create a lower priority FreeRTOS task (slowTask) for background work
 - Pin the tasks to the same core to watch scheduling in action
-- Trigger XCP event tracepoints in both tasks and acquire global and local measurement variables
+- Trigger XCP event tracepoints in both tasks and how to acquire global and local measurement variables
 - Provide high-resolution XCP measurement event timestamps
 - Display cycle time jitter of the tasks in CANape
 - Count task deadline overruns when calibrated periods are too aggressive
 - Create thread-safe calibration parameters accessible in both tasks
 - Calibrate task cycle times and some other demo parameters
 - Observe both task trigger points with a two-channel oscilloscope to evaluate XCP instrumentation cost
-- Create an A2L file or A2L file template for the user application code
+- Create an A2L file or A2L file template offline from the ELF file 
 
 | Feature | API functions |
 |---|---|
@@ -51,6 +51,7 @@ The following files are required:
 xcplite_sources = [
     "cal.c",
     "platform.c",
+    "sockets.c",
     "queue32m.c",
     "xcpappl.c",
     "xcpethserver.c",
@@ -60,7 +61,7 @@ xcplite_sources = [
 ```
 
 The FreeRTOS build of XCPlite:
-- Uses the FreeRTOS/lwIP socket, thread, mutex and clock platform abstractions in `src/platform.c`.
+- Uses the FreeRTOS/lwIP socket, thread, mutex and clock platform abstractions in `src/platform.c` and `src/sockets.c`.
 - Uses `src/queue32m.c` with mutex or critical-section synchronization.
 
 
@@ -89,9 +90,9 @@ xcpclient --offline --udp --dest-addr <ip-addr> --elf <elf-file>  --elf-unit-fil
 
 # Automatically add all possible measurement variables and calibration parameters in calibration parameter segments from compilation unit 'xcp_demo'
 # Example freertos_stm32_demo:
-xcpclient --offline --udp --dest-addr 192.168.0.207 --elf build/Debug/STM32H753EthDemo.elf --a2l CANape/stm32_freertos_demo.a2l --elf-unit-filter xcp_demo
-# Example freertos_emu_demo:
-xcpclient --offline --udp --dest-addr 127.0.0.1 --elf build-rtos/Debug/freertos_emu_demo --a2l examples/freertos_demo/freertos_emu_demo/CANape/freertos_demo.a2l --elf-unit-filter xcp_demo
+xcpclient --offline --udp --dest-addr 192.168.0.207 --elf build/Debug/STM32H753EthDemo.elf --a2l CANape/stm32_freertos_demo.a2l --default-event=mainloop --elf-unit-filter xcp_demo
+# Example freertos_emu_demo (Linux build only: an executable built on macOS contains no DWARF debug information and is rejected by xcpclient):
+xcpclient --offline --udp --dest-addr 127.0.0.1 --elf build-rtos/Debug/freertos_emu_demo --a2l examples/freertos_demo/freertos_emu_demo/CANape/freertos_demo.a2l --default-event=mainloop --elf-unit-filter xcp_demo
 ```
 
 See below how to obtain the xcpclient tool.  
@@ -185,7 +186,7 @@ DWARF type or location data.
 
 For the complete technical details — ELF section layouts, `trg__` anchor naming convention,
 and `AddrExt` encoding — see
-[docs/TECHNICAL.md — Offline A2L Generation](../../docs/TECHNICAL.md#offline-a2l-generation--elfdwarf-internals).
+[docs/OFFLINE_A2L.md — Offline A2L Generation](../../docs/OFFLINE_A2L.md).
 
 
 
@@ -295,7 +296,8 @@ It has been tested with ELF files from Linux gcc and clang tool chains.
 For more information on offline A2L generation see:
 - [tools/xcpclient/README.md](../../tools/xcpclient/README.md) — xcpclient documentation and all command-line options
 - [examples/no_a2l_demo/README.md](../no_a2l_demo/README.md) — dedicated no-A2L / offline A2L workflow example
-- [docs/TECHNICAL.md — Offline A2L Generation](../../docs/TECHNICAL.md#offline-a2l-generation) — ELF/DWARF internals and design details of the offline A2L generation approach
+- [docs/OFFLINE_A2L.md — Offline A2L Generation](../../docs/OFFLINE_A2L.md) — offline A2L generation with xcpclient: workflow, naming rules, supported types, diagnostics
+- [docs/TECHNICAL.md — Instrumentation Markers](../../docs/TECHNICAL.md#instrumentation-markers-for-offline-a2l-tools) — the markers the instrumentation macros leave in the ELF file
 - [examples/freertos_demo/README.md](../freertos_demo/README.md) — Linux FreeRTOS demo with offline A2L generation
 
 
@@ -352,9 +354,9 @@ target_compile_definitions(freertos_config INTERFACE projCOVERAGE_TEST=0)
 ### Step 3 — Implement the socket layer
 
 When `_FREE_RTOS` is defined **without** `FREE_RTOS_POSIX_SIM`, the socket functions in
-`platform.c` use the lwIP socket API.
+`sockets.c` use the lwIP socket API.
 Replace them with another implementation if required.
-The required interface is documented in `src/platform.h` (search for `SOCKET_HANDLE`).
+The required interface is documented in `src/sockets.h`.
 
 
 ### Step 4 — Implement the clock (bare-metal)

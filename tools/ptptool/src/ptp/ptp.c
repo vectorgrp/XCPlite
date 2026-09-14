@@ -13,7 +13,8 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include "platform.h" // from libxcplite for SOCKET_HANDLE, ...
+#include "platform.h" // from libxcplite for THREAD_FUNC_RETURN, mutexInit, create_thread, sleepMs, clockGetString
+#include "sockets.h"  // from libxcplite for SOCKET_HANDLE, socket functions
 
 #include <arpa/inet.h> // for htons, htonl
 #include <assert.h>    // for assert

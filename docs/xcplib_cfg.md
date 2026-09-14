@@ -21,6 +21,8 @@ Most important parameters are:
 
 The size of the transmission queue is a runtime parameter.
 
+Changes are made in an override header which `xcplib_cfg.h` includes at its end (`#undef`/`#define` of the `OPTION_*` defaults). The shipped build configurations are such headers, `src/xcplib_<name>_cfg.h`, selected with the CMake variable `XCPLITE_CONFIGURATION`. An application specific header is selected with the CMake variable `XCPLITE_CFG_OVERRIDE` (path to the file, configuration `default` only), see [BUILDING.md](BUILDING.md#application-specific-configuration-override) and `examples/fetchcontent_example/config/xcplib_app_cfg.h`. The library and the application must be compiled with the same override, which CMake guarantees by applying it as a PUBLIC usage requirement of the `xcplite` target.
+
 ## 1 · xcplib_cfg.h
 
 This section describes the configuration parameters in xcplib_cfg.h.
@@ -31,7 +33,7 @@ This section describes the configuration parameters in xcplib_cfg.h.
 |-----------|-------------|
 | `OPTION_ENABLE_TCP` | Enables TCP transport layer support for XCP communication |
 | `OPTION_ENABLE_UDP` | Enables UDP transport layer support for XCP communication |
-| `OPTION_MTU` | Ethernet packet size (MTU) in bytes. Must be divisible by 8. Jumbo frames are supported (default: 8000) |
+| `OPTION_MTU` | Ethernet packet size (MTU) in bytes. Must be divisible by 8. Jumbo frames are supported |
 | `OPTION_DAQ_MEM_SIZE` | Memory bytes used for XCP DAQ tables. Each signal needs approximately 5 bytes (default: 32 × 1024 × 5) |
 | `OPTION_ENABLE_A2L_UPLOAD` | Enables A2L file download (with XCP protocol UPLOAD commands) |
 | `OPTION_ENABLE_ELF_UPLOAD` | Enables ELF  file download (with XCP protocol UPLOAD commands) |
@@ -78,7 +80,7 @@ This section describes the transport layer configuration parameters in xcptl_cfg
 | `XCPTL_MAX_CTO_SIZE` | Maximum size of XCP command packets (CRO/CRM) in bytes. Must be divisible by 8 (default: 248) |
 | `XCPTL_MAX_DTO_SIZE` | Maximum size of XCP data packets (DAQ/STIM) in bytes. Must be divisible by 8 (default: 1024) |
 | `XCPTL_MAX_SEGMENT_SIZE` | Maximum data buffer size for socket send operations. For UDP, this is the UDP MTU. Calculated as OPTION_MTU - 32 (IP header) |
-| `XCPTL_PACKET_ALIGNMENT` | Packet alignment for multiple XCP transport layer packets in a message (default: 4) |
+| `XCPTL_PACKET_ALIGNMENT` | Size granularity of the protocol layer packet inside a transport layer message; the packet is padded to this alignment so that concatenated messages in a segment stay aligned. Only 4 is supported, enforced by an `#error` in `queue.h`. Note the fill is included in the message LEN — see "Transport Layer Message Padding" in `docs/TECHNICAL.md` (default: 4) |
 | `XCPTL_TRANSPORT_LAYER_HEADER_SIZE` | Transport layer message header size in bytes (fixed: 4) |
 
 ### Multicast Configuration

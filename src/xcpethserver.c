@@ -19,8 +19,9 @@
 #include <stdint.h>   // for uintxx_t
 
 #include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
-#include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
+#include "platform.h"   // for THREAD_HANDLE, create_thread, cancel_thread, sleepUs, clockGetMonotonicNs, ...
 #include "queue.h"      // for tQueueHandle, queueInitFromMemory, ...
+#include "sockets.h"    // for socketStartup, socketCleanup
 #include "xcp.h"        // for CRC_XXX
 #include "xcplib_cfg.h" // for OPTION_xxx, TEST_xxx
 #include "xcplite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
@@ -47,8 +48,8 @@
 #endif
 #endif
 
-#if !defined(OPTION_ENABLE_TCP) && !defined(OPTION_ENABLE_UDP)
-#error "Please define OPTION_ENABLE_TCP or OPTION_ENABLE_UDP"
+#if !defined(OPTION_ENABLE_TCP) && !defined(OPTION_ENABLE_UDP) && !defined(OPTION_ENABLE_UDP_RAW)
+#error "Please define OPTION_ENABLE_TCP or OPTION_ENABLE_UDP or OPTION_ENABLE_UDP_RAW"
 #endif
 
 static THREAD_FUNC_RETURN XcpServerReceiveThread(void *par);
@@ -483,6 +484,9 @@ THREAD_FUNC_RETURN XcpServerReceiveThread(void *par) {
         uint64_t now = clockGetMonotonicNs(); // Drive the current last time with XCPTL_RECV_TIMEOUT_MS cycle in this loop
 
         // Blocking, with timeout to allow handling background tasks in this thread as well
+        // @@@@ TODO: This terminates the receive thread on ANY false return, including a merely
+        // corrupt datagram (see the dlc check in xcpethtl.c). Distinguish "fatal socket error"
+        // from "bad packet, keep serving" so a malformed frame cannot kill the server.
         if (!XcpEthTlHandleCommands()) {
             DBG_PRINT_ERROR("XcpEthTlHandleCommands failed!\n");
             break; // error -> terminate thread

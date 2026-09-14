@@ -86,20 +86,62 @@ As a side effect, calibration segment persistence (freeze command) is supported.
 
 ---
 
-## Offline A2L Generation 
+## Offline A2L Generation
 
-Use the XCPlite specific A2L creator tool (xcpclient), which is aware of the different addressing schemes and static markers created by the code instrumentation macros.
-See `no_a2l_demo` or `no_a2l_demo_cpp` and in particular  `esp32_freertos_demo` for examples and instructions.
+The A2L file can be generated offline from the ELF file of the application with the XCPlite specific ELF/DWARF to A2L generator in the
+`xcpclient` tool. The workflow, the rules for the application code, the naming of types and variables, the supported types and the
+diagnostics are described in [OFFLINE_A2L.md](OFFLINE_A2L.md). The information the instrumentation macros leave in the ELF file for
+this purpose is described in the next section.
 
-### xcpclient — ELF/DWARF Internals
+## Instrumentation Markers for Offline A2L Tools
 
-This section documents how `xcpclient --create-a2l` discovers events, calibration segments,
-and local variables from the firmware ELF/DWARF. It is intended for contributors to xcpclient
-or developers who need to understand why a particular variable does or does not appear in the
-generated A2L file. For the user-facing rules (what you need to do in your application code),
-see `examples/no_a2l_demo/README.md`.
+The instrumentation macros leave static data and named variables in the ELF file, from which an A2L creator or an XCP tool can build the
+A2L file from the linker map and the debug information only, without on-target A2L generation. The markers make calibration segments,
+events, the EPK, metadata and the scope in which an event is triggered detectable in the ELF/DWARF file. The xcpclient tool reads them
+for C and C++ applications, see [OFFLINE_A2L.md](OFFLINE_A2L.md).
 
-#### `xcp_evts` section — event descriptors
+This section is the contract between the macros and such tools: a changed section name, marker name or descriptor layout requires a
+change of the tool.
+
+### ELF sections
+
+| Section | Content | Emitted by |
+|---|---|---|
+| `xcp_evts` | one `tXcpEventDescriptor` (16 bytes: name, cycle time, priority) per event in link order, the position is the event id | `DaqCreateEvent`, `DaqCreateEventExt`, `DaqCreateAndTriggerEvent` |
+| `xcp_cals` | one `tXcpCalSegDescriptor` (32 bytes: name, default page address, index variable, size, type) per calibration segment or block | `CalSegDecl`, `CalSegDeclRef`, `CalSegCreate` and the calibration block macros |
+| `xcp_epk` | the EPK software version string | `XcpCreateEpk` |
+| `xcp_meta` | the metadata constants `xcp_meta__<kind>__<name>` | `XCP_UNIT`, `XCP_LIMITS`, `XCP_COMMENT`, `XCP_READ_WRITE` |
+
+On macOS the sections are named `__DATA,xcp_evts` etc. On platforms without section support (`XCP_EVENT_SECTION_ATTR` empty) the
+events and segments are registered at runtime only.
+
+### Marker variables
+
+```c
+// Addressing scheme signature (libxcplite), the value is the driver version, see Addressing Modes
+const uint16_t XCPLITE__CASDD;                  // or XCPLITE__ACSDD, XCPLITE__AXSDD, XCPLITE__CXSDD
+
+// Calibration segment descriptor and index, from CalSegDecl(name), CalSegCreate(name)
+static const tXcpCalSegDescriptor calseg__name; // in section xcp_cals, calblk__name for calibration blocks
+static tXcpCalSegIndex calseg_id_name;
+
+// Event descriptor and id, from DaqCreateEvent(name), DaqCreateEventExt(name, cycle, prio), DaqCreateAndTriggerEvent(name)
+static const tXcpEventDescriptor evt__name;     // in section xcp_evts
+static tXcpEventId evt_id_name;
+static THREAD_LOCAL tXcpEventId evt__dynname;   // DaqCreateEventInstance(name), one event instance per thread
+
+// Event trigger anchor, from DaqTriggerEvent(name), DaqTriggerEventExt(name, base), DaqEventVar(name, ...), DaqTriggerEventCapture(name, ...), see below
+static tXcpEventId trg__<modes>__name;          // in the function which triggers the event
+
+// Metadata, from XCP_COMMENT(name, text), XCP_UNIT(name, unit), XCP_LIMITS(name, min, max), XCP_READ_WRITE(name)
+static const char xcp_meta__comment__name[];    // in section xcp_meta, also xcp_meta__unit__, xcp_meta__min__, xcp_meta__max__, xcp_meta__read_write__
+
+// Capture struct, from DaqTriggerEventCapture(event, var, ...), one member per captured variable,
+// named like the variable with a trailing underscore, which an A2L tool removes again
+struct { __typeof__(var) var_; ... } cap__event;
+```
+
+### `xcp_evts` section — event descriptors
 
 Every call to `DaqCreateEvent(name)` or `DaqCreateAndTriggerEvent(name)` emits a
 `tXcpEventDescriptor` constant into the `xcp_evts` section (`.rodata` on ELF targets, `__DATA,xcp_evts` on macOS):
@@ -111,10 +153,10 @@ static const tXcpEventDescriptor evt__task
 ```
 
 `tXcpEventDescriptor` contains the event name string, cycle time, and priority.
-xcpclient iterates all entries in `xcp_evts` to discover **every event** defined in the
+A tool iterates all entries in `xcp_evts` to discover **every event** defined in the
 firmware, regardless of whether that code path has executed at the time of A2L generation.
 
-#### `xcp_cals` section — calibration segment descriptors
+### `xcp_cals` section — calibration segment descriptors
 
 Every `CalSegDecl(name)` + `CalSegCreate(name)` pair (or `CalSegDecl(name)` at file scope) emits a `tXcpCalSegDescriptor` constant into the `xcp_cals` section:
 
@@ -131,14 +173,18 @@ static const tXcpCalSegDescriptor calseg__params
 ```
 
 `tXcpCalSegDescriptor` contains the segment name, the address of the default page, its size, and
-the type (segment vs. block). xcpclient reads these to discover all calibration segments and
+the type (segment vs. block). A tool reads these to discover all calibration segments and
 their exact layout in memory — without any A2L registration calls in the application code.
 
-#### Trigger point DWARF scope anchors — `trg__` naming convention
+### Trigger point DWARF scope anchors — `trg__<modes>__<event>`
 
 Every event trigger macro emits a **named static local variable** whose name encodes
-the set of addressing modes active at that trigger point. xcpclient reads this name from
-the DWARF to know how to decode the XCP address for each measurement variable.
+the set of addressing modes active at that trigger point. An A2L tool reads this name from
+the DWARF to know how to decode the XCP address for each measurement variable. The base address the macros pass for the stack
+frame relative addressing mode is `xcp_get_frame_addr()`: the frame base the compiler uses in the DWARF locations of the local
+variables (`DW_AT_frame_base`) minus `XCP_FRAME_ADDR_OFFSET`, see `inc/xcplib.h`. This is `__builtin_frame_address(0)` under clang,
+which describes the local variables relative to the frame pointer register, and `__builtin_dwarf_cfa()` under GCC, which describes
+them relative to the canonical frame address (CFA). The offsets from the DWARF are used without correction.
 
 #### Naming convention
 
@@ -151,9 +197,10 @@ The letters between `trg__` and the trailing `__name` form a sequence where
 | `C` | any | **Calibration-segment relative** — offset within a named `CalSeg` |
 | `S` | 2 | **Stack frame relative** — offset from `xcp_get_frame_addr()` |
 | `D` | 3+ | **Dynamic** — offset from an individually supplied base pointer; supports both synchronous and asynchronous access |
+| `R` | 3 | **Capture struct relative** — offset of a member in the capture struct `cap__<event>` which the trigger passes as base pointer, a `D` slot with a known layout. The member names carry a trailing underscore |
 
 The trailing `__name` (double underscore) identifies the event and separates it from the
-mode sequence so xcpclient can split them unambiguously.
+mode sequence so a tool can split them unambiguously.
 
 #### Anchor variants in the codebase
 
@@ -162,6 +209,7 @@ mode sequence so xcpclient can split them unambiguously.
 | `trg__AAS__name` | `DaqTriggerEvent`, `DaqCreateAndTriggerEvent`, `DaqEventVar` (C) | ext=0,1: Absolute — ext=2: Stack |
 | `trg__AASD__name` | `DaqTriggerEventExt` | ext=0,1: Absolute — ext=2: Stack — ext=3: Dynamic base pointer |
 | `trg__AASDD__name` | `DaqEventVar`, `DaqEventAtVar` (C++) | ext=0,1: Absolute — ext=2: Stack — ext=3+: Dynamic (one slot per measurement variable) |
+| `trg__AASR__name` | `DaqTriggerEventCapture`, `DaqTriggerEventCaptureAt`, `DaqCreateAndTriggerEventCapture` | ext=0,1: Absolute — ext=2: Stack — ext=3: the capture struct `cap__name` |
 
 ---
 
@@ -177,7 +225,7 @@ XcpEventExt_Var(trg__AAS__task, 1 /*base count*/, xcp_get_frame_addr());
 
 `trg__AAS__task` is a **named static local variable**. The DWARF debug info records its
 address and the lexical scope it lives in — which is the same scope as the local variables
-on the stack. xcpclient finds `trg__AAS__name` in the DWARF, walks all variables whose live
+on the stack. A tool finds `trg__AAS__name` in the DWARF, walks all variables whose live
 range covers that location, and creates A2L entries for them with the correct addressing mode.
 
 `DaqCreateAndTriggerEvent(name)` does the same in one macro — it writes the
@@ -218,21 +266,6 @@ static tXcpEventId trg__AASDD__calc = XCP_UNDEFINED_EVENT_ID;
 ```
 
 
-#### What xcpclient reads from the ELF
-
-| ELF / DWARF source | Populated by | xcpclient use |
-|---|---|---|
-| `xcp_evts` section | `DaqCreateEvent`, `DaqCreateEventInstance`, `DaqCreateAndTriggerEvent` | Discover all events, names, cycle times |
-| `xcp_cals` section | `CalSegDecl` + `CalSegCreate` | Discover all calibration segments, default page addresses and sizes |
-| DWARF scope of `trg__AAS__name` | `DaqTriggerEvent`, `DaqCreateAndTriggerEvent`, `DaqEventVar` (C) | Find stack-local and absolute variables — ext=0,1: Absolute, ext=2: Stack |
-| DWARF scope of `trg__AASD__name` | `DaqTriggerEventExt` | Same plus a dynamic base pointer slot — ext=3: Dynamic |
-| DWARF scope of `trg__AASDD__name` | `DaqEventVar` / `DaqEventAtVar` (C++) | Per-variable dynamic slots — ext=3+: one per measurement |
-| DWARF global/static symbols | Linker output | Resolve absolute addresses of global measurement and calibration variables |
-| DWARF type info (`DW_TAG_structure_type` etc.) | Compiler | Generate `TYPEDEF_STRUCTURE` / `RECORD_LAYOUT` entries in A2L |
-
-See no_a2l_demo or free_rtos_demo.  
-
-
 ## Addressing Modes
 
 XCPlite makes intensive use of relative addressing.
@@ -249,13 +282,18 @@ XCPlite absolute addressing: XCPLITE__CASDD (default)
 0x03.       - Pointer relative (Event based relative addressing mode with asynchronous access)
 ...
 0x0F
-0xFD        - File download memory space (XCP_ADDR_EXT_FILE)
+0xFD        - File upload memory space (XCP_ADDR_EXT_FILE)
 0xFE        - MTA pointer address space (XCP_ADDR_EXT_PTR)
 0xFF        - Undefined address extension (XCP_UNDEFINED_ADDR_EXT)
 
 XCPlite relative addressing: XCPLITE__ACSDD (for use cases with external A2L generation)
 0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
 0x01        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
+... same as above
+
+XCPlite absolute addressing without calibration segment management: XCPLITE__AXSDD (XCP_ENABLE_CALSEG_LIST not defined)
+0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
+0x01        - Memory access via application callbacks (XCP_ADDR_EXT_APP)
 ... same as above
 
 XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (for SHM mode)
@@ -371,36 +409,3 @@ In XCPlite, the EPK may be specified with an API function or is generated from b
 - Configuration for begin/end atomic calibration user defined XCP command is not default. Must be set once in a new CANape project to 0x01F1 and 0x02F1
 - EPK segment is defined with 2 readonly pages, because of CANape irritations with mixed mode calibration segment. CANape would not care for a single page EPK segment, reads active page always from segment 0 and uses only SET_CAL_PAGE ALL mode
 - CANape ignores address extension of `loop_histogram` in ccp_demo, when saving calibration values to a parameter file. `loop_histogram` is a CHARACTERISTIC array, but it is in a measurement group
-
-
-## 5 · Appendix
-
-### Static Instrumentation Markers for A2L Updater/Creator Tools
-
-The code instrumentations creates static variables, to help an A2L Updater/Creator or an XCP tool to build an A2L file or its database from  linker map and debug information only.  
-The markers make it possible to detect calibration segments, events, capture buffers and the scope where an event is triggered in the ELF/DWARF file.
-Runtime A2L generation can be turned off. Measurement and calibration metadata may be added with the usual methods.  
-  
-This is currently in experimental state.  
-The xcpclient tool has support to read this information from an ELF/DWARF file.  
-CPP is not supported yet.  
-
-
-```c
-//Create calibration segment macro segment index once pattern
-static tXcpCalSegIndex calseg_id_##name;
-
-// Create measurement event macro event id once pattern
-// From  DaqCreateXxx(name), 
-static tXcpEventId evt_id_##name
-static tXcpEventId evt__dynname
-
-// Daq capture macro (DaqCapture(event, var)) capture buffer
-static __typeof__(var) daq__##event##__##var
-
-// Daq event trigger macro event id once pattern
-// From C macros DaqCreateAndTriggerXxx(name), DaqEventVar(name, ...), ...)
-static tXcpEventId trg__AAS__##name // For absloute and stack relative addressing [XCP_ADDR_EXT_ABS and XCP_ADDR_EXT_DYN]
-static tXcpEventId trg__AASD__##name // For absolute, stack and relative addressing [XCP_ADDR_EXT_ABS, XCP_ADDR_EXT_DYN, XCP_ADDR_EXT_DYN+1]
-static tXcpEventId trg__AASDD__##name // for multiple DYN address extensions [XCP_ADDR_EXT_DYN+1 ..= XCP_ADDR_EXT_DYN_MAX] 
-```

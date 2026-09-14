@@ -11,54 +11,15 @@ The A2L database is instead generated offline by a tool.
 The `xcpclient` test tool, which is part of this repository under `tools/xcpclient/`, includes an XCPlite-specific ELF->A2L generator that reads the ELF file and DWARF debug information to create a complete, plug&play A2L database for the application.  
 
 
-## The XCPlite Build Time A2L Generation Concept
-  
-The fundamental idea is to provide additional compile-time and link-time information in the ELF file, which is used by a specialized A2L database creator (ELF -> A2L converter) designed exclusively for XCPlite. The XCPlite A2L creator knows implementation details of the XCPlite code instrumentation library to automate the A2L generation process as much as possible:  
-- It automatically detects all events and calibration memory segments created by the XCPlite code instrumentation API macros.
-- It detects the code locations of the event trigger points and automatically associates local and member variables with complex types existing in each events scope.  
-- It can add metadata for calibration parameters and measurement variables, such as physical units, min/max limits, and scaling information.
+## Offline A2L generation
 
-In addition to that, the information generated at link time is used by the XCPlite runtime to register events and calibration segments with deterministic order and indexing. Events and calibration segments may be declared anywhere in the code, the A2L file will remain stable, independent of code execution order.
+The concept, the workflow, the rules for the application code, the naming of types and variables, the supported types and the
+diagnostics of the ELF/DWARF to A2L generator are described in [docs/OFFLINE_A2L.md](../../docs/OFFLINE_A2L.md). In short:
 
-The test XCP client in the xcpclient tool can work with the ELF file directly, no need for a separate A2L file. The A2L file is needed for tools like CANape, which support the XCP protocol in the standard way.
-
-
-
-
-### Using of the xcpclient A2L Creator
-
-An XCPlite specific A2L creator/writer with ELF/DWARF reader is built into the xcpclient tool.  
-
-Option 1: A2L template generation:
-
-- Creates a complete A2L template with IF_DATA, epk version, memory segments and events from ELF by detecting static segment and event marker variables created by the XCPlite code instrumentation
-
-
-Option 2: Full A2L content generation:
-
-- Calibration parameters
-    Option 1: #undef OPTION_CAL_SEGMENTS_ABS
-        XCP is configured for segment relative addressing mode
-        Address calibration parameters by their segment number and offset.
-        This is the preferred option for 64-bit microprocessors, where the calibration segments may be located anywhere in the 64-bit address space.
-    Option 2: #define OPTION_CAL_SEGMENTS_ABS
-        XCP configured for absolute calibration segment addressing
-        This is the preferred option for microcontrollers
-        The reference pages of all calibration parameters must be in addressable (4 GB - 32bit) global memory (.bss or .rodata segment must be in this range)
-        Detect calibration parameters by the address of their default/reference page by naming convention and segment marker variable
-
-- Measurement variables
-    Global or static measurement variables are restricted to be in a addressable (4 GB - 32bit) global memory range. A2L addresses are relative in this range
-    Local variables on stack are measured by knowing their CFA offset in the current stack frame, and variables on heap are addressed relative to explicitly given anchor addresses
-    The creator takes all global, static and local variables into account in specified compilation units
-    It tries to detect an appropriate fixed event for each variable by detecting an event trigger in the same function, if not it uses the unsafe default event named `async` as default event
-
-- Add all types required for the variables found as TYPEDEF_STRUCTURE
-
-Content generation in Option 2 can alternatively be done manually, with any other A2L tool from Vector or open source tools.  
-
-
-
+- Use the instrumentation macros, not the raw C API, only the macros emit the ELF markers.
+- Build with debug information (`-g`, `Debug` or `RelWithDebInfo`).
+- Mark local measurement variables `volatile`, so that they stay on the stack frame in optimized builds.
+- Declare calibration segments with `CalSegDecl` or `CalSegDeclRef`, the default page needs static storage duration.
 
 ## Library Configuration Override
 
@@ -102,41 +63,6 @@ This is already set when building with `XCPLITE_CONFIGURATION=no_a2l`.
 The same pattern can be used to create any other application-specific configuration override.
 
 > **Note:** The no_a2l_demo must be built in isolation because the override disables the A2L generator that other examples depend on. A dedicated build directory `build-no_a2l` avoids cache conflicts.
-
----
-
-## How xcpclient finds your events and variables
-
-`xcpclient --create-a2l` discovers events, calibration segments, and local variables
-automatically — **without any runtime A2L calls in your code** — by reading named ELF
-sections and DWARF debug info written by the XCPlite macros.
-
-To make this work correctly, follow these rules:
-
-1. **Always use the macros, never the raw C API** (`XcpCreateEvent`, `XcpCreateCalSeg`, etc.).
-   Only the macros emit the ELF section data and DWARF anchors that xcpclient needs.
-
-2. **Mark local measurement variables `volatile`** in optimized builds.
-   Without `volatile` the compiler may eliminate stack variables or give them unreliable
-   DWARF location expressions:
-   ```c
-   void myTask(void) {
-       volatile uint32_t counter = 0;  // XCP: keep on stack for offline A2L
-       DaqCreateAndTriggerEvent(myTask);
-   }
-   ```
-
-3. **Build with debug information** (`-g` / `CMAKE_BUILD_TYPE=Debug` or `RelWithDebInfo`).
-   xcpclient reads DWARF; stripped builds have no type or location data.
-
-4. **Prefer file-scope `CalSegDecl` / `CalSegDeclRef`** so the descriptor is clearly
-    visible and allocated for program lifetime. A local-scope `CalSegDeclRef` is also
-    valid when used intentionally to keep visibility local, as long as the default
-    object has static storage duration.
-
-For the full ELF/DWARF mechanics — section layouts, the `trg__` anchor naming convention,
-and address encoding — see
-[docs/TECHNICAL.md — Offline A2L Generation](../../docs/TECHNICAL.md#offline-a2l-generation--elfdwarf-internals).
 
 ---
 
@@ -219,13 +145,15 @@ cmake -B build-no_a2l -S . -DXCPLITE_CONFIGURATION=no_a2l -DCMAKE_BUILD_TYPE=Deb
 cmake --build build-no_a2l
 
 # Generate an A2L file for the no_a2l_demo application offline from its ELF file
+# The ELF file must come from a Linux build: executables built on macOS (Mach-O) contain no DWARF debug information
+# and are rejected by xcpclient, see create_a2l.sh for a remote build on a Linux target
 # Example:
 # Add all variables
-xcpclient  --offline --elf build-no_a2l/no_a2l_demo --a2l no_a2l_demo.a2l --create-a2l --verbose 1
+xcpclient  --offline --elf build-no_a2l/no_a2l_demo --a2l no_a2l_demo.a2l --create-a2l --default-event=mainloop --verbose 1
 # Add the given IP address:port and protocol to the generated A2L file
-xcpclient --udp --dest-addr 192.168.0.206  --offline --elf build-no_a2l/no_a2l_demo  --a2l no_a2l_demo.a2l  --create-a2l 
+xcpclient --udp --dest-addr 192.168.0.206  --offline --elf build-no_a2l/no_a2l_demo  --a2l no_a2l_demo.a2l  --create-a2l --default-event=mainloop
 # Filter on specific variables and compilation units
-xcpclient --offline --udp --dest-addr 192.168.0.206 --elf build-no_a2l/no_a2l_demo   --a2l no_a2l_demo.a2l --create-a2l --elf-unit-filter main --elf-var-filter "^(counter|params)"
+xcpclient --offline --udp --dest-addr 192.168.0.206 --elf build-no_a2l/no_a2l_demo   --a2l no_a2l_demo.a2l --create-a2l --default-event=mainloop --elf-unit-filter main --elf-var-filter "^(counter|params)"
 
 
 # Connect to the XCP on UDP server on 192.168.0.206:5555, upload ELF file from target (requires OPTION_ENABLE_ELF_UPLOAD) and create the A2L file
@@ -235,48 +163,3 @@ xcpclient --udp --dest-addr 192.168.0.206  --elf no_a2l_demo.elf --upload-elf  -
 xcpclient --udp --dest-addr=192.168.0.206:5555 --elf no_a2l_demo.elf --elf-var-filter "global_counter" --mea ".*" --time 5 --csv no_a2l_demo.csv
 
 ```
-
-
-## Other A2L generation options
-
-### Using Vector CANape integrated A2L editor and ELF file support
-
-Drop the template generated by xcpclient into CANape and create a new XCP on Ethernet device.  
-Enable access to the ELF file in the device configuration.  
-Use the A2L editor to add individual measurement parameters.  
-For calibration segments or blocks, add the complete default value structure as an INSTANCE of TYPEDEF_STRUCTURE or add the variables as CHARACTERISTIC.  
-
-
-### Using Vector A2L-Toolset A2L-Creator to add measurement and calibration metadata
-
-The example code contains some A2L creator metadata annotation to add metadata such as calibration variable limits and physical units.  
-The A2L Creator is a commercial Vector product.  
-
-### Using Open Source a2ltool
-
-Example:
-Add the calibration segment `params` and the measurement variable `counter` to the A2L template:
-
-```bash
-a2ltool  --update --measurement-regex "counter"  --characteristic-regex "params" --elffile  no_a2l_demo.elf  --enable-structures --output no_a2l_demo.a2l 
-```
-
-
-
-
-
-### TODO List and open issues
-
-- Improve how to deal with enum size
-- Heap measurement variables
-    The A2L creator can not handle heap variables yet
-    Needs to detect trg__AAS or trg__AASD type and analyze the argument type of DaqTriggerEvent(), pointer to type
-- Thread local variables
-    The A2L creator can not handle thread local variables yet
-    The DAQ capture method does not work for TLS, need a ApplXcpGetTlsBaseAddress() function, maybe introduce AAST type
-    Detect the base address of the TLS block, like it is done in ApplXcpGetBaseAddr()/xcp_get_base_addr() for the global variables
-    The DaqCapture macros as an alternative, does not work yet
-- Function parameters
-    Define a macro to declare function parameters as XCP_MEA, which spills them to stack
-    A2L Creator ELF reader parser must detect the function parameters with the CFA offset in the stack frame
-- Make sure the event trigger location and the variable location have the same CFA (not seen any violations yet)

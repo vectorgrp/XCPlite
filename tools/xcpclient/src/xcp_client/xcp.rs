@@ -283,6 +283,7 @@ pub enum XcpCommand {
     AllocOdt = CC_ALLOC_ODT as isize,
     AllocOdtEntry = CC_ALLOC_ODT_ENTRY as isize,
     TimeCorrelationProperties = CC_TIME_CORRELATION_PROPERTIES as isize,
+    Undefined = 0,
 }
 
 impl From<u8> for XcpCommand {
@@ -325,6 +326,7 @@ impl From<u8> for XcpCommand {
             CC_ALLOC_ODT => XcpCommand::AllocOdt,
             CC_ALLOC_ODT_ENTRY => XcpCommand::AllocOdtEntry,
             CC_TIME_CORRELATION_PROPERTIES => XcpCommand::TimeCorrelationProperties,
+            0 => XcpCommand::Undefined,
             _ => {
                 error!("Unknown command code: 0x{:02X}", code);
                 panic!("Unknown command code: 0x{:02X}", code);

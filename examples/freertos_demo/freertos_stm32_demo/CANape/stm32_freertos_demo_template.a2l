@@ -1,5 +1,5 @@
-
-/* Created by xcp_client with target XCP event/segment and ELF/DWARF event/segment information (template, no variables), online mode - 2026-06-18 04:14:21 */
+﻿
+/* Created by xcp_client with target XCP event/segment and ELF/DWARF event/segment information (template, no variables), online mode - 2026-09-11 11:55:15 */
 ASAP2_VERSION 1 71
 /begin PROJECT project_name ""
 /begin HEADER "" VERSION "1.0" PROJECT_NO XCPLITE__ACSDD /end HEADER
@@ -82,7 +82,7 @@ ASAP2_VERSION 1 71
     /begin TYPEDEF_CHARACTERISTIC C_F32 "" VALUE F32 0 NO_COMPU_METHOD -1e12 1e12 /end TYPEDEF_CHARACTERISTIC
     
 /begin MOD_PAR "" 
-EPK "V102" ADDR_EPK 0x24000714
+EPK "V200" ADDR_EPK 0x24000714
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x24000714 4 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
     /begin SEGMENT 0 /*number*/ 2 /*pages*/ 0 /* addr_ext*/ 0 0
@@ -92,7 +92,7 @@ EPK "V102" ADDR_EPK 0x24000714
     /end SEGMENT
 /end IF_DATA
 /end MEMORY_SEGMENT
-/begin MEMORY_SEGMENT parameters "" DATA FLASH INTERN 0x803B1BC 16 -1 -1 -1 -1 -1
+/begin MEMORY_SEGMENT parameters "" DATA FLASH INTERN 0x803ACE4 20 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
     /begin SEGMENT 1 /*number*/ 2 /*pages*/ 0 /* addr_ext*/ 0 0
     /begin CHECKSUM XCP_ADD_44 MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -105,7 +105,7 @@ EPK "V102" ADDR_EPK 0x24000714
 
 /begin IF_DATA XCP
         /begin PROTOCOL_LAYER
-        0x0104 1000 2000 0 0 0 0 0 252 1468 BYTE_ORDER_MSB_LAST ADDRESS_GRANULARITY_BYTE
+        0x0104 1000 2000 0 0 0 0 0 248 1024 BYTE_ORDER_MSB_LAST ADDRESS_GRANULARITY_BYTE
         OPTIONAL_CMD GET_COMM_MODE_INFO
         OPTIONAL_CMD GET_ID
         OPTIONAL_CMD SET_REQUEST
@@ -138,15 +138,17 @@ EPK "V102" ADDR_EPK 0x24000714
         /end PROTOCOL_LAYER
 
 		/begin DAQ
-            DYNAMIC 0 2 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
+            DYNAMIC 0 3 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
             /begin TIMESTAMP_SUPPORTED
                 0x1 SIZE_DWORD UNIT_1US TIMESTAMP_FIXED
             /end TIMESTAMP_SUPPORTED
             
+			/* compilation unit = 81, function = foo, CFA = 0 */
+			/begin EVENT "foo" "foo" 0 DAQ 0xFF 0 0 0 CONSISTENCY DAQ /end EVENT
 			/* compilation unit = 81, function = fastTask, CFA = 0 */
-			/begin EVENT "fastTask" "fastTask" 0 DAQ 0xFF 0 0 0 CONSISTENCY DAQ /end EVENT
+			/begin EVENT "fastTask" "fastTask" 1 DAQ 0xFF 0 0 0 CONSISTENCY DAQ /end EVENT
 			/* compilation unit = 81, function = slowTask, CFA = 0 */
-			/begin EVENT "slowTask" "slowTask" 1 DAQ 0xFF 0 0 0 CONSISTENCY DAQ /end EVENT
+			/begin EVENT "slowTask" "slowTask" 2 DAQ 0xFF 0 0 0 CONSISTENCY DAQ /end EVENT
 
 		/end DAQ
 
@@ -160,13 +162,16 @@ EPK "V102" ADDR_EPK 0x24000714
 
 /* Measurements */
 
+/* Measurements for event 'foo' */
+
 /* Measurements for event 'fastTask' */
 
 /* Measurements for event 'slowTask' */
 
 /* Measurements without fixed event */
 
-/begin GROUP Measurements "" ROOT /begin SUB_GROUP fastTask slowTask /end SUB_GROUP /end GROUP
+/begin GROUP Measurements "" ROOT /begin SUB_GROUP foo fastTask slowTask /end SUB_GROUP /end GROUP
+/begin GROUP foo "" /begin REF_MEASUREMENT /end REF_MEASUREMENT /end GROUP
 /begin GROUP fastTask "" /begin REF_MEASUREMENT /end REF_MEASUREMENT /end GROUP
 /begin GROUP slowTask "" /begin REF_MEASUREMENT /end REF_MEASUREMENT /end GROUP
 

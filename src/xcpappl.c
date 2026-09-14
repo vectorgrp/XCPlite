@@ -16,7 +16,8 @@
 #include <string.h>   // for strncpy
 
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
-#include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
+#include "platform.h"   // for clockGet, SNPRINTF, STRNLEN, platform defines
+#include "sockets.h"    // for socketGetLocalAddr
 #include "xcp.h"        // for CRC_XXX
 #include "xcp_cfg.h"    // for XCP_ENABLE_xxx
 #include "xcplib_cfg.h" // for OPTION_xxx
@@ -558,6 +559,13 @@ static uint32_t openFile(const char *filename) {
     fseek(gXcpFile, 0, SEEK_END);
     gXcpFileLength = (uint32_t)ftell(gXcpFile);
     fseek(gXcpFile, 0, SEEK_SET);
+    // @@@@ TODO: This assert aborts the whole XCP server process when the file is empty, which a
+    // remote XCP client can trigger with GET_ID A2L upload (a previous crashed run leaves a 0 byte
+    // A2L behind, and it is then reproduced on every subsequent start). An empty or unreadable file
+    // is a normal runtime condition, not a programming error: return 0 here and let the caller
+    // report it. In a release build (NDEBUG) the assert disappears and exactly that already happens
+    // - the client then reports "A2L file not available, GET_ID 4 returned size 0" - so this is a
+    // debug-only abort and a silent Debug/Release behaviour difference.
     assert(gXcpFileLength > 0);
     DBG_PRINTF4("File %s ready for upload, size=%u\n", filename, gXcpFileLength);
     return gXcpFileLength;
@@ -569,6 +577,13 @@ bool ApplXcpReadFile(uint8_t size, uint32_t addr, uint8_t *data) {
         DBG_PRINT_ERROR("File not open for reading!\n");
         return false;
     }
+    // @@@@ TODO: Two robustness issues here, neither with a confirmed failure today - A2L upload
+    // itself is verified working (use: xcpclient --upload-a2l --a2l <name>):
+    //  1) the diagnostic lumps "offset out of range" and "short read" into one misleading text.
+    //     A short read is reported as "exceeds file length", which sends debugging the wrong way.
+    //  2) the read is purely sequential and ignores addr: it relies on the FILE* position and
+    //     closes the file at EOF, so any retry, re-set MTA or non sequential block transfer would
+    //     fail. Seeking to addr before reading would make this robust regardless of client behaviour.
     if (addr + size > gXcpFileLength || size != fread(data, 1, (uint32_t)size, gXcpFile)) {
         closeFile();
         DBG_PRINTF_ERROR("ApplXcpReadFile addr=%u size=%u exceeds file length=%u\n", addr, size, gXcpFileLength);

@@ -4,7 +4,8 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 
-#include "platform.h" // from libxcplite for SOCKET_HANDLE, MUTEX, ...
+#include "platform.h" // from libxcplite for MUTEX
+#include "sockets.h"  // from libxcplite for SOCKET_HANDLE
 #include "util.h"     // from libxcplite for average and linear regression filters
 
 #include "ptp.h"    // for tPtp, OPTION_ENABLE_XCP

@@ -24,7 +24,7 @@ CMake-based. **Five mutually exclusive build configurations**, each with its own
 
 Selected via `-DXCPLITE_CONFIGURATION=<name>` (default: `default`). Within a configuration, `XCPLITE_BUILD_EXAMPLES`, `XCPLITE_BUILD_TESTS`, `XCPLITE_BUILD_TOOLS` (all default `OFF`) control which targets get built — which targets exist depends on the active configuration (see table in `docs/BUILDING.md`). `XCPLITE_BUILD_RUST_TOOLS` builds `xcpclient`/`bintool` via cargo (any configuration). `XCPLITE_BUILD_BPF_DEMO` builds `bpf_demo` (default config, Linux only, requires libbpf).
 
-`examples/silkit_demo` and `examples/external_example` are standalone projects with their own `CMakeLists.txt` that consume an installed xcplite via `find_package(xcplite)` — they are not built from the root project.
+`examples/silkit_demo`, `examples/external_example` and `examples/fetchcontent_example` are standalone projects with their own `CMakeLists.txt` — they are not built from the root project. The first two consume an installed xcplite via `find_package(xcplite)`; `fetchcontent_example` builds xcplite from source via `FetchContent` (`./build.sh local` builds against the working tree). Both paths provide the target `xcplite::xcplite`. When consumed as a subproject, the root `CMakeLists.txt` leaves the consumer's install prefix and `CMAKE_<LANG>_FLAGS_<CONFIG>` untouched and defaults `XCPLITE_INSTALL` to `OFF`.
 
 ### Common commands
 
@@ -56,7 +56,7 @@ Switching compilers requires a fresh build directory (CMake caches the compiler 
 
 ### Running tests
 
-Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `clock_test`, `queue_test`, `xcp_test`, `type_detection_test_*`; `ptp` config: `clock_test` only). Build then run directly, e.g.:
+Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `daq_config_test`, `clock_test`, `queue_test`, `xcp_test`, `type_detection_test_*`; `ptp` config: `clock_test` only). Build then run directly, e.g.:
 
 ```bash
 ./build.sh tests
@@ -89,7 +89,10 @@ src/queue*.c                    Lock-free/mutex transmit queue implementations (
 src/cal.c/.h                    Calibration segment RCU implementation (page switching, locks)
 src/a2l.c, src/a2l_writer.c     Runtime A2L file generation
 src/persistence.c/.h            Binary (.bin) parameter/event persistence across restarts
-src/platform.c/.h               OS abstraction (threads, sockets, clock, atomics) — Linux/macOS/QNX/Windows/FreeRTOS
+src/platform.c/.h               OS abstraction (threads, clock, mutex, atomics) — Linux/macOS/QNX/Windows/FreeRTOS
+src/sockets.c/.h                Socket abstraction over the OS socket API (all standard platforms)
+src/socket_raw.c                Raw-Ethernet UDP/IPv4 transport (OPTION_ENABLE_UDP_RAW), see docs/SOCKET_RAW.md
+src/socket_raw_hal.h            Raw Ethernet HAL interface; socket_raw_hal_linux.c is the AF_PACKET backend
 src/util.c/.h                   Shared helpers
 ```
 
@@ -119,7 +122,9 @@ XCPlite encodes *where* a measured/calibrated variable lives (global, stack, hea
 - `xcp_evts` section — `tXcpEventDescriptor` constants emitted by `DaqCreateEvent`/`DaqCreateAndTriggerEvent`
 - `xcp_cals` section — `tXcpCalSegDescriptor` constants emitted by `CalSegDecl`+`CalSegCreate`
 
-and DWARF scope anchors named `trg__<mode-letters>__<event-name>` (e.g. `trg__AAS__foo`, letter position = address-extension value [0..]: `A`=absolute, `C`=cal-segment-relative, `S`=stack-relative, `D`=dynamic/heap) emitted by the trigger macros, to reconstruct addressing without any runtime A2L calls. Full details, including what changes if you modify the trigger macros, are in `docs/TECHNICAL.md`.
+and DWARF scope anchors named `trg__<mode-letters>__<event-name>` (e.g. `trg__AAS__foo`, letter position = address-extension value [0..]: `A`=absolute, `C`=cal-segment-relative, `S`=stack-relative, `D`=dynamic/heap) emitted by the trigger macros, to reconstruct addressing without any runtime A2L calls. The marker contract (sections, marker names, trigger anchor naming) is in `docs/TECHNICAL.md`, the tool side (workflow, naming rules, symbol resolution, supported types) in `docs/OFFLINE_A2L.md`.
+
+The generator reads ELF files only. Executables built on macOS are Mach-O and carry no DWARF (the linker leaves it in the `.o` files / `.dSYM`), so `xcpclient` rejects them with an explicit "macOS is not supported" error and exit status 1 — A2L files for `no_a2l`/`rtos` builds must be generated from a Linux build, which is what the examples' `create_a2l.sh` scripts do via a remote build on a Linux target.
 
 ### Shared-memory (SHM) multi-application mode (`docs/SHM.md`)
 

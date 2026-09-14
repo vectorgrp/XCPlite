@@ -75,8 +75,8 @@ endif()
 
 
 target_compile_definitions(xcplite PRIVATE
-    _FREE_RTOS                                           # Force FreeRTOS code paths in platform.h/platform.c, xcpappl.c
-    FREE_RTOS_POSIX_SIM                                  # Use Linux sockets and clock code in platform.c when _FREE_RTOS is defined
+    _FREE_RTOS                                           # Force FreeRTOS code paths in platform.h/c and sockets.h/c, xcpappl.c
+    FREE_RTOS_POSIX_SIM                                  # Use Linux sockets and clock code in platform.c/sockets.c when _FREE_RTOS is defined
     "XCPLIB_CFG_OVERRIDE=\"xcplib_rtos_cfg.h\""
 )
 

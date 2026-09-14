@@ -7,7 +7,7 @@
 
 **  File        : STM32H753XX_FLASH_changed.ld
 **
-**  Author		: STM32CubeMX
+**  Author		: STM32CubeMX, modified for XCPlite sections
 **
 **  Abstract    : Linker script for STM32H753ZITx series
 **                2048Kbytes FLASH and 1056Kbytes RAM
@@ -110,7 +110,10 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
-  /* XCPlite calibration descriptors: keep section alive with --gc-sections */
+
+  /* keep XCP sections alive with --gc-sections */
+
+  /* XCPlite calibration descriptors */
   xcp_cals :
   {
     . = ALIGN(4);
@@ -121,7 +124,7 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
-/* XCPlite event descriptors: keep section alive with --gc-sections */
+  /* XCPlite event descriptors */
   xcp_evts :
   {
     . = ALIGN(4);
@@ -129,6 +132,15 @@ SECTIONS
     KEEP(*(xcp_evts))
     KEEP(*(xcp_evts.*))
     PROVIDE_HIDDEN(__stop_xcp_evts = .);
+    . = ALIGN(4);
+  } >FLASH
+
+  /* XCPlite meta data */
+  xcp_meta :
+  {
+    . = ALIGN(4);
+    KEEP(*(xcp_meta))
+    KEEP(*(xcp_meta.*))
     . = ALIGN(4);
   } >FLASH
 

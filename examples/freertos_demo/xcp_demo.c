@@ -29,12 +29,13 @@
 
 // XCPlite parameters
 #define XCP_PROJECT_NAME "freertos_demo"
-#define XCP_PROJECT_VERSION "V102"
+#define XCP_PROJECT_VERSION "V200"
 #define XCP_USE_TCP false
 #define XCP_SERVER_PORT 5555
 #define XCP_QUEUE_SIZE 0 // The queue size is derived from OPTION_QUEUE_32_SEGMENT_COUNT for the 32-bit FreeRTOS build; this parameter is ignored
 #define XCP_LOG_LEVEL 4  // 3 - Info, 4 - Print XCP commands, 5 - Debug
 
+// Start XCPlite
 bool startXcpServer() {
 
     XcpSetLogLevel(XCP_LOG_LEVEL);
@@ -109,26 +110,18 @@ static bool createDemoTask(TaskFunction_t taskCode, const char *name, const uint
 }
 
 //----------------------------------------------------------------------------------------------------
-// Measurement variables
-
 // Global measurement values
+
 uint16_t global_counter = 0;
-XCP_COMMENT(global_counter, "Global measurement variable, incremented in fastTask");
+XCP_COMMENT(global_counter, "Global measurement variable, writable, incremented in fastTask");
 XCP_READ_WRITE(global_counter);
 
-// Platform analog input when available, otherwise a generated sine signal
-#define SLOWTASK_PHASE_STEP_RAD 0.001f
-#define SINE_PERIOD_RAD 6.28318530717958647692f
+// Platform analog input when available
 float channel1 = 0.0f;
-XCP_COMMENT(channel1, "Pressure measured on analog channel 1 or generated sine wave, updated in slowTask");
-XCP_UNIT(channel1, "bar");
+XCP_COMMENT(channel1, "Generated sine wave, updated in slowTask");
+XCP_UNIT(channel1, "Volt");
 
-#ifdef OPTION_ANALOG
-float pressure_sensor_voltage = NAN;
-XCP_COMMENT(pressure_sensor_voltage, "Raw pressure sensor voltage measured on analog channel 1");
-XCP_UNIT(pressure_sensor_voltage, "V");
-#endif
-
+// Test
 static uint32_t fastTaskOverruns = 0;
 static uint32_t slowTaskOverruns = 0;
 
@@ -141,37 +134,36 @@ struct parameters {
     uint32_t slow_task_period_ms; // Period of measurement task 2 in milliseconds
     uint16_t counter_max;         // Counter wrap-around value for the global_counter incremented in fastTask
     float amplitude;              // Amplitude for the sine signal generator in slowTask
-    float sensor_voltage_point1;  // Sensor voltage at calibration point 1
-    float pressure_point1;        // Pressure at calibration point 1
-    float sensor_voltage_point2;  // Sensor voltage at calibration point 2
-    float pressure_point2;        // Pressure at calibration point 2
+    float period;                 // Period of the sine signal generator in slowTask    
 };
 
-XCP_UNIT(parameters__fast_task_period_ms, "ms");
-XCP_UNIT(parameters__slow_task_period_ms, "ms");
-XCP_UNIT(parameters__amplitude, "bar");
-XCP_COMMENT(parameters__sensor_voltage_point1, "Pressure sensor voltage at two-point calibration point 1");
-XCP_UNIT(parameters__sensor_voltage_point1, "V");
-XCP_COMMENT(parameters__pressure_point1, "Pressure at two-point calibration point 1");
-XCP_UNIT(parameters__pressure_point1, "bar");
-XCP_COMMENT(parameters__sensor_voltage_point2, "Pressure sensor voltage at two-point calibration point 2");
-XCP_UNIT(parameters__sensor_voltage_point2, "V");
-XCP_COMMENT(parameters__pressure_point2, "Pressure at two-point calibration point 2");
-XCP_UNIT(parameters__pressure_point2, "bar");
+
 
 // Default calibration parameters (default/reference page)
 // &parameters is the A2l file address of the calibration parameter segment 'parameters'
 // Typename and variable name must be identical
 const struct parameters parameters = {
-    .fast_task_period_ms = 1, // 1 ms = 1000 Hz
-    .slow_task_period_ms = 2, // 2 ms = 500 Hz
+    .fast_task_period_ms = 1,  // 1 ms = 1000 Hz
+    .slow_task_period_ms = 10, // 10 ms = 100 Hz
     .counter_max = 1000,
     .amplitude = 1.0f,
-    .sensor_voltage_point1 = 0.0f,
-    .pressure_point1 = 0.0f,
-    .sensor_voltage_point2 = 1.0f,
-    .pressure_point2 = 1.0f,
+    .period = 1.0f,    
 };
+
+XCP_COMMENT(parameters__counter_max, "Maximum value for the global counter");
+XCP_LIMITS(parameters__counter_max, 1, 10000);
+XCP_COMMENT(parameters__fast_task_period_ms, "Period of the fast task in ms");
+XCP_UNIT(parameters__fast_task_period_ms, "ms");
+XCP_LIMITS(parameters__fast_task_period_ms, 1, 100);
+XCP_COMMENT(parameters__slow_task_period_ms, "Period of the slow task in ms");
+XCP_UNIT(parameters__slow_task_period_ms, "ms");
+XCP_LIMITS(parameters__slow_task_period_ms, 2, 1000);
+XCP_COMMENT(parameters__amplitude, "Amplitude of the sine signal generator");
+XCP_UNIT(parameters__amplitude, "Volt");
+XCP_LIMITS(parameters__amplitude, 0.0f, 10.0f);
+XCP_COMMENT(parameters__period, "Period of the sine signal generator");
+XCP_UNIT(parameters__period, "s");
+XCP_LIMITS(parameters__period, 0.001f, 10.0f);  
 
 // Declare a calibration segment that wraps 'parameters' for thread-safe and consistent access.
 // This creates:
@@ -185,16 +177,66 @@ CalSegDeclRef(parameters, parameters_calseg);
 CalSegDecl(parameters);
 #endif
 
-// clamp_parameter calibration parameters to a given value range
-#define clamp_parameter(x, y, min, max)                                                                                                                                            \
+
+// Optional helper to clamp calibration parameters during runtime (for safety reasons) to the value range given by XCP_LIMIT
+#define clamp_parameter(x, p, default, name)                                                                                                                                            \
     do {                                                                                                                                                                           \
-        if ((y) < (min))                                                                                                                                                           \
-            (x) = (min);                                                                                                                                                           \
-        else if ((y) > (max))                                                                                                                                                      \
-            (x) = (max);                                                                                                                                                           \
+        if (((p)->name) < (xcp_meta__min__##default##__##name))                                                                                                                                                           \
+            (x) = xcp_meta__min__##default##__##name;                                                                                                                                                           \
+        else if (((p)->name) > (xcp_meta__max__##default##__##name))                                                                                                                                                      \
+            (x) = xcp_meta__max__##default##__##name;                                                                                                                                                           \
         else                                                                                                                                                                       \
-            (x) = (y);                                                                                                                                                             \
+            (x) = (p)->name;                                                                                                                                                             \
     } while (0)
+
+//----------------------------------------------------------------------------------------------------
+// Functions
+
+XCP_NOINLINE void foo(void) {
+
+    // Static local  variable
+    XCP_COMMENT(static_counter, "Local static measurement variable in function `foo`");
+    static uint16_t static_counter = 0;
+
+    // Local variable measured via direct stack access
+    // The offline A2L generator can discover it in the ELF file and associate it to the functions DAQ event trigger
+    // This is for convinience, but has limitations in optimized builds, use explicit capture for reliable visibility in optimized builds
+    //  - XCP_MEAS keeps this local measurement variable visible in optimized builds (spilled to stack)
+    //  - With clang compiler, some local measurement variables may not be visible
+    //  - Varibales in inlined functions are not visible
+    XCP_COMMENT(counter, "Local captured measurement variable in function `foo`");
+    XCP_MEAS uint32_t counter = 0;
+
+    static_counter = static_counter + 1;
+    counter = static_counter;
+
+    XCP_MEAS int8_t test_int8 = static_counter - 1;
+    XCP_MEAS int16_t test_int16 = static_counter -2;
+    XCP_MEAS int32_t test_int32 = static_counter -3;
+    XCP_MEAS uint64_t test_int64 = static_counter -4;
+
+
+    // Local variables measured via capture
+    float test_float = 0.001f * static_counter;
+    double test_double = 0.002 * static_counter;
+    uint8_t test_uint8 = 1;
+    uint16_t test_uint16 = static_counter + 2;
+    uint32_t test_uint32 = static_counter + 3;
+    uint64_t test_uint64 = static_counter + 4;
+    struct test_struct {
+        uint16_t a;
+        int16_t b;
+        float f;
+        uint8_t d[3];
+    } test_struct = {1, -2, 0.003f * static_counter, {1, 2, 3}};
+    uint8_t test_array[3] = {1, 2, static_counter & 0xff};
+
+
+    // Create and trigger the DAQ event 'foo' with captured local variables
+    // Capturing local variables comes with the overhead of additionally space used for the copy on stack
+    // But copying is usually cheaper than generally spilling registers to stack with XCP_MEAS 
+    DaqCreateAndTriggerEventCapture(foo, counter, test_float, test_double, test_uint8, test_uint16, test_uint32, test_uint64, test_struct, test_array);
+}
 
 //----------------------------------------------------------------------------------------------------
 // Tasks
@@ -203,10 +245,11 @@ CalSegDecl(parameters);
 static void fastTask(void *parameter) {
     (void)parameter;
 
-    // Volatile keeps this local measurement variable visible in optimized builds,
-    // The offline A2L generator can discover it in the ELF file and associate it to the functions DAQ event trigger.
-    volatile uint16_t counter = 0;
-    static volatile uint16_t static_counter = 0;
+    XCP_COMMENT(counter, "Local measurement variable in `fastTask`");
+    XCP_MEAS uint16_t counter = 0;
+
+    XCP_COMMENT(static_counter, "Local static measurement variable in `fastTask`");
+    static uint16_t static_counter = 0;
 
     printf("fastTask started\n");
     printf("  frameaddr = %p\n", xcp_get_frame_addr());
@@ -236,10 +279,10 @@ static void fastTask(void *parameter) {
 #endif
 
             // Save the task period parameter, don't delay during the lock to give XCP a chance to modify the parameters.
-            clamp_parameter(period_ms, params->fast_task_period_ms, FASTTASK_PERIOD_MIN_MS, FASTTASK_PERIOD_MAX_MS);
+            clamp_parameter(period_ms, params, parameters, fast_task_period_ms);
 
-            counter++;
-            static_counter++;
+            counter = counter + 1;
+            static_counter = static_counter + 1;
             if (counter > params->counter_max) {
                 counter = 0;
                 static_counter = 0;
@@ -256,7 +299,7 @@ static void fastTask(void *parameter) {
 
         // Trigger the DAQ event 'fastTask'
         DaqTriggerEvent(fastTask);
-        // Trigger the event a second time to measure runtime of the DaqTriggerEvent function
+        // Test: Trigger the event a second time to measure runtime of the DaqTriggerEvent function
         // XcpEventExt_Var(trg__AAS__fastTask, 1, xcp_get_frame_addr());
 
 #ifdef OPTION_IO
@@ -275,7 +318,9 @@ static void fastTask(void *parameter) {
 static void slowTask(void *parameter) {
     (void)parameter;
 
-    volatile uint16_t counter = 0;
+    XCP_COMMENT(counter, "Local measurement variable in `slowTask`");
+    XCP_MEAS uint16_t counter = 0;
+
     float phase = 0.0f;
     uint32_t slow_task_period_ms;
     uint32_t fast_task_period_ms;
@@ -299,40 +344,33 @@ static void slowTask(void *parameter) {
             struct parameters *params = (struct parameters *)CalSegLock(parameters);
 #endif
 
-            clamp_parameter(slow_task_period_ms, params->slow_task_period_ms, SLOWTASK_PERIOD_MIN_MS, SLOWTASK_PERIOD_MAX_MS);
+            clamp_parameter(slow_task_period_ms, params, parameters, slow_task_period_ms);
             fast_task_period_ms = params->fast_task_period_ms;
 
-            counter++;
+            counter = counter + 1;
             if (counter > params->counter_max) {
                 counter = 0;
             }
 
-#ifdef OPTION_ANALOG
-            const float analogValue = readAnalogChannel(0);
-            pressure_sensor_voltage = analogValue;
-            if (!isnan(analogValue)) {
-                const float voltageSpan = params->sensor_voltage_point2 - params->sensor_voltage_point1;
-                if (voltageSpan != 0.0f) {
-                    channel1 = params->pressure_point1 + (analogValue - params->sensor_voltage_point1) * (params->pressure_point2 - params->pressure_point1) / voltageSpan;
-                } else {
-                    channel1 = NAN;
-                }
-            } else
-#endif
-            {
-                channel1 = params->amplitude * sinf(phase);
-                phase += SLOWTASK_PHASE_STEP_RAD;
-                if (phase >= SINE_PERIOD_RAD) {
-                    phase -= SINE_PERIOD_RAD;
-                }
+            #define PI2 6.28318530717958647692f
+            channel1 = params->amplitude * sinf(phase);
+            phase += PI2 / (params->period * 1000.0 / slow_task_period_ms);
+            if (phase >= PI2) {
+                phase -= PI2;
             }
+           
 
 #ifndef __cplusplus
             CalSegUnlock(parameters);
 #endif
         }
 
+        // Call the demo function foo
+        foo();
+
+
         DaqCreateAndTriggerEvent(slowTask);
+
 
         // printf("slowTask: counter = %u, period = %u ms, channel1 = %f\n", counter, slow_task_period_ms, channel1);
 #ifdef OPTION_DISPLAY
@@ -353,6 +391,7 @@ static void slowTask(void *parameter) {
 //----------------------------------------------------------------------------------------------------
 // Init and start demo tasks
 
+/*
 static void test(void) {
 
     if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
@@ -374,6 +413,7 @@ static void test(void) {
         printf("Scheduler not running, skipping XCP clock check\n");
     }
 }
+*/
 
 static bool startXcpDemoTasks() {
 

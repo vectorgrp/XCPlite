@@ -149,10 +149,18 @@ extern const tXcpEventDescriptor __stop_xcp_evts[] __attribute__((weak));
 // development-only target and a build with zero events is a non-functional configuration.
 extern const tXcpEventDescriptor __start_xcp_evts[] __asm("section$start$__DATA$xcp_evts");
 extern const tXcpEventDescriptor __stop_xcp_evts[] __asm("section$end$__DATA$xcp_evts");
+#elif defined(_MSC_VER)
+// MSVC/COFF has no reliable linker-synthesized section boundary symbols (unlike ELF/Mach-O: in practice
+// link.exe does not pack '$'-subsection contributions from different object files contiguously/predictably).
+// Event pre-registration via section scanning is therefore not used on MSVC; DaqCreateEvent() and the
+// DaqTriggerEvent family instead resolve/create events directly via XcpCreateEvent() at each call site
+// (idempotent by name), see the XCP_EVENT_SECTION_SET_ID '_MSC_VER' branch below. Setting these to NULL
+// makes XcpRegisterSectionEvents() at XcpInit() gracefully find nothing, exactly like an ELF/Mach-O build
+// with zero section-registered events.
+#define __start_xcp_evts ((const tXcpEventDescriptor *)NULL)
+#define __stop_xcp_evts ((const tXcpEventDescriptor *)NULL)
 #else
-#ifndef _WIN32
-#error "Unsupported platform for event segment registration"
-#endif
+#error "Unsupported platform for section based event pre-registration"
 #endif
 
 #endif // __XCPLIB_H__

@@ -48,21 +48,14 @@ impl BinHeader {
         };
 
         // Extract and verify signature
-        let signature = String::from_utf8_lossy(&raw.signature)
-            .trim_end_matches('\0')
-            .to_string();
+        let signature = String::from_utf8_lossy(&raw.signature).trim_end_matches('\0').to_string();
 
         if signature != BIN_SIGNATURE {
-            return Err(Bin2HexError::InvalidFormat(format!(
-                "Invalid signature: expected '{}', got '{}'",
-                BIN_SIGNATURE, signature
-            )));
+            return Err(Bin2HexError::InvalidFormat(format!("Invalid signature: expected '{}', got '{}'", BIN_SIGNATURE, signature)));
         }
 
         // Extract EPK
-        let epk = String::from_utf8_lossy(&raw.epk)
-            .trim_end_matches('\0')
-            .to_string();
+        let epk = String::from_utf8_lossy(&raw.epk).trim_end_matches('\0').to_string();
 
         // Copy values from packed struct to avoid unaligned access
         let version = raw.version;
@@ -78,11 +71,7 @@ impl BinHeader {
         }
 
         // app_count is only valid in v0x0205+; treat as 0 for legacy files
-        let app_count = if version == BIN_VERSION {
-            raw.app_count
-        } else {
-            0
-        };
+        let app_count = if version == BIN_VERSION { raw.app_count } else { 0 };
 
         Ok(BinHeader {
             signature,
@@ -155,16 +144,13 @@ impl EventDescriptor {
         let raw: EventDescriptorRaw = unsafe {
             let mut raw: EventDescriptorRaw = mem::zeroed();
             let raw_ptr = &mut raw as *mut EventDescriptorRaw as *mut u8;
-            let raw_slice =
-                std::slice::from_raw_parts_mut(raw_ptr, mem::size_of::<EventDescriptorRaw>());
+            let raw_slice = std::slice::from_raw_parts_mut(raw_ptr, mem::size_of::<EventDescriptorRaw>());
             file.read_exact(raw_slice)?;
             raw
         };
 
         // Extract name
-        let name = String::from_utf8_lossy(&raw.name)
-            .trim_end_matches('\0')
-            .to_string();
+        let name = String::from_utf8_lossy(&raw.name).trim_end_matches('\0').to_string();
 
         // Copy values from packed struct to avoid unaligned access
         let id = raw.id;
@@ -203,8 +189,7 @@ impl EventDescriptor {
         // Write raw struct to file
         unsafe {
             let raw_ptr = &raw as *const EventDescriptorRaw as *const u8;
-            let raw_slice =
-                std::slice::from_raw_parts(raw_ptr, mem::size_of::<EventDescriptorRaw>());
+            let raw_slice = std::slice::from_raw_parts(raw_ptr, mem::size_of::<EventDescriptorRaw>());
             file.write_all(raw_slice)?;
         }
 
@@ -239,16 +224,13 @@ impl CalSegDescriptor {
         let raw: CalSegDescriptorRaw = unsafe {
             let mut raw: CalSegDescriptorRaw = mem::zeroed();
             let raw_ptr = &mut raw as *mut CalSegDescriptorRaw as *mut u8;
-            let raw_slice =
-                std::slice::from_raw_parts_mut(raw_ptr, mem::size_of::<CalSegDescriptorRaw>());
+            let raw_slice = std::slice::from_raw_parts_mut(raw_ptr, mem::size_of::<CalSegDescriptorRaw>());
             file.read_exact(raw_slice)?;
             raw
         };
 
         // Extract name
-        let name = String::from_utf8_lossy(&raw.name)
-            .trim_end_matches('\0')
-            .to_string();
+        let name = String::from_utf8_lossy(&raw.name).trim_end_matches('\0').to_string();
 
         // Copy values from packed struct to avoid unaligned access
         let index = raw.index;
@@ -256,13 +238,7 @@ impl CalSegDescriptor {
         let addr = raw.addr;
         let app_id = raw.app_id;
 
-        Ok(CalSegDescriptor {
-            index,
-            size,
-            addr,
-            app_id,
-            name,
-        })
+        Ok(CalSegDescriptor { index, size, addr, app_id, name })
     }
 
     pub fn write_to(&self, file: &mut File) -> Result<(), Bin2HexError> {
@@ -284,8 +260,7 @@ impl CalSegDescriptor {
         // Write raw struct to file
         unsafe {
             let raw_ptr = &raw as *const CalSegDescriptorRaw as *const u8;
-            let raw_slice =
-                std::slice::from_raw_parts(raw_ptr, mem::size_of::<CalSegDescriptorRaw>());
+            let raw_slice = std::slice::from_raw_parts(raw_ptr, mem::size_of::<CalSegDescriptorRaw>());
             file.write_all(raw_slice)?;
         }
 
@@ -318,27 +293,18 @@ impl AppDescriptor {
         let raw: AppDescriptorRaw = unsafe {
             let mut raw: AppDescriptorRaw = mem::zeroed();
             let raw_ptr = &mut raw as *mut AppDescriptorRaw as *mut u8;
-            let raw_slice =
-                std::slice::from_raw_parts_mut(raw_ptr, mem::size_of::<AppDescriptorRaw>());
+            let raw_slice = std::slice::from_raw_parts_mut(raw_ptr, mem::size_of::<AppDescriptorRaw>());
             file.read_exact(raw_slice)?;
             raw
         };
 
-        let project_name = String::from_utf8_lossy(&raw.project_name)
-            .trim_end_matches('\0')
-            .to_string();
+        let project_name = String::from_utf8_lossy(&raw.project_name).trim_end_matches('\0').to_string();
 
-        let epk = String::from_utf8_lossy(&raw.epk)
-            .trim_end_matches('\0')
-            .to_string();
+        let epk = String::from_utf8_lossy(&raw.epk).trim_end_matches('\0').to_string();
 
         let app_id = raw.app_id;
 
-        Ok(AppDescriptor {
-            app_id,
-            project_name,
-            epk,
-        })
+        Ok(AppDescriptor { app_id, project_name, epk })
     }
 }
 

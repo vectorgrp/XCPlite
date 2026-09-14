@@ -28,6 +28,7 @@ show_usage() {
     echo "  ptp       build-ptp/       Hardware socket timestamps for PTP (Linux, PTP-capable NIC)"
     echo "  shm       build-shm/       Shared-memory multi-application mode"
     echo "  rtos      build-rtos/      FreeRTOS POSIX simulator (Linux/macOS only)"
+    echo "  raw       build-raw/       Raw Ethernet transport, UDP/IPv4 inside xcplib (Linux only)"
     echo ""
     echo "Target (default: examples) — what to build within the configuration:"
     echo "  lib          Library only"
@@ -64,6 +65,7 @@ show_usage() {
     echo "  $0 shm tools                        # shm config: shmtool + xcpdaemon"
     echo "  $0 ptp tools                        # ptp config: ptptool (Linux only)"
     echo "  $0 no_a2l examples                  # no_a2l config: no_a2l_demo, no_a2l_demo_cpp"
+    echo "  $0 raw examples                     # raw config: udp_raw_demo (Linux only)"
     echo "  $0 rtos examples                    # rtos config: freertos_demo (Linux/macOS only)"
     echo "  $0 lib install                      # Library only, install to build/install"
     echo "  $0 release lib install=/usr/local   # Release build, install to /usr/local"
@@ -98,7 +100,7 @@ for arg in "$@"; do
         relwithdebinfo) BUILD_TYPE="RelWithDebInfo" ;;
 
         # Configuration
-        default|no_a2l|ptp|shm|rtos) CONFIGURATION="$arg_lower" ;;
+        default|no_a2l|ptp|shm|rtos|raw) CONFIGURATION="$arg_lower" ;;
 
         # Target (multiple targets may be combined, e.g. "tools examples")
         lib)        _ANY_TARGET=true ;;  # library only: all extras remain false
@@ -113,7 +115,7 @@ for arg in "$@"; do
         clean)   CLEAN_BUILD=true ;;
         cleanall)
             echo "Cleaning all build directories..."
-            rm -rf build build-no_a2l build-ptp build-shm build-rtos
+            rm -rf build build-no_a2l build-ptp build-shm build-rtos build-raw
             # Also clean legacy directory names from older builds
             rm -rf build_no_a2l_demo build_freertos build_ptptool build_shm
             rm -f ./*.bin ./*.hex ./*.log ./*.mf4 ./*.a2l
@@ -262,10 +264,12 @@ if [[ "$RUN_CLANG_TIDY" == true && "$BUILD_SUCCESS" == true ]]; then
         if [[ ! -f "$BUILD_DIR/compile_commands.json" ]]; then
             cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S . -B "$BUILD_DIR"
         fi
+        # Keep in sync with xcplite_SOURCES in CMakeLists.txt
         XCPLITE_SOURCES=(
             src/xcpappl.c src/xcplite.c src/xcpethserver.c src/xcpethtl.c
-            src/queue32.c src/queue64v.c src/queue64f.c src/shm.c
-            src/cal.c src/a2l.c src/a2l_writer.c src/persistence.c src/platform.c src/util.c
+            src/queue32.c src/queue32m.c src/queue64v.c src/queue64f.c src/shm.c
+            src/cal.c src/a2l.c src/a2l_writer.c src/persistence.c src/platform.c
+            src/sockets.c src/socket_raw.c src/socket_raw_hal_linux.c src/util.c
         )
         for src in "${XCPLITE_SOURCES[@]}"; do
             [[ -f "$SCRIPT_DIR/$src" ]] || { echo "Warning: not found: $src"; continue; }
@@ -292,7 +296,7 @@ case "$CONFIGURATION" in
     default)
         [[ "$CMAKE_BUILD_EXAMPLES" == "ON" ]] && echo "  Examples      : hello_xcp, hello_xcp_cpp, c_demo, cpp_demo, point_cloud_demo, struct_demo, multi_thread_demo, ptp4l_demo (Linux), bpf_demo (Linux, if XCPLITE_BUILD_BPF_DEMO=ON)" \
             || echo "  Examples      : (not built)"
-        [[ "$CMAKE_BUILD_TESTS" == "ON" ]]    && echo "  Tests         : a2l_test, cal_test, daq_test, clock_test, queue_test, xcp_test, type_detection_test_*" \
+        [[ "$CMAKE_BUILD_TESTS" == "ON" ]]    && echo "  Tests         : a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, xcp_test, type_detection_test_*" \
             || echo "  Tests         : (not built)"
         [[ "$CMAKE_BUILD_TOOLS" == "ON" ]]    && echo "  Tools         : (none for default configuration)" \
             || echo "  Tools         : (not built)"
@@ -323,6 +327,13 @@ case "$CONFIGURATION" in
             || echo "  Examples      : (not built)"
         echo "  Tests         : (none for rtos configuration)"
         echo "  Tools         : (none for rtos configuration)"
+        ;;
+    raw)
+        [[ "$CMAKE_BUILD_EXAMPLES" == "ON" ]] && echo "  Examples      : udp_raw_demo (Linux only, needs CAP_NET_RAW)" \
+            || echo "  Examples      : (not built)"
+        [[ "$CMAKE_BUILD_TESTS" == "ON" ]]    && echo "  Tests         : socket_raw_test" \
+            || echo "  Tests         : (not built)"
+        echo "  Tools         : (none for raw configuration)"
         ;;
 esac
 

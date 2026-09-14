@@ -9,7 +9,6 @@ use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::error::Error;
 
-use super::xcp::*;
 use super::*;
 
 impl XcpClient {
@@ -27,12 +26,18 @@ impl XcpClient {
             }
             Some(instance) => {
                 let (ext, addr) = instance.get_address().get_a2l_addr(registry);
-                if instance.event_id().is_none() {
-                    log::error!("event_id for measurement object {} not found, addr = {}:0x{:0X}", name, ext, addr);
+                // Measurement objects without a fixed event (global variables) are measured with the default event, if specified
+                let event = instance.event_id().or(self.default_event);
+                if event.is_none() {
+                    log::warn!(
+                        "Measurement object {} has no event and no default event is specified (--default-event), addr = {}:0x{:0X}",
+                        name,
+                        ext,
+                        addr
+                    );
                     return None;
                 }
-                let event = instance.event_id().unwrap();
-                let a2l_addr: A2lAddr = A2lAddr { ext, addr, event: Some(event) };
+                let a2l_addr: A2lAddr = A2lAddr { ext, addr, event };
                 let a2l_type: A2lType = A2lType {
                     size: instance.value_size(),
                     encoding: instance.value_type().into(),

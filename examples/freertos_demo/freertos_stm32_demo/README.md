@@ -8,7 +8,7 @@ The example configuration is for a STM NUCLEO-H753 board.
 The folder stm32_freertos_demo in the XCPlite examples includes only additional files and user modified CubeMX generated files.
 The content is generated from the Vector toolchain specific repo folder with  
 ```bash
-.\publish.ps1 -Destination \git\XCPlite-RainerZ\examples\freertos_demo\freertos_stm32_demo
+.\publish.ps1 -Destination ./freertos_stm32_demo
 ```
 
 If you are a user of the Vector internal toolchain and framework, see INSTALL.MD for instructions how to install the framework.  
@@ -39,7 +39,7 @@ The upload A2L file error message can be ignored, as the FreeRTOS implementation
 Execute a quick test measurement without an A2L file:
 
 ```bash
-xcpclient --udp --dest-addr 192.168.0.207 --elf build/Debug/STM32H753EthDemo.elf --elf-unit-filter xcp_demo --mea global_counter 
+xcpclient --udp --dest-addr 192.168.0.207 --elf build/Debug/STM32H753EthDemo.elf --elf-unit-filter xcp_demo --default-event=fastTask --mea global_counter --verbose 2
 
 ```
 
@@ -53,12 +53,13 @@ Examples:
 ```bash
 # Create am A2L file template with events, memory_segments, epk, and all requireds communication settings 
 # The given IP address is written to the A2L XCP IF_DATA  
-xcpclient --offline --udp --dest-addr 192.168.0.207 --elf build/Debug/STM32H753EthDemo.elf  --a2l CANape/stm32_freertos_demo_template.a2l --create-a2l-template
+xcpclient --offline --udp --dest-addr 192.168.0.207 --elf build/Debug/STM32H753EthDemo.elf  --a2l CANape/stm32_freertos_demo_template.a2l --create-a2l-template 
 
 
-# Automatically add all possible measurement variables and calibration parameters in calibration parameter segments 
-# in compilation unit xcp_demo
-xcpclient --offline --udp --dest-addr 192.168.0.207 --elf build/Debug/STM32H753EthDemo.elf --a2l CANape/stm32_freertos_demo.a2l --elf-unit-filter xcp_demo
+# Automatically add all possible measurement variables and calibration parameters in calibration parameter segments in compilation unit xcp_demo
+xcpclient --offline --udp --dest-addr 192.168.0.207 --elf build/Debug/STM32H753EthDemo.elf --create-a2l --a2l CANape/stm32_freertos_demo.a2l --default-event=fastTask --elf-unit-filter xcp_demo
+# Log detailled A2L generation process to CANape/stm32_freertos_demo.log
+xcpclient --offline --udp --dest-addr 192.168.0.207 --elf build/Debug/STM32H753EthDemo.elf --create-a2l --a2l CANape/stm32_freertos_demo.a2l --default-event=fastTask --elf-unit-filter xcp_demo --verbose 1 > CANape/stm32_freertos_demo.log
 
 ```
 

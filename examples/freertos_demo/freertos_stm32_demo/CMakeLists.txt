@@ -59,6 +59,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     /git/XCPlite-RainerZ/src/queue32m.c 
     /git/XCPlite-RainerZ/src/cal.c 
     /git/XCPlite-RainerZ/src/platform.c
+    /git/XCPlite-RainerZ/src/sockets.c
 
 )
 
@@ -83,6 +84,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # for XCPlite library
     _FREE_RTOS                                          # Enable FreeRTOS code paths in platform.h/platform.c, xcpappl.c
     "XCPLIB_CFG_OVERRIDE=\"xcplib_rtos_cfg.h\""         # Enable configuration override for FreeRTOS 
+    "XCPLITE_CONFIGURATION=rtos"
     # OPTION_CMSIS
     OPTION_IO
     # OPTION_DISPLAY

@@ -16,7 +16,6 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time::timeout;
 
-use super::xcp::*;
 use super::*;
 
 impl XcpClient {

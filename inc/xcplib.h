@@ -300,6 +300,17 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 #endif
 #endif // THREAD_LOCAL
 
+// Attribute for variables which are used only in some configurations or only by some of the instrumentation macros.
+#ifndef XCP_MAYBE_UNUSED
+#if defined(__cplusplus) && (__cplusplus >= 201703L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L))
+#define XCP_MAYBE_UNUSED [[maybe_unused]]
+#elif defined(__GNUC__) || defined(__clang__)
+#define XCP_MAYBE_UNUSED __attribute__((unused))
+#else
+#define XCP_MAYBE_UNUSED
+#endif
+#endif // XCP_MAYBE_UNUSED
+
 // Event descriptor used by DaqCreateEvent() for section-based pre-registration
 #ifndef __XCPLITE_H__ // Public API header guard
 
@@ -309,26 +320,25 @@ typedef struct {
     uint8_t priority;
     uint8_t res[16 - sizeof(char *) - 4 - 1];
 } tXcpEventDescriptor;
+
+// Positional initializer (field order as above). Designated initializers would be a C++20 extension
+// and are reported by -pedantic when this header is compiled as C++17 (e.g. consumers via FetchContent).
+#define XCP_EVENT_DESCRIPTOR_INIT(name_str, cycle_ns, prio) {(name_str), (cycle_ns), (prio), {0}}
 static_assert(sizeof(tXcpEventDescriptor) == 16, "Size of tXcpEventDescriptor must be 16 bytes for correct section parsing in xcpclient tool");
 static_assert(sizeof(((tXcpEventDescriptor *)0)->res) > 0, "tXcpEventDescriptor res padding must not be zero; check pointer size vs struct layout");
 
 // Linker-synthesized section boundary symbols, resolved at link time
 #if defined(__ELF__)
-// Declared weak: if no object file contributes to the xcp_evts section the symbols resolve
-// to NULL rather than causing an undefined-reference linker error. Keeps Linux (production)
-// builds with zero section-registered events linkable and graceful.
 extern const tXcpEventDescriptor __start_xcp_evts[] __attribute__((weak));
 extern const tXcpEventDescriptor __stop_xcp_evts[] __attribute__((weak));
 #elif defined(__APPLE__)
-// Mach-O (ld64) boundary symbols. Not weak: if no descriptor is ever placed in the section
-// the link fails with an undefined-symbol error. That is acceptable here - macOS is a
-// development-only target and a build with zero events is a non-functional configuration.
 extern const tXcpEventDescriptor __start_xcp_evts[] __asm("section$start$__DATA$xcp_evts");
 extern const tXcpEventDescriptor __stop_xcp_evts[] __asm("section$end$__DATA$xcp_evts");
+#elif defined(_MSC_VER)
+#define __start_xcp_evts ((const tXcpEventDescriptor *)NULL)
+#define __stop_xcp_evts ((const tXcpEventDescriptor *)NULL)
 #else
-#ifndef _WIN32
-#error "Unsupported platform for event segment registration"
-#endif
+#error "Unsupported platform for section based event pre-registration"
 #endif
 
 #endif // __XCPLITE_H__
@@ -344,14 +354,25 @@ extern const tXcpEventDescriptor __stop_xcp_evts[] __asm("section$end$__DATA$xcp
 #define XCP_EVENT_SECTION_ATTR /* section-based registration not supported on this platform */
 #endif
 
+// Attribute for functions which trigger an event and measure their local variables: such a function must not be inlined.
+// An inlined function has a copy with its own stack frame at each call site, there is no stack frame relative address which is
+// valid for all copies. The offline A2L generator (xcpclient) does not register the local variables of an inlined function, see docs/OFFLINE_A2L.md
+#if defined(__GNUC__) || defined(__clang__)
+#define XCP_NOINLINE __attribute__((noinline))
+#elif defined(_MSC_VER)
+#define XCP_NOINLINE __declspec(noinline)
+#else
+#define XCP_NOINLINE
+#endif
+
 // Link-time event id derived from the descriptor's position in the xcp_evts section
 // Only with clang on Linux, this is a link-time constant, usable as a static initializer
 #if defined(__ELF__) || defined(__APPLE__)
-#if defined(__clang__) && defined(_Linux)
+#if defined(__clang__) && defined(_LINUX)
 // Get the event id as compile-time constant for an event descriptor name (evt__<event_name>)
 #define XCP_EVENT_SECTION_GET_LINKTIME_ID(evt) ((tXcpEventId)(&(evt) - __start_xcp_evts))
 // Set the event id for an event descriptor at runtime not needed, the link-time id is already set
-#define XCP_EVENT_SECTION_SET_ID(evt_descr, evt_id)
+#define XCP_EVENT_SECTION_SET_ID(evt_descr, evt_id) (void)(evt_id)
 #else
 // With other compilers, the event id is not a compile-time constant, but a link-time constant, so it can be used as static initializer
 // Get the event id as compile-time constant for an event descriptor not possible
@@ -385,8 +406,8 @@ extern const tXcpEventDescriptor __stop_xcp_evts[] __asm("section$end$__DATA$xcp
 /// To create an XCP event with increased priority or specified expected cycle time, use DaqCreateEventExt
 /// @param name Name given as identifier
 #define DaqCreateEvent(event_name)                                                                                                                                                 \
-    static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {.name = #event_name, .cycle_time_ns = 0, .priority = 0};                                          \
-    static tXcpEventId evt_id_##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                                 \
+    static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = XCP_EVENT_DESCRIPTOR_INIT(#event_name, 0, 0);                                                      \
+    XCP_MAYBE_UNUSED static tXcpEventId evt_id_##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                \
     XCP_EVENT_SECTION_SET_ID(evt__##event_name, evt_id_##event_name);
 
 /// Create an event with given expected cycle time and priority
@@ -394,8 +415,8 @@ extern const tXcpEventDescriptor __stop_xcp_evts[] __asm("section$end$__DATA$xcp
 /// @param cycle_time Cycle time in microseconds (0 = sporadic)
 /// @param priority Priority of the event (0 = normal, >=1 = realtime)
 #define DaqCreateEventExt(event_name, cycle, prio)                                                                                                                                 \
-    static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {.name = #event_name, .cycle_time_ns = (cycle) * 1000U, .priority = (prio)};                       \
-    static tXcpEventId evt_id_##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                                 \
+    static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = XCP_EVENT_DESCRIPTOR_INIT(#event_name, (cycle) * 1000U, (prio));                                   \
+    XCP_MAYBE_UNUSED static tXcpEventId evt_id_##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                \
     XCP_EVENT_SECTION_SET_ID(evt__##event_name, evt_id_##event_name);
 
 #ifdef OPTION_DAQ_EVENT_LIST
@@ -468,15 +489,20 @@ void XcpEventEnable(tXcpEventId event, bool enable);
 // This defines the maximum stack frame size which can be accessed
 #define XCP_FRAME_ADDR_OFFSET 0x10000
 
-// Xtensa GCC: DWARF locations are relative to CFA, while __builtin_frame_address(0) returns the frame pointer after the entry instruction.
-#if (defined(__GNUC__) || defined(__clang__)) && defined(__XTENSA__)
-
-#define xcp_get_frame_addr() (const uint8_t *)((uint8_t *)__builtin_dwarf_cfa() - XCP_FRAME_ADDR_OFFSET)
-
-// Linux, MACOS gnu and clang compiler
-#elif defined(__GNUC__) || defined(__clang__)
+// The frame address must be the frame base which the compiler uses in the DWARF locations of the local variables (DW_AT_frame_base),
+// the offline A2L generator (xcpclient) takes the variable offsets from there without any further correction:
+// - clang describes the local variables relative to the frame pointer register, __builtin_frame_address(0) is the frame pointer and
+//   forces the function to keep one
+// - GCC describes the local variables relative to the canonical frame address (CFA, DW_OP_call_frame_cfa), __builtin_dwarf_cfa() is
+//   the CFA on every architecture and does not force a frame pointer
+// The on-target A2L generation uses the same macro for the registration and for the trigger, any consistent value works there
+#if defined(__clang__)
 
 #define xcp_get_frame_addr() (const uint8_t *)((uint8_t *)__builtin_frame_address(0) - XCP_FRAME_ADDR_OFFSET)
+
+#elif defined(__GNUC__)
+
+#define xcp_get_frame_addr() (const uint8_t *)((uint8_t *)__builtin_dwarf_cfa() - XCP_FRAME_ADDR_OFFSET)
 
 // MSVC compiler
 #elif defined(_MSC_VER)
@@ -504,6 +530,20 @@ static __forceinline const uint8_t *xcp_get_frame_addr(void) {
 #error "xcp_get_frame_addr is not defined for this compiler. Please implement it."
 #endif
 
+// Prevent the compiler from turning the preceding call into a tail call (sibling call optimization)
+// Used after every call which passes xcp_get_frame_addr(): if this is the last statement of a function, the compiler may
+// replace it with a jump and release the stack frame of the function first. The library would then copy the local variables
+// from a released frame, which the called function already reuses. Applications which call XcpEventExt_Var(), XcpEventExt() or
+// directly with xcp_get_frame_addr() must add XCP_NO_TAIL_CALL() after the call themselves, or make sure the
+// call is not the last statement of the function!!
+#if defined(__GNUC__) || defined(__clang__)
+#define XCP_NO_TAIL_CALL() __asm__ __volatile__("" ::: "memory")
+#elif defined(_MSC_VER)
+#define XCP_NO_TAIL_CALL() __nop() // intrin.h, an instruction after the call keeps it from becoming a tail call
+#else
+#define XCP_NO_TAIL_CALL() ((void)0)
+#endif
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Absolute addressing mode
 
@@ -523,6 +563,7 @@ extern const uint8_t *gXcpBaseAddr;
 // If needed, uses local scope static or thread local storage to create a once pattern for the event lookup to save runtime overhead
 // All macros can be used to measure variables registered in absolute addressing mode as well
 // Note that XCP_EVENT_SECTION_SET_ID expands to nothing on platforms where the event id is a link-time constant
+// A function which triggers an event and measures its local variables (stack relative addressing) must not be inlined, mark it XCP_NOINLINE
 
 // @@@@ TODO: Not all permutations of name, string, index with At implemented
 
@@ -533,12 +574,14 @@ extern const uint8_t *gXcpBaseAddr;
         static tXcpEventId trg__AAS__##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                          \
         XCP_EVENT_SECTION_SET_ID(evt__##event_name, trg__AAS__##event_name);                                                                                                       \
         XcpEventExt_Var(trg__AAS__##event_name, 1, xcp_get_frame_addr());                                                                                                          \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
     }
 #define DaqTriggerEventAt(event_name, clock)                                                                                                                                       \
     {                                                                                                                                                                              \
         static tXcpEventId trg__AAS__##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                          \
         XCP_EVENT_SECTION_SET_ID(evt__##event_name, trg__AAS__##event_name);                                                                                                       \
         XcpEventExtAt_Var(trg__AAS__##event_name, clock, 1, xcp_get_frame_addr());                                                                                                 \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
     }
 
 /// Trigger the XCP event by handle 'tXcpEventId event_id' for stack relative or absolute addressing AAS
@@ -547,12 +590,16 @@ extern const uint8_t *gXcpBaseAddr;
 #define DaqTriggerEvent_i(event_id)                                                                                                                                                \
     {                                                                                                                                                                              \
         static tXcpEventId trg__AAS = XCP_UNDEFINED_EVENT_ID;                                                                                                                      \
+        (void)trg__AAS;                                                                                                                                                            \
         XcpEventExt(event_id, xcp_get_frame_addr());                                                                                                                               \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
     }
 #define DaqTriggerEventAt_i(event_id, clock)                                                                                                                                       \
     {                                                                                                                                                                              \
         static tXcpEventId trg__AAS = XCP_UNDEFINED_EVENT_ID;                                                                                                                      \
+        (void)trg__AAS;                                                                                                                                                            \
         XcpEventExtAt(event_id, xcp_get_frame_addr(), clock);                                                                                                                      \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
     }
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode AASD with a single given individual base address (from A2lSetRelativeAddrMode(base_addr))
@@ -563,6 +610,7 @@ extern const uint8_t *gXcpBaseAddr;
         static tXcpEventId trg__AASD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                       \
         XCP_EVENT_SECTION_SET_ID(evt__##event_name, trg__AASD__##event_name);                                                                                                      \
         XcpEventExt_Var(trg__AASD__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)(base_addr));                                                                           \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
     }
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
@@ -577,6 +625,7 @@ extern const uint8_t *gXcpBaseAddr;
                 trg__AASD__##event_name = XcpFindEvent(event_name);                                                                                                                \
             }                                                                                                                                                                      \
             XcpEventExt_Var(trg__AASD__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)(base_addr));                                                                       \
+            XCP_NO_TAIL_CALL();                                                                                                                                                    \
         }                                                                                                                                                                          \
     }
 
@@ -587,7 +636,9 @@ extern const uint8_t *gXcpBaseAddr;
 #define DaqTriggerEventExt_i(event_id, base_addr)                                                                                                                                  \
     {                                                                                                                                                                              \
         static tXcpEventId trg__AASD = XCP_UNDEFINED_EVENT_ID;                                                                                                                     \
+        (void)trg__AASD;                                                                                                                                                           \
         XcpEventExt_Var(event_id, 2, xcp_get_frame_addr(), (const uint8_t *)(base_addr));                                                                                          \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -599,10 +650,110 @@ extern const uint8_t *gXcpBaseAddr;
 /// @param event_name Name given as identifier
 #define DaqCreateAndTriggerEvent(event_name)                                                                                                                                       \
     {                                                                                                                                                                              \
-        static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {.name = #event_name, .cycle_time_ns = 0, .priority = 0};                                      \
+        static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = XCP_EVENT_DESCRIPTOR_INIT(#event_name, 0, 0);                                                  \
         static tXcpEventId trg__AAS__##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                          \
         XCP_EVENT_SECTION_SET_ID(evt__##event_name, trg__AAS__##event_name);                                                                                                       \
         XcpEventExt_Var(trg__AAS__##event_name, 1, xcp_get_frame_addr());                                                                                                          \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
+    }
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Capture of local variables
+
+// A local variable which the compiler keeps in a register has no memory location and can not be measured. Instead of forcing it
+// into memory for its whole lifetime with 'volatile', the capture macros copy the given variables into a struct on the stack when
+// the event is triggered, and pass the address of that struct as the base address of address extension 3.
+// The offline A2L generator (xcpclient) unfolds the struct and registers its members with the names of the original variables,
+// see docs/OFFLINE_A2L.md. The originals stay in registers, the copy of a scalar is a single store instruction.
+// The capture struct is alive while the event is triggered, which is when the XCP server reads it, synchronously for DAQ and
+// asynchronously for polling (the pending command is executed in the trigger).
+// Restrictions: up to XCP_CAPTURE_MAX_COUNT variables, each given as a plain identifier of a local variable, a parameter or a
+// global variable. Bitfield members can not be captured, and const qualified variables only in C, in C++ a const member would
+// leave the capture struct without a default constructor. Not available with MSVC.
+// In C++ the captured objects must be trivially copyable, they are copied byte wise.
+// A function with a capture may be inlined, unlike a function which measures its local variables on the stack.
+
+#define XCP_CAPTURE_MAX_COUNT 16
+
+#define XCP_CAP_CAT_(a, b) a##b
+#define XCP_CAP_CAT(a, b) XCP_CAP_CAT_(a, b)
+
+// Number of arguments (1 to XCP_CAPTURE_MAX_COUNT)
+#define XCP_CAP_NARG(...) XCP_CAP_NARG_(__VA_ARGS__, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1)
+#define XCP_CAP_NARG_(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, N, ...) N
+
+// Apply m(c, x) to each argument x, with the context c
+#define XCP_CAP_FE_1(m, c, x) m(c, x)
+#define XCP_CAP_FE_2(m, c, x, ...) m(c, x) XCP_CAP_FE_1(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_3(m, c, x, ...) m(c, x) XCP_CAP_FE_2(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_4(m, c, x, ...) m(c, x) XCP_CAP_FE_3(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_5(m, c, x, ...) m(c, x) XCP_CAP_FE_4(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_6(m, c, x, ...) m(c, x) XCP_CAP_FE_5(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_7(m, c, x, ...) m(c, x) XCP_CAP_FE_6(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_8(m, c, x, ...) m(c, x) XCP_CAP_FE_7(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_9(m, c, x, ...) m(c, x) XCP_CAP_FE_8(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_10(m, c, x, ...) m(c, x) XCP_CAP_FE_9(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_11(m, c, x, ...) m(c, x) XCP_CAP_FE_10(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_12(m, c, x, ...) m(c, x) XCP_CAP_FE_11(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_13(m, c, x, ...) m(c, x) XCP_CAP_FE_12(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_14(m, c, x, ...) m(c, x) XCP_CAP_FE_13(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_15(m, c, x, ...) m(c, x) XCP_CAP_FE_14(m, c, __VA_ARGS__)
+#define XCP_CAP_FE_16(m, c, x, ...) m(c, x) XCP_CAP_FE_15(m, c, __VA_ARGS__)
+#define XCP_CAP_FOR_EACH(m, c, ...) XCP_CAP_CAT(XCP_CAP_FE_, XCP_CAP_NARG(__VA_ARGS__))(m, c, __VA_ARGS__)
+
+// One struct member per captured variable, with the type of the variable and its name with a trailing underscore. The trailing
+// underscore is needed in C++: a name must not change its meaning within a class scope, and a member named like the variable in
+// its own type expression does exactly that, GCC rejects it. The offline A2L generator removes the trailing underscore again and
+// registers the member with the name of the variable, see docs/OFFLINE_A2L.md
+#define XCP_CAP_MEMBER(c, x) __typeof__(x) x##_;
+
+// Copy one variable into the capture struct. The casts avoid a discarded qualifier warning for a volatile variable, the builtin
+// is expanded inline for the constant size, so the address of the variable does not force it into memory
+#define XCP_CAP_COPY(c, x) __builtin_memcpy((void *)&(c).x##_, (const void *)&(x), sizeof(x));
+
+// Declare the capture struct cap__<event_name> and fill it
+#define XCP_CAPTURE(event_name, ...)                                                                                                                                               \
+    struct {                                                                                                                                                                       \
+        XCP_CAP_FOR_EACH(XCP_CAP_MEMBER, 0, __VA_ARGS__)                                                                                                                           \
+    } cap__##event_name;                                                                                                                                                           \
+    XCP_CAP_FOR_EACH(XCP_CAP_COPY, cap__##event_name, __VA_ARGS__)
+
+/// Trigger the XCP event 'event_name' and capture the given local variables for measurement, AASR
+/// @param event_name Name given as identifier, the event must exist (DaqCreateEvent)
+/// @param ... The local variables to capture, plain identifiers, up to XCP_CAPTURE_MAX_COUNT
+#define DaqTriggerEventCapture(event_name, ...)                                                                                                                                    \
+    {                                                                                                                                                                              \
+        XCP_CAPTURE(event_name, __VA_ARGS__)                                                                                                                                       \
+        static tXcpEventId trg__AASR__##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                         \
+        XCP_EVENT_SECTION_SET_ID(evt__##event_name, trg__AASR__##event_name);                                                                                                      \
+        XcpEventExt_Var(trg__AASR__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)&cap__##event_name);                                                                    \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
+    }
+
+/// Trigger the XCP event 'event_name' with a given timestamp and capture the given local variables for measurement, AASR
+/// @param event_name Name given as identifier, the event must exist (DaqCreateEvent)
+/// @param clock Timestamp of the event
+/// @param ... The local variables to capture, plain identifiers, up to XCP_CAPTURE_MAX_COUNT
+#define DaqTriggerEventCaptureAt(event_name, clock, ...)                                                                                                                           \
+    {                                                                                                                                                                              \
+        XCP_CAPTURE(event_name, __VA_ARGS__)                                                                                                                                       \
+        static tXcpEventId trg__AASR__##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                         \
+        XCP_EVENT_SECTION_SET_ID(evt__##event_name, trg__AASR__##event_name);                                                                                                      \
+        XcpEventExtAt_Var(trg__AASR__##event_name, clock, 2, xcp_get_frame_addr(), (const uint8_t *)&cap__##event_name);                                                           \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
+    }
+
+/// Create and trigger the XCP event 'event_name' and capture the given local variables for measurement, AASR
+/// @param event_name Name given as identifier
+/// @param ... The local variables to capture, plain identifiers, up to XCP_CAPTURE_MAX_COUNT
+#define DaqCreateAndTriggerEventCapture(event_name, ...)                                                                                                                           \
+    {                                                                                                                                                                              \
+        XCP_CAPTURE(event_name, __VA_ARGS__)                                                                                                                                       \
+        static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = XCP_EVENT_DESCRIPTOR_INIT(#event_name, 0, 0);                                                  \
+        static tXcpEventId trg__AASR__##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                         \
+        XCP_EVENT_SECTION_SET_ID(evt__##event_name, trg__AASR__##event_name);                                                                                                      \
+        XcpEventExt_Var(trg__AASR__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)&cap__##event_name);                                                                    \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -667,15 +818,15 @@ extern const uint8_t *gXcpBaseAddr;
 // Note on local variable and function parameter visibility:
 // When runtime A2L generation is not used, the compiler may optimize local variables and function parameters to be stored in CPU registers only, without a memory location on the
 // stack In this case, XCPlite can not measure these variables since there is no memory location to read from, reading the register value is not supported yet To prevent this
-// optimization, the variable must be marked as 'volatile' to force the compiler to always read and write it from/to memory The XCP_MEA and XCP_MEAS macros mark a (local) variable
-// as volatile for this purpose An alternative is to use the DaqCapture macro to capture the variable in a hidden static variable for measurement
+// optimization, the variable must be marked as 'volatile' to force the compiler to always read and write it from/to memory The XCP_MEAS macros mark a (local) variable
+// as volatile for this purpose An alternative is to trigger the event with DaqTriggerEventCapture, which copies the variables into a capture struct on
+// the stack and leaves the originals in their registers
 
 // The A2L updater/creator in xcpclient can handle only simple location expressions such as absolute addresses, stack relative addresses (CFA) and calibration segment relative
-// addresses For complex cases, use the DaqCapture macro to capture the variable in a hidden static variable
+// addresses For complex cases, use DaqTriggerEventCapture to capture the variables in a capture struct
 
 /// Attribute to mark a local variable as measurable
 /// Example usage: XCP_MEAS int32_t my_var = 0;
-#define XCP_MEA volatile
 #define XCP_MEAS volatile
 
 // Macro to force a function parameter to be stored on the stack
@@ -683,16 +834,6 @@ extern const uint8_t *gXcpBaseAddr;
 
 // Compiler memory barrier to prevent reordering of memory accesses across this point
 #define XCP_MEMORY_BARRIER() asm volatile("" ::: "memory")
-
-/// Capture a local variable for measurement with a specific event
-/// The variable must be in scope when the event is triggered with DaqTriggerEvent
-/// The build time A2L file generator will find the hidden static variable 'daq__##event##__##var' and create the measurement with approriate addressing mode and
-/// event association
-#define DaqCapture(event, var)                                                                                                                                                     \
-    do {                                                                                                                                                                           \
-        static __typeof__(var) daq__##event##__##var;                                                                                                                              \
-        daq__##event##__##var = var;                                                                                                                                               \
-    } while (0)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Misc
@@ -1061,7 +1202,7 @@ void clockGetPrintStatistic(void);
 /// Needs #define OPTION_DAQ_EVENT_LIST for on target A2L generation
 #define DaqEventVar(event_name, ...)                                                                                                                                               \
     do {                                                                                                                                                                           \
-        static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {.name = #event_name, .cycle_time_ns = 0, .priority = 0};                                      \
+        static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = XCP_EVENT_DESCRIPTOR_INIT(#event_name, 0, 0);                                                  \
         static tXcpEventId trg__AAS__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                        \
         XCP_EVENT_SECTION_SET_ID(evt__##event_name, trg__AAS__##event_name);                                                                                                       \
         if (XcpIsActivated()) {                                                                                                                                                    \
@@ -1073,6 +1214,7 @@ void clockGetPrintStatistic(void);
             }                                                                                                                                                                      \
         }                                                                                                                                                                          \
         XcpEventExt_Var(trg__AAS__##event_name, 1, xcp_get_frame_addr());                                                                                                          \
+        XCP_NO_TAIL_CALL();                                                                                                                                                        \
     } while (0)
 
 #endif // !__cplusplus

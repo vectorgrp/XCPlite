@@ -1,6 +1,7 @@
 # freertos_emu_demo — XCPlite on FreeRTOS POSIX emulator
 
-This example uses the **FreeRTOS POSIX simulator** port so the demo builds and runs on macOS or Linux.  
+This example uses the **FreeRTOS POSIX simulator** port so the demo builds and runs on macOS or Linux. 
+A2L generation works on Linux only,  
 
 
 ## Notes

@@ -8,10 +8,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # The script syncs the example project to the target, builds it there, runs it with XCP on Ethernet,
 # downloads the ELF file to the local machine and creates an A2L file.  
 # Prerequisites:
+# - The target machine must be Linux
 # - The target must be reachable via SSH and have rsync installed
 # - The local machine must have rsync and scp installed
 # - The local machine must have xcpclient installed
 
+# A local build is possible on Linux only: executables built on macOS (Mach-O) contain no DWARF debug information,
+# the xcpclient A2L generator can not create an A2L file from them
 
 #======================================================================================================================
 # Parameters
@@ -30,7 +33,6 @@ ELFFILE="$REPO_ROOT/examples/no_a2l_demo_cpp/CANape/no_a2l_demo_cpp.elf"
 # Build type for target executable: Release, RelWithDebInfo or Debug
 # RelWithDebInfo is default to demonstrate operation with with -O1 and NDEBUG
 # Optimization level >= -O1 keeps variables in registers whenever possible, so local variables cannot be measured
-# The most efficient solution to keep local variables measurable is to use the DaqCapture macro, another option is mto ark the variable as volatile (with the provided macro XCP_MEA
 # Debug mode is the least efficient but keeps all variables and stack frames intact
 BUILD_TYPE="RelWithDebInfo"
 # -O0
@@ -39,15 +41,17 @@ BUILD_TYPE="RelWithDebInfo"
 #BUILD_TYPE="Release"
 
 # Run a simple test calibration and measurement
-TEST=true
-#TEST=false
+#TEST=true
+TEST=false
+# CSV measurement file path on local machine
+CSVFILE="$REPO_ROOT/examples/no_a2l_demo_cpp/CANape/no_a2l_demo_cpp.csv"
 
 
 # Target connection details
-TARGET_USER="parallels"
-TARGET_HOST="10.211.55.4"
-#TARGET_USER="rainer"
-#TARGET_HOST="192.168.0.206"
+#TARGET_USER="parallels"
+#TARGET_HOST="10.211.55.4"
+TARGET_USER="rainer"
+TARGET_HOST="192.168.0.206"
 TARGET_PATH="~/XCPlite-Test"
 TARGET_BUILD_DIR="build-no_a2l"
 TARGET_BINARY="no_a2l_demo_cpp"
@@ -94,8 +98,12 @@ fi
 
 
 # Build on target
-echo "Build executable on Target ..."
-ssh "$TARGET_USER@$TARGET_HOST" "cd $TARGET_PATH && ./build.sh $BUILD_TYPE no_a2l examples" 1> /dev/null
+# Always a clean build: if the target has no NTP its clock may skew
+# Optionally force gnu or clang, default to clang which is the more demanding one
+echo "Clean build executable on Target ..."
+#ssh "$TARGET_USER@$TARGET_HOST" "cd $TARGET_PATH && ./build.sh $BUILD_TYPE no_a2l examples clean" 1> /dev/null
+#ssh "$TARGET_USER@$TARGET_HOST" "cd $TARGET_PATH && CC=gcc CXX=g++ ./build.sh $BUILD_TYPE no_a2l examples clean" 1> /dev/null
+ssh "$TARGET_USER@$TARGET_HOST" "cd $TARGET_PATH && CC=clang CXX=clang++ ./build.sh $BUILD_TYPE no_a2l examples clean" 1> /dev/null
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: Build on target"
     exit 1
@@ -124,10 +132,14 @@ echo "==========================================================================
 echo ""
 # --log-level is program flow verbosity
 # --verbose is information detail level
-echo "Command: $XCPCLIENT --log-level=3 --verbose=5 --dest-addr=$TARGET_HOST --udp --offline --elf \"$ELFFILE\" --create-a2l --a2l \"$A2LFILE\""
-$XCPCLIENT --log-level=3 --verbose=5 --dest-addr=$TARGET_HOST --udp --offline --elf "$ELFFILE" --create-a2l --a2l "$A2LFILE"  >> "$LOGFILE"
-if [ $? -ne 0 ]; then
-    echo "❌ FAILED: xcpclient returned error"
+# Remove the A2L file of a previous run, so a failed generation can not leave a stale A2L file behind
+rm -f "$A2LFILE"
+XCPCLIENT_ARGS=(--log-level=3 --verbose=0 --dest-addr="$TARGET_HOST" --udp --offline --elf "$ELFFILE" --elf-unit-filter main --create-a2l --a2l "$A2LFILE" --default-event=mainloop)
+echo "Command: $XCPCLIENT ${XCPCLIENT_ARGS[*]}"
+"$XCPCLIENT" "${XCPCLIENT_ARGS[@]}" >> "$LOGFILE"
+if [ $? -ne 0 ] || [ ! -f "$A2LFILE" ]; then
+    echo "❌ FAILED: xcpclient could not create the A2L file $A2LFILE, see $LOGFILE"
+    grep "\[ERROR\]" "$LOGFILE"
     exit 1
 fi
 
@@ -153,13 +165,14 @@ echo "Test connect"
 echo "========================================================================================================"
 read -p "Press any key to continue..." -n1 -s
 $XCPCLIENT --log-level=3 --dest-addr=$TARGET_HOST:5555 --udp --a2l "$A2LFILE" --list-mea . --list-cal . 
+sleep 1
 
 echo "========================================================================================================"
 echo "Test measurement"
 echo "========================================================================================================"
 read -p "Press any key to continue..." -n1 -s
-$XCPCLIENT --log-level=2 --dest-addr=$TARGET_HOST:5555 --udp --a2l "$A2LFILE"  --mea counter --time 1 --verbose 2
-
+$XCPCLIENT --log-level=3 --dest-addr=$TARGET_HOST:5555 --udp --a2l "$A2LFILE"  --mea counter --time 3 --csv "$CSVFILE"
+sleep 1
 
 ssh "$TARGET_USER@$TARGET_HOST" "pkill -f no_a2l_demo_cpp" 
 

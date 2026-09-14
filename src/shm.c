@@ -17,6 +17,7 @@
 #ifdef OPTION_SHM_MODE
 
 #include <assert.h> // for assert
+#include <errno.h>  // for errno, ESRCH
 #include <signal.h> // for kill
 #include <stdarg.h> // for va_list, va_start, va_arg, va_end
 #include <stdint.h> // for uint8_t, uint16_t, ...

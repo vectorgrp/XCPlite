@@ -406,6 +406,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventExtTemplat
             A2lUnlock();
         });
         XcpEventExt_Var(event_id, 2, frame_addr, (const uint8_t *)base);
+        XCP_NO_TAIL_CALL();
     }
 }
 
@@ -425,6 +426,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(c
             A2lUnlock();
         });
         XcpEventExt_Var(event_id, 1, frame_addr);
+        XCP_NO_TAIL_CALL();
     }
 }
 
@@ -469,6 +471,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
         // Create base pointer list and trigger
         const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)measurements.addr...};
         XcpEventExtAt_(event_id, (sizeof(bases) / sizeof(bases[0])), bases, clock);
+        XCP_NO_TAIL_CALL();
     }
 }
 

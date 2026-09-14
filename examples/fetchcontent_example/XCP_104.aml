@@ -1,0 +1,1329 @@
+/begin A2ML
+
+/***********************************************************/
+/*                                                         */
+/*   ASAP2 meta language for XCP protocol layer V1.4       */
+/*                                                         */
+/*   File version   description                            */
+/*   ---------------------------------------------------   */
+/*   1.4.0          initial version                        */
+/*   1.4.1          taggedstruct member                    */
+/*                  OPTIMISATION_TYPE_ODT_STRICT was added */
+/*                                                         */
+/*   Datatypes:                                            */
+/*                                                         */
+/*   A2ML       description                                */
+/*   ---------------------------------------------------   */
+/*   uchar      unsigned 8 Bit                             */
+/*   char       signed 8 Bit                               */
+/*   uint       unsigned integer 16 Bit                    */
+/*   int        signed integer 16 Bit                      */
+/*   ulong      unsigned integer 32 Bit                    */
+/*   long       signed integer 32 Bit                      */
+/*   int64      signed integer 64 Bit                      */
+/*   uint64     unsigned integer 64 Bit                    */
+/*   float      float point 32 Bit IEEE 754                */
+/*   double     float point 64 Bit IEEE 754                */
+/*                                                         */
+/***********************************************************/
+
+/*************** start of PROTOCOL_LAYER *******************/
+
+struct Protocol_Layer {                                   /* At MODULE */
+
+  uint;                                                   /* XCP protocol layer version */
+                                                          /* "1.4" = 0x0104 */
+
+  uint;                                                   /* T1 [ms] */
+  uint;                                                   /* T2 [ms] */
+  uint;                                                   /* T3 [ms] */
+  uint;                                                   /* T4 [ms] */
+  uint;                                                   /* T5 [ms] */
+  uint;                                                   /* T6 [ms] */
+  uint;                                                   /* T7 [ms] */
+
+  uchar;                                                  /* MAX_CTO */
+  uint;                                                   /* MAX_DTO default for DAQ and STIM */
+
+  enum {                                                  /* BYTE_ORDER */
+    "BYTE_ORDER_MSB_LAST"  = 0,
+    "BYTE_ORDER_MSB_FIRST" = 1
+  };
+
+  enum {                                                  /* ADDRESS_GRANULARITY */
+    "ADDRESS_GRANULARITY_BYTE"    = 1,
+    "ADDRESS_GRANULARITY_WORD"    = 2,
+    "ADDRESS_GRANULARITY_DWORD"   = 4
+  };
+
+  taggedstruct {                                          /* optional */
+
+    ("OPTIONAL_CMD" enum {                                /* XCP-Code of optional level 0 commands */
+                                                          /* supported by the slave */
+      "GET_COMM_MODE_INFO"               = 0xFB,
+      "GET_ID"                           = 0xFA,
+      "SET_REQUEST"                      = 0xF9,
+      "GET_SEED"                         = 0xF8,
+      "UNLOCK"                           = 0xF7,
+      "SET_MTA"                          = 0xF6,
+      "UPLOAD"                           = 0xF5,
+      "SHORT_UPLOAD"                     = 0xF4,
+      "BUILD_CHECKSUM"                   = 0xF3,
+      "TRANSPORT_LAYER_CMD"              = 0xF2,
+      "USER_CMD"                         = 0xF1,
+      "DOWNLOAD"                         = 0xF0,
+      "DOWNLOAD_NEXT"                    = 0xEF,
+      "DOWNLOAD_MAX"                     = 0xEE,
+      "SHORT_DOWNLOAD"                   = 0xED,
+      "MODIFY_BITS"                      = 0xEC,
+      "SET_CAL_PAGE"                     = 0xEB,
+      "GET_CAL_PAGE"                     = 0xEA,
+      "GET_PAG_PROCESSOR_INFO"           = 0xE9,
+      "GET_SEGMENT_INFO"                 = 0xE8,
+      "GET_PAGE_INFO"                    = 0xE7,
+      "SET_SEGMENT_MODE"                 = 0xE6,
+      "GET_SEGMENT_MODE"                 = 0xE5,
+      "COPY_CAL_PAGE"                    = 0xE4,
+      "CLEAR_DAQ_LIST"                   = 0xE3,
+      "SET_DAQ_PTR"                      = 0xE2,
+      "WRITE_DAQ"                        = 0xE1,
+      "SET_DAQ_LIST_MODE"                = 0xE0,
+      "GET_DAQ_LIST_MODE"                = 0xDF,
+      "START_STOP_DAQ_LIST"              = 0xDE,
+      "START_STOP_SYNCH"                 = 0xDD,
+      "GET_DAQ_CLOCK"                    = 0xDC,
+      "READ_DAQ"                         = 0xDB,
+      "GET_DAQ_PROCESSOR_INFO"           = 0xDA,
+      "GET_DAQ_RESOLUTION_INFO"          = 0xD9,
+      "GET_DAQ_LIST_INFO"                = 0xD8,
+      "GET_DAQ_EVENT_INFO"               = 0xD7,
+      "FREE_DAQ"                         = 0xD6,
+      "ALLOC_DAQ"                        = 0xD5,
+      "ALLOC_ODT"                        = 0xD4,
+      "ALLOC_ODT_ENTRY"                  = 0xD3,
+      "PROGRAM_START"                    = 0xD2,
+      "PROGRAM_CLEAR"                    = 0xD1,
+      "PROGRAM"                          = 0xD0,
+      "PROGRAM_RESET"                    = 0xCF,
+      "GET_PGM_PROCESSOR_INFO"           = 0xCE,
+      "GET_SECTOR_INFO"                  = 0xCD,
+      "PROGRAM_PREPARE"                  = 0xCC,
+      "PROGRAM_FORMAT"                   = 0xCB,
+      "PROGRAM_NEXT"                     = 0xCA,
+      "PROGRAM_MAX"                      = 0xC9,
+      "PROGRAM_VERIFY"                   = 0xC8,
+      "WRITE_DAQ_MULTIPLE"               = 0xC7,
+      "TIME_CORRELATION_PROPERTIES"      = 0xC6,
+      "DTO_CTR_PROPERTIES"               = 0xC5
+                                                          /* do not use 0xC0 command code here, it is reserved as command extension code */
+    })*;
+
+    ("OPTIONAL_LEVEL1_CMD" enum {                         /* XCP-Code of optional level 1 commands, starting with level 0 0xC0 as first byte */
+      "GET_VERSION"                      = 0x00,
+      "SET_DAQ_PACKED_MODE"              = 0x01,
+      "GET_DAQ_PACKED_MODE"              = 0x02,
+      "SW_DBG_COMMAND_SPACE"             = 0xFC,
+      "POD_COMMAND_SPACE"                = 0xFD
+                                                          /* 0xFE shall not be used */
+                                                          /* 0xFF reserved for optional level 2 command space extension */
+    })*;
+
+    "COMMUNICATION_MODE_SUPPORTED" taggedunion {          /* optional modes supported */
+      "BLOCK" taggedstruct {
+        "SLAVE";                                          /* Slave Block Mode supported */
+        "MASTER" struct {                                 /* Master Block Mode supported */
+          uchar;                                          /* MAX_BS */
+          uchar;                                          /* MIN_ST */
+        };
+      };
+      "INTERLEAVED" uchar;                                /* QUEUE_SIZE */
+    };
+
+    "SEED_AND_KEY_EXTERNAL_FUNCTION" char[256];           /* Name of the Seed&Key function */
+                                                          /* including file extension */
+                                                          /* without path */
+    "MAX_DTO_STIM" uint;                                  /* overrules MAX_DTO see above for STIM use case */
+
+    block "ECU_STATES" taggedstruct{
+
+      (block "STATE" struct{
+        uchar;                                            /* STATE_NUMBER */
+        char[100];                                        /* STATE_NAME */
+        taggedstruct {
+          "ECU_SWITCHED_TO_DEFAULT_PAGE";
+        };
+        enum {                                            /* CAL/PAG RESOURCE */
+          "NOT_ACTIVE" = 0,
+          "ACTIVE" = 1,
+          "GETTER_ONLY" = 2                               /* Setter methods not allowed */
+        };
+        enum {                                            /* DAQ RESOURCE */
+          "NOT_ACTIVE" = 0,
+          "ACTIVE" = 1
+        };
+        enum {                                            /* STIM RESOURCE */
+          "NOT_ACTIVE" = 0,
+          "ACTIVE" = 1
+        };
+        enum {                                            /* PGM RESOURCE */
+          "NOT_ACTIVE" = 0,
+          "ACTIVE" = 1
+        };
+
+        taggedstruct {
+
+          (block "MEMORY_ACCESS" struct{                  /* CAL/PAG AVAILABLE */
+            uchar;                                        /* SEGMENT_NUMBER */
+            uchar;                                        /* PAGE_NUMBER */
+            enum {
+              "READ_ACCESS_NOT_ALLOWED" = 0,
+              "READ_ACCESS_ALLOWED" = 1
+            };
+            enum {
+              "WRITE_ACCESS_NOT_ALLOWED" = 0,
+              "WRITE_ACCESS_ALLOWED" = 1
+            };
+          })*;
+
+        };
+
+      })*;
+
+    };
+
+  };
+
+};
+
+/***************** end of PROTOCOL_LAYER *******************/
+
+
+
+/********************* start of DAQ ************************/
+
+struct Daq {                                              /* DAQ supported, at MODULE */
+  enum {                                                  /* DAQ_CONFIG_TYPE */
+    "STATIC"  = 0,
+    "DYNAMIC" = 1
+  };
+
+  uint;                                                   /* MAX_DAQ */
+  uint;                                                   /* MAX_EVENT_CHANNEL */
+  uchar;                                                  /* MIN_DAQ */
+
+  enum {                                                  /* OPTIMISATION_TYPE */
+    "OPTIMISATION_TYPE_DEFAULT"            = 0,
+    "OPTIMISATION_TYPE_ODT_TYPE_16"        = 1,
+    "OPTIMISATION_TYPE_ODT_TYPE_32"        = 2,
+    "OPTIMISATION_TYPE_ODT_TYPE_64"        = 3,
+    "OPTIMISATION_TYPE_ODT_TYPE_ALIGNMENT" = 4,
+    "OPTIMISATION_TYPE_MAX_ENTRY_SIZE"     = 5
+  };
+
+  enum {                                                  /* ADDRESS_EXTENSION */
+    "ADDRESS_EXTENSION_FREE" = 0,
+    "ADDRESS_EXTENSION_ODT"  = 1,
+    "ADDRESS_EXTENSION_DAQ"  = 3
+  };
+
+  enum {                                                  /* IDENTIFICATION_FIELD */
+    "IDENTIFICATION_FIELD_TYPE_ABSOLUTE"              = 0,
+    "IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE"         = 1,
+    "IDENTIFICATION_FIELD_TYPE_RELATIVE_WORD"         = 2,
+    "IDENTIFICATION_FIELD_TYPE_RELATIVE_WORD_ALIGNED" = 3
+  };
+
+  enum {                                                  /* GRANULARITY_ODT_ENTRY_SIZE_DAQ */
+    "GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE"    = 1,
+    "GRANULARITY_ODT_ENTRY_SIZE_DAQ_WORD"    = 2,
+    "GRANULARITY_ODT_ENTRY_SIZE_DAQ_DWORD"   = 4,
+    "GRANULARITY_ODT_ENTRY_SIZE_DAQ_DLONG"   = 8
+  };
+
+  uchar;                                                  /* MAX_ODT_ENTRY_SIZE_DAQ */
+
+  enum {                                                  /* OVERLOAD_INDICATION */
+    "NO_OVERLOAD_INDICATION"    = 0,
+    "OVERLOAD_INDICATION_PID"   = 1,
+    "OVERLOAD_INDICATION_EVENT" = 2
+  };
+
+  taggedstruct {                                          /* optional */
+    "DAQ_ALTERNATING_SUPPORTED" uint;                     /* Display_Event_Channel_Number */
+    "PRESCALER_SUPPORTED";
+    "RESUME_SUPPORTED";
+    "STORE_DAQ_SUPPORTED";
+    "DTO_CTR_FIELD_SUPPORTED";
+    "OPTIMISATION_TYPE_ODT_STRICT";                       /* strict mode shall only be used in combination with */
+                                                          /* OPTIMISATION_TYPE_ODT_TYPE_16 */
+                                                          /* OPTIMISATION_TYPE_ODT_TYPE_32 */
+                                                          /* OPTIMISATION_TYPE_ODT_TYPE_64 */
+
+    block "STIM" struct {                                 /* STIM supported */
+
+      enum {                                              /* GRANULARITY_ODT_ENTRY_SIZE_STIM */
+        "GRANULARITY_ODT_ENTRY_SIZE_STIM_BYTE"   = 1,
+        "GRANULARITY_ODT_ENTRY_SIZE_STIM_WORD"   = 2,
+        "GRANULARITY_ODT_ENTRY_SIZE_STIM_DWORD"  = 4,
+        "GRANULARITY_ODT_ENTRY_SIZE_STIM_DLONG"  = 8
+      };
+
+      uchar;                                              /* MAX_ODT_ENTRY_SIZE_STIM */
+
+      taggedstruct {                                      /* bitwise stimulation */
+        "BIT_STIM_SUPPORTED";
+        "MIN_ST_STIM" uchar;                              /* separation time between DTOs */
+                                                          /* time in units of 100 microseconds */
+      };
+    };
+
+    block "TIMESTAMP_SUPPORTED" struct {
+      uint;                                               /* TIMESTAMP_TICKS */
+      enum {                                              /* TIMESTAMP_SIZE */
+        "NO_TIME_STAMP" = 0,
+        "SIZE_BYTE"     = 1,
+        "SIZE_WORD"     = 2,
+        "SIZE_DWORD"    = 4
+      };
+      enum {                                              /* RESOLUTION OF TIMESTAMP */
+        "UNIT_1NS"   = 0,
+        "UNIT_10NS"  = 1,
+        "UNIT_100NS" = 2,
+        "UNIT_1US"   = 3,
+        "UNIT_10US"  = 4,
+        "UNIT_100US" = 5,
+        "UNIT_1MS"   = 6,
+        "UNIT_10MS"  = 7,
+        "UNIT_100MS" = 8,
+        "UNIT_1S"    = 9,
+        "UNIT_1PS"   = 10,
+        "UNIT_10PS"  = 11,
+        "UNIT_100PS" = 12
+      };
+      taggedstruct {
+        "TIMESTAMP_FIXED";
+      };
+    };
+
+    "PID_OFF_SUPPORTED";
+
+                                                          /* Configuration Limits */
+    "MAX_DAQ_TOTAL" uint;
+    "MAX_ODT_TOTAL" uint;
+    "MAX_ODT_DAQ_TOTAL" uint;
+    "MAX_ODT_STIM_TOTAL" uint;
+    "MAX_ODT_ENTRIES_TOTAL" uint;
+    "MAX_ODT_ENTRIES_DAQ_TOTAL" uint;
+    "MAX_ODT_ENTRIES_STIM_TOTAL" uint;
+
+    "CPU_LOAD_MAX_TOTAL" float;
+    "CORE_LOAD_MAX_TOTAL" float;                          /* max load of all cores */
+
+    (block "CORE_LOAD_MAX" struct {
+      uint;                                               /* CORE_NR: core reference number */
+      float;                                              /* CORE_LOAD_MAX: max load of core(CORE_NR) */
+    })*;
+
+    block "DAQ_MEMORY_CONSUMPTION" struct {
+      ulong;                                              /* DAQ_MEMORY_LIMIT: in Elements[AG] */
+      uint;                                               /* DAQ_SIZE: number of elements[AG] per DAQ list */
+      uint;                                               /* ODT_SIZE: number of elements[AG] per ODT */
+      uint;                                               /* ODT_ENTRY_SIZE: number of elements[AG] per ODT_entry */
+      uint;                                               /* ODT_DAQ_BUFFER_ELEMENT_SIZE: number of */
+                                                          /* payload elements[AG]*factor = sizeof(send buffer)[AG] */
+      uint;                                               /* ODT_STIM_BUFFER_ELEMENT_SIZE: number of */
+                                                          /* payload elements[AG]*factor = sizeof(receive buffer)[AG] */
+      taggedstruct {
+        block "BUFFER_RESERVE" struct {                   /* default for all EVENTs */
+          uchar;                                          /* ODT_DAQ_BUFFER_ELEMENT_RESERVE  in % of */
+                                                          /* ODT_DAQ_BUFFER_ELEMENT_SIZE */
+          uchar;                                          /* ODT_STIM_BUFFER_ELEMENT_RESERVE in % of */
+                                                          /* ODT_STIM_BUFFER_ELEMENT_SIZE */
+        };
+      };
+    };
+
+/******************* start of DAQ_LIST *********************/
+
+    (block "DAQ_LIST" struct {                            /* DAQ_LIST */
+                                                          /* multiple possible */
+      uint;                                               /* DAQ_LIST_NUMBER */
+      taggedstruct {                                      /* optional */
+        "DAQ_LIST_TYPE" enum {
+          "DAQ"      = 1,                                 /* DIRECTION = DAQ only */
+          "STIM"     = 2,                                 /* DIRECTION = STIM only */
+          "DAQ_STIM" = 3                                  /* both directions possible */
+                                                          /* but not simultaneously */
+        };
+
+        "MAX_ODT"         uchar;                          /* MAX_ODT */
+        "MAX_ODT_ENTRIES" uchar;                          /* MAX_ODT_ENTRIES */
+
+        "FIRST_PID" uchar;                                /* FIRST_PID for this DAQ_LIST */
+        "EVENT_FIXED" uint;                               /* this DAQ_LIST always */
+                                                          /* in this event */
+        "DAQ_PACKED_MODE_SUPPORTED";                      /* supports DAQ packed mode */
+
+        block "PREDEFINED" taggedstruct {                 /* predefined */
+                                                          /* not configurable DAQ_LIST */
+          (block "ODT" struct {
+            uchar;                                        /* ODT number */
+            taggedstruct {
+              ("ODT_ENTRY" struct {
+                uchar;                                    /* ODT_ENTRY number */
+                ulong;                                    /* address of element */
+                uchar;                                    /* address extension of element */
+                uchar;                                    /* size of element [AG] */
+                uchar;                                    /* BIT_OFFSET */
+              })*;
+            };                                            /* end of ODT_ENTRY */
+          })*;                                            /* end of ODT */
+        };                                                /* end of PREDEFINED */
+      };
+    })*;
+
+/******************* end of DAQ_LIST ***********************/
+
+/******************* start of EVENT ************************/
+
+    (block "EVENT" struct {                               /* EVENT */
+                                                          /* multiple possible */
+      char[101];                                          /* EVENT_CHANNEL_NAME */
+      char[9];                                            /* EVENT_CHANNEL_SHORT_NAME */
+      uint;                                               /* EVENT_CHANNEL_NUMBER */
+
+      enum {
+        "DAQ"      = 1,                                   /* only DAQ_LISTs */
+                                                          /* with DIRECTION = DAQ */
+        "STIM"     = 2,                                   /* only DAQ_LISTs */
+                                                          /* with DIRECTION = STIM */
+        "DAQ_STIM" = 3                                    /* both kind of DAQ_LISTs */
+      };
+
+      uchar;                                              /* MAX_DAQ_LIST */
+      uchar;                                              /* EVENT_CHANNEL_TIME_CYCLE */
+      uchar;                                              /* EVENT_CHANNEL_TIME_UNIT */
+      uchar;                                              /* EVENT_CHANNEL_PRIORITY */
+      taggedstruct {                                      /* optional */
+
+        "COMPLEMENTARY_BYPASS_EVENT_CHANNEL_NUMBER" uint; /* for compatibility reasons */
+                                                          /* not to be considered, if 1.3 Bypassing features are implemented */
+        "CONSISTENCY" enum {
+          "DAQ"   = 0,
+          "EVENT" = 1,
+          "ODT"   = 2,
+          "NONE"  = 3
+        };
+
+        "EVENT_COUNTER_PRESENT";
+        "RELATED_EVENT_CHANNEL_NUMBER" uint;
+        "RELATED_EVENT_CHANNEL_NUMBER_FIXED";             /* RELATED_EVENT_CHANNEL_NUMBER can not be modified. */
+        "DTO_CTR_DAQ_MODE" enum {                         /* When inserting the DTO CTR field: */
+          "INSERT_COUNTER" = 0,                           /* - use CTR of the related event channel */
+          "INSERT_STIM_COUNTER_COPY" = 1                  /* - use STIM CTR CPY of the related event channel */
+        };
+        "DTO_CTR_DAQ_MODE_FIXED";                         /* DTO_CTR_DAQ_MODE properties can not be modified. */
+        "DTO_CTR_STIM_MODE" enum {                        /* When receiving DTOs with CTR field: */
+          "DO_NOT_CHECK_COUNTER" = 0,                     /* - do not check CTR */
+          "CHECK_COUNTER" = 1                             /* - check CTR */
+        };
+        "DTO_CTR_STIM_MODE_FIXED";                        /* DTO_CTR_STIM_MODE properties can not be modified */
+        "STIM_DTO_CTR_COPY_PRESENT";                      /* DTO CTR can be saved for later reference */
+
+        block "DAQ_PACKED_MODE" struct {                  /* DAQ packed mode, applies for all associated DAQ lists */
+          enum {                                          /* El. A,B,C,D, 3 samples */
+            "ELEMENT_GROUPED" = 1,                        /* A0A1A2B0B1B2C0C1C2D0D1D2 */
+            "EVENT_GROUPED"   = 2                         /* A0B0C0D0A1B1C1D1A2B2C2D2 */
+          };
+
+          enum {                                          /* timestamp mode */
+            "STS_LAST"      = 0,                          /* single timestamp of last sample */
+            "STS_FIRST"     = 1                           /* single timestamp of first sample */
+          };
+
+          enum {                                          /* usage */
+            "OPTIONAL"      = 0,                          /* optional, EVENT allows also non-packed mode */
+            "MANDATORY"     = 1                           /* mandatory, only packed mode allowed */
+          };
+
+          uint;                                           /* DAQ packed mode sample count */
+          taggedstruct {
+            ("ALT_SAMPLE_COUNT" uint)*;                   /* other valid sample count values (optional) */
+          };
+        };
+
+        block "MIN_CYCLE_TIME" struct {                   /* Configuration with 0-0 not allowed */
+          uchar;                                          /* EVENT_CHANNEL_TIME_CYCLE */
+          uchar;                                          /* EVENT_CHANNEL_TIME_UNIT */
+        };
+        block "BUFFER_RESERVE_EVENT" struct {
+                                                          /* overrules default BUFFER_RESERVE for this EVENT */
+          uchar;                                          /* ODT_DAQ_BUFFER_ELEMENT_RESERVE  in % of ODT_DAQ_BUFFER_ELEMENT_SIZE */
+          uchar;                                          /* ODT_STIM_BUFFER_ELEMENT_RESERVE in % of ODT_STIM_BUFFER_ELEMENT_SIZE */
+        };
+
+        "CPU_LOAD_MAX" float;
+
+        block "CPU_LOAD_CONSUMPTION_DAQ" struct {
+          float;                                          /* DAQ_FACTOR */
+          float;                                          /* ODT_FACTOR */
+          float;                                          /* ODT_ENTRY_FACTOR */
+          taggedstruct {
+            (block "ODT_ENTRY_SIZE_FACTOR_TABLE" struct{
+              uint;                                       /* SIZE */
+              float;                                      /* SIZE_FACTOR */
+            })*;
+            block "CORE_LOAD_EP" struct {
+              uint;                                       /* CORE_NR: core reference number */
+              float;                                      /* CORE_LOAD_EP_MAX: max load of this event part */
+            };
+          };
+        };
+
+        block "CPU_LOAD_CONSUMPTION_STIM" struct {
+          float;                                          /* DAQ_FACTOR */
+          float;                                          /* ODT_FACTOR */
+          float;                                          /* ODT_ENTRY_FACTOR */
+          taggedstruct {
+            (block "ODT_ENTRY_SIZE_FACTOR_TABLE" struct{
+              uint;                                       /* SIZE */
+              float;                                      /* SIZE_FACTOR */
+            })*;
+            block "CORE_LOAD_EP" struct {
+              uint;                                       /* CORE_NR: core reference number */
+              float;                                      /* CORE_LOAD_EP_MAX: max load of this event part */
+            };
+          };
+        };
+
+        block "CPU_LOAD_CONSUMPTION_QUEUE" struct {
+                                                          /* default for DAQ and STIM QUEUE */
+          float;                                          /* ODT_FACTOR */
+          float;                                          /* ODT_ELEMENT_LOAD: length in elements[AG] */
+          taggedstruct {
+            block "CORE_LOAD_EP" struct {
+              uint;                                       /* CORE_NR: core reference number */
+              float;                                      /* CORE_LOAD_EP_MAX: max load of this event part */
+            };
+          };
+        };
+
+        block "CPU_LOAD_CONSUMPTION_QUEUE_STIM" struct {
+                                                          /* overrules CPU_LOAD_CONSUMPTION_QUEUE for STIM QUEUE */
+          float;                                          /* ODT_FACTOR */
+          float;                                          /* ODT_ELEMENT_LOAD: length in elements[AG] */
+          taggedstruct {
+            block "CORE_LOAD_EP" struct {
+              uint;                                       /* CORE_NR: core reference number */
+              float;                                      /* CORE_LOAD_EP_MAX: max load of this event part */
+            };
+          };
+        };
+      };
+    })*;
+
+/********************* end of EVENT ************************/
+
+  };                                                      /* end of optional at DAQ */
+
+};
+
+/********************* end of DAQ **************************/
+
+
+/***************** start of DAQ_EVENT **********************/
+
+taggedunion Daq_Event {                                   /* at MEASUREMENT */
+  "FIXED_EVENT_LIST" taggedstruct {
+    ("EVENT" uint)*;
+  };
+  "VARIABLE" taggedstruct {
+    block "AVAILABLE_EVENT_LIST" taggedstruct {
+      ("EVENT" uint)*;
+    };
+    block "DEFAULT_EVENT_LIST" taggedstruct {
+      ("EVENT" uint)*;
+    };
+    block "CONSISTENCY_EVENT_LIST" taggedstruct {
+      ("EVENT" uint)*;
+    };
+  };
+};
+
+/******************** end of DAQ_EVENT *********************/
+
+
+/********************** start of PAG ***********************/
+
+struct Pag {                                              /* PAG supported, at MODULE */
+  uchar;                                                  /* MAX_SEGMENTS */
+  taggedstruct {                                          /* optional */
+    "FREEZE_SUPPORTED";
+  };
+
+};
+
+/*********************** end of PAG ************************/
+
+
+/********************** start of PGM ***********************/
+
+struct Pgm {                                              /* PGM supported, at MODULE */
+
+  enum {
+    "PGM_MODE_ABSOLUTE"                = 1,
+    "PGM_MODE_FUNCTIONAL"              = 2,
+    "PGM_MODE_ABSOLUTE_AND_FUNCTIONAL" = 3
+  };
+  uchar;                                                  /* MAX_SECTORS */
+  uchar;                                                  /* MAX_CTO_PGM */
+
+  taggedstruct {                                          /* optional */
+    (block "SECTOR" struct {                              /* SECTOR */
+                                                          /* multiple possible */
+      char[101];                                          /* SECTOR_NAME */
+      uchar;                                              /* SECTOR_NUMBER */
+      ulong;                                              /* Address */
+      ulong;                                              /* Length */
+      uchar;                                              /* CLEAR_SEQUENCE_NUMBER */
+      uchar;                                              /* PROGRAM_SEQUENCE_NUMBER */
+      uchar;                                              /* PROGRAM_METHOD */
+    })*;                                                  /* end of SECTOR */
+
+    "COMMUNICATION_MODE_SUPPORTED" taggedunion {          /* optional modes supported */
+      "BLOCK" taggedstruct {
+        "SLAVE";                                          /* Slave Block Mode supported */
+        "MASTER" struct {                                 /* Master Block Mode supported */
+          uchar;                                          /* MAX_BS_PGM */
+          uchar;                                          /* MIN_ST_PGM */
+        };
+      };
+      "INTERLEAVED" uchar;                                /* QUEUE_SIZE_PGM */
+    };
+  };
+};
+
+/*********************** end of PGM ************************/
+
+
+/******************** start of SEGMENT *********************/
+
+struct Segment {                                          /* at MEMORY_SEGMENT */
+  uchar;                                                  /* SEGMENT_NUMBER */
+  uchar;                                                  /* number of pages */
+  uchar;                                                  /* ADDRESS_EXTENSION */
+  uchar;                                                  /* COMPRESSION_METHOD */
+  uchar;                                                  /* ENCRYPTION_METHOD */
+
+  taggedstruct {                                          /* optional */
+    block "CHECKSUM" struct {
+      enum {                                              /* checksum type */
+        "XCP_ADD_11"       =   1,
+        "XCP_ADD_12"       =   2,
+        "XCP_ADD_14"       =   3,
+        "XCP_ADD_22"       =   4,
+        "XCP_ADD_24"       =   5,
+        "XCP_ADD_44"       =   6,
+        "XCP_CRC_16"       =   7,
+        "XCP_CRC_16_CITT"  =   8,
+        "XCP_CRC_32"       =   9,
+        "XCP_USER_DEFINED" = 255
+      };
+
+      taggedstruct {
+        "MAX_BLOCK_SIZE" ulong;                           /* maximum block size */
+                                                          /* for checksum calculation */
+        "EXTERNAL_FUNCTION" char[256];                    /* Name of the Checksum function */
+                                                          /* including file extension */
+                                                          /* without path */
+        "MTA_BLOCK_SIZE_ALIGN" uint;                      /* required alignment of MTA and block size */
+      };
+    };
+
+    "DEFAULT_PAGE_NUMBER" uchar;                          /* Number of the default page */
+
+    (block "PAGE" struct {                                /* PAGES for this SEGMENT */
+                                                          /* multiple possible */
+      uchar;                                              /* PAGE_NUMBER */
+
+      enum {                                              /* ECU_ACCESS_TYPE */
+        "ECU_ACCESS_NOT_ALLOWED"      = 0,
+        "ECU_ACCESS_WITHOUT_XCP_ONLY" = 1,
+        "ECU_ACCESS_WITH_XCP_ONLY"    = 2,
+        "ECU_ACCESS_DONT_CARE"        = 3
+      };
+
+      enum {                                              /* XCP_READ_ACCESS_TYPE */
+        "XCP_READ_ACCESS_NOT_ALLOWED"      = 0,
+        "XCP_READ_ACCESS_WITHOUT_ECU_ONLY" = 1,
+        "XCP_READ_ACCESS_WITH_ECU_ONLY"    = 2,
+        "XCP_READ_ACCESS_DONT_CARE"        = 3
+      };
+
+      enum {                                              /* XCP_WRITE_ACCESS_TYPE */
+        "XCP_WRITE_ACCESS_NOT_ALLOWED"      = 0,
+        "XCP_WRITE_ACCESS_WITHOUT_ECU_ONLY" = 1,
+        "XCP_WRITE_ACCESS_WITH_ECU_ONLY"    = 2,
+        "XCP_WRITE_ACCESS_DONT_CARE"        = 3
+      };
+      taggedstruct {
+        "INIT_SEGMENT" uchar;                             /* references segment that initialises this page */
+      };
+
+    })*;                                                  /* end of PAGE */
+
+    (block "ADDRESS_MAPPING" struct {                     /* multiple possible */
+      ulong;                                              /* source address */
+      ulong;                                              /* destination address */
+      ulong;                                              /* length */
+    })*;
+
+    "PGM_VERIFY" ulong;                                   /* verification value for PGM */
+  };                                                      /* end of optional */
+
+};
+
+/********************** end of SEGMENT *********************/
+
+
+/***************** start of TIME_CORRELATION ***************/
+taggedstruct Time_Correlation {
+
+/***********************************************************/
+/*    XCP_SLAVE_CLOCK and ECU_CLOCK need not               */
+/*    necessarily be the same clock, i.e. in case of       */
+/*    an external XCP Slave, these clocks might differ     */
+/***********************************************************/
+
+  "DAQ_TIMESTAMPS_RELATE_TO" enum {
+    "XCP_SLAVE_CLOCK"           = 0,
+    "ECU_CLOCK"                 = 1
+  };
+
+  (block "CLOCK" struct {
+    char;                                                 /* globally unique clock identifier (UUID/EUI), 1st octet (most significant byte) */
+    char;                                                 /* globally unique clock identifier (UUID/EUI), 2nd octet */
+    char;                                                 /* globally unique clock identifier (UUID/EUI), 3rd octet */
+    char;                                                 /* globally unique clock identifier (UUID/EUI), 4th octet */
+    char;                                                 /* globally unique clock identifier (UUID/EUI), 5th octet */
+    char;                                                 /* globally unique clock identifier (UUID/EUI), 6th octet */
+    char;                                                 /* globally unique clock identifier (UUID/EUI), 7th octet */
+    char;                                                 /* globally unique clock identifier (UUID/EUI), 8th octet (least significant byte) */
+
+    enum {                                                /* clock enumerator */
+      "XCP_SLAVE_CLOCK"             = 0,
+      "ECU_CLOCK"                   = 1,
+      "XCP_SLAVE_GRANDMASTER_CLOCK" = 2,                  /* related to XCP_SLAVE_CLOCK */
+      "ECU_GRANDMASTER_CLOCK"       = 3                   /* related to ECU_CLOCK in case of an external slave */
+    };
+    enum {                                                /* readability */
+      "RANDOMLY_READABLE" = 0,
+      "LIMITED_READABLE"  = 1,
+      "NOT_READABLE"      = 2
+    };
+    enum {                                                /* synchronization features */
+      "SYN_UNSUPPORTED"      = 0,                         /* clock neither supports synchronization */
+                                                          /* nor syntonization */
+      "SYNCHRONIZATION_ONLY" = 1,                         /* clock only supports synchronization to */
+                                                          /* external grandmaster clock */
+      "SYNTONIZATION_ONLY"   = 2,                         /* clock only supports syntonization to */
+                                                          /* external grandmaster clock */
+      "SYN_ALL"              = 3                          /* clock supports synchronization as well */
+                                                          /* as syntonization to external grandmaster clock */
+    };
+    uchar;                                                /* clock quality, stratum level */
+
+    taggedstruct {
+      block "TIMESTAMP_CHARACTERIZATION" struct {
+        uint;                                             /* TIMESTAMP_TICKS */
+        enum {                                            /* RESOLUTION OF TIMESTAMP */
+          "UNIT_1NS"   = 0,
+          "UNIT_10NS"  = 1,
+          "UNIT_100NS" = 2,
+          "UNIT_1US"   = 3,
+          "UNIT_10US"  = 4,
+          "UNIT_100US" = 5,
+          "UNIT_1MS"   = 6,
+          "UNIT_10MS"  = 7,
+          "UNIT_100MS" = 8,
+          "UNIT_1S"    = 9,
+          "UNIT_1PS"   = 10,
+          "UNIT_10PS"  = 11,
+          "UNIT_100PS" = 12
+        };
+        enum {                                            /* NATIVE TIMESTAMP SIZE */
+          "SIZE_FOUR_BYTE"  = 4,
+          "SIZE_EIGHT_BYTE" = 8
+        };
+      };
+    };
+
+    uint64;                                               /* MAX_TIMESTAMP_VALUE_BEFORE_WRAP_AROUND */
+    enum {                                                /* epoch */
+      "ATOMIC_TIME"                = 0,                   /* TAI */
+      "UNIVERSAL_COORDINATED_TIME" = 1,                   /* UTC */
+      "ARBITRARY"                  = 2                    /* unknown */
+    };
+  })*;
+};
+/*****************  end of TIME_CORRELATION ****************/
+/***************** start of Common Parameters **************/
+
+taggedstruct Common_Parameters {
+
+  block "PROTOCOL_LAYER" struct Protocol_Layer;
+  block "TIME_CORRELATION" taggedstruct Time_Correlation;
+
+  block "SEGMENT" struct Segment;
+
+  block "DAQ" struct Daq;
+  block "PAG" struct Pag;
+  block "PGM" struct Pgm;
+
+  block "DAQ_EVENT" taggedunion Daq_Event;
+
+};
+
+/****************** end of Common Parameters ***************/
+
+/************************ start of CAN *********************/
+
+struct CAN_Parameters {                        /* At MODULE */
+  uint;                                        /* XCP on CAN version */
+                                               /* "1.4" = 0x0104 */
+  taggedstruct {                               /* optional */
+    "CAN_ID_BROADCAST" ulong;                  /* Auto detection CAN-ID */
+                                               /* master -> slaves */
+                                               /* Bit31= 1: extended identifier */
+                                               /* Bit30= 1: CAN-FD identifier */
+    "CAN_ID_MASTER" ulong;                     /* CMD/STIM CAN-ID */
+                                               /* master -> slave */
+                                               /* Bit31= 1: extended identifier */
+                                               /* Bit30= 1: CAN-FD identifier */
+    "CAN_ID_MASTER_INCREMENTAL";               /* master uses range of CAN-IDs */
+                                               /* start of range = CAN_ID_MASTER */
+                                               /* end of range = CAN_ID_MASTER+MAX_BS(_PGM)-1 */
+    "CAN_ID_SLAVE" ulong;                      /* RES/ERR/EV/SERV/DAQ CAN-ID */
+                                               /* slave -> master */
+                                               /* Bit31= 1: extended identifier */
+                                               /* Bit30= 1: CAN-FD identifier */
+    "CAN_ID_GET_DAQ_CLOCK_MULTICAST" ulong;    /* Only to be used for GET_DAQ_CLOCK_MULTICAST */
+                                               /* master -> slaves */
+                                               /* Bit31= 1: extended identifier */
+                                               /* Bit30= 1: CAN-FD identifier */
+    "BAUDRATE" ulong;                          /* BAUDRATE [Hz] */
+    "SAMPLE_POINT" uchar;                      /* sample point */
+                                               /* [% complete bit time] */
+    "SAMPLE_RATE" enum {
+      "SINGLE" = 1,                            /* 1 sample per bit */
+      "TRIPLE" = 3                             /* 3 samples per bit */
+    };
+    "BTL_CYCLES" uchar;                        /* BTL_CYCLES */
+                                               /* [slots per bit time] */
+    "SJW" uchar;                               /* length synchr. segment */
+                                               /* [BTL_CYCLES] */
+    "SYNC_EDGE" enum {
+      "SINGLE" = 1,                            /* on falling edge only */
+      "DUAL" = 2                               /* on falling and rising edge */
+    };
+    "MAX_DLC_REQUIRED";                        /* master to slave frames */
+                                               /* always to have DLC = MAX_DLC = 8 */
+
+    (block "DAQ_LIST_CAN_ID" struct {          /* At IF_DATA DAQ */
+      uint;                                    /* reference to DAQ_LIST_NUMBER */
+      taggedstruct {                           /* exclusive tags */
+                                               /* either VARIABLE or FIXED */
+        "VARIABLE";
+        "FIXED" ulong;                         /* this DAQ_LIST always */
+                                               /* on this CAN_ID */
+      };
+
+    })*;
+    (block "EVENT_CAN_ID_LIST" struct {        /* At IF_DATA DAQ */
+      uint;                                    /* reference to EVENT_NUMBER */
+      taggedstruct {                           /* exclusive tags */
+        ("FIXED" ulong)*;                      /* this Event always on this ID */
+      };
+    })*;
+
+    "MAX_BUS_LOAD"  ulong;                     /* maximum available bus */
+                                               /* load in percent */
+
+    "MEASUREMENT_SPLIT_ALLOWED";               /* Supports splitting of measurements to increase payload for MAX_DTO <= 8 */
+
+    block "CAN_FD" struct {                    /* The CAN_FD block definition indicates the use of CAN-FD frames */
+      taggedstruct {
+
+        "MAX_DLC" uint;                        /* 8, 12, 16, 20, 24, 32, 48 or 64 */
+        "CAN_FD_DATA_TRANSFER_BAUDRATE" ulong; /* BAUDRATE [Hz] */
+
+        "SAMPLE_POINT" uchar;                  /* sample point receiver */
+                                               /* [% complete bit time] */
+
+        "BTL_CYCLES" uchar;                    /* BTL_CYCLES */
+                                               /* [slots per bit time] */
+        "SJW" uchar;                           /* length synchr. segment */
+                                               /* [BTL_CYCLES] */
+        "SYNC_EDGE" enum {
+          "SINGLE" = 1,                        /* on falling edge only */
+          "DUAL"   = 2                         /* on falling and rising edge */
+        };
+
+        "MAX_DLC_REQUIRED";                    /* master to slave frames */
+                                               /* always to have DLC = MAX_DLC_for CAN-FD */
+
+        "SECONDARY_SAMPLE_POINT" uchar;        /* sender sample point */
+                                               /* [% complete bit time] */
+        "TRANSCEIVER_DELAY_COMPENSATION" enum {
+          "OFF" = 0,
+          "ON" = 1
+        };
+      };
+    };
+  };
+
+  taggedstruct {
+    ("OPTIONAL_TL_SUBCMD" enum {               /* XCP-Code of optional transport layer */
+                                               /* specific subcommand supported by the slave */
+      "GET_SLAVE_ID"                     = 0xFF,
+      "GET_DAQ_ID"                       = 0xFE,
+      "SET_DAQ_ID"                       = 0xFD,
+      "GET_DAQ_CLOCK_MULTICAST"          = 0xFA
+    })*;
+  };
+};
+
+/************************* end of CAN **********************/
+
+/********************** start of SxI ***********************/
+
+struct SxI_Parameters { /* At MODULE */
+  uint;                 /* XCP on SxI version */
+                        /* "1.4" = 0x0104 */
+  ulong;                /* BAUDRATE [Hz] */
+  taggedstruct {        /* exclusive tags */
+    "ASYNCH_FULL_DUPLEX_MODE" struct {
+      enum {
+        "PARITY_NONE" = 0,
+        "PARITY_ODD" = 1,
+        "PARITY_EVEN" = 2
+      };
+      enum {
+        "ONE_STOP_BIT" = 1,
+        "TWO_STOP_BITS" = 2
+      };
+      taggedstruct {
+        block "FRAMING" struct {
+          uchar;        /* SYNC */
+          uchar;        /* ESC */
+        };
+      };
+    };
+    "SYNCH_FULL_DUPLEX_MODE_BYTE";
+    "SYNCH_FULL_DUPLEX_MODE_WORD";
+    "SYNCH_FULL_DUPLEX_MODE_DWORD";
+    "SYNCH_MASTER_SLAVE_MODE_BYTE";
+    "SYNCH_MASTER_SLAVE_MODE_WORD";
+    "SYNCH_MASTER_SLAVE_MODE_DWORD";
+  };
+  enum {
+    "HEADER_LEN_BYTE" = 0,
+    "HEADER_LEN_CTR_BYTE" = 1,
+    "HEADER_LEN_FILL_BYTE" = 2,
+    "HEADER_LEN_WORD" = 3,
+    "HEADER_LEN_CTR_WORD" = 4,
+    "HEADER_LEN_FILL_WORD" = 5
+  };
+  enum {
+    "NO_CHECKSUM" = 0,
+    "CHECKSUM_BYTE" = 1,
+    "CHECKSUM_WORD" = 2
+  };
+
+};
+
+/*************************** end of SxI ********************/
+
+
+/************************ start of TCP_IP ******************/
+
+struct TCP_IP_Parameters {
+
+  uint;                          /* XCP on TCP_IP version */
+                                 /* "1.4" = 0x0104 */
+  uint;                          /* PORT */
+
+  taggedunion {
+    "HOST_NAME" char[256];
+    "ADDRESS" char[15];
+    "IPV6" char[39];
+  };
+  taggedstruct{
+    "MAX_BUS_LOAD"  ulong;       /* maximum available bus */
+                                 /* load in percent */
+    "MAX_BIT_RATE"  ulong;       /* Network speed which is */
+                                 /* the base for MAX_BUS_LOAD in Mbit */
+  };
+
+  taggedstruct{
+    "PACKET_ALIGNMENT" enum {
+      "PACKET_ALIGNMENT_8"  = 0, /* This is the default if the keyword is missing */
+      "PACKET_ALIGNMENT_16" = 1,
+      "PACKET_ALIGNMENT_32" = 2
+    };
+  };
+
+  taggedstruct{
+    ("OPTIONAL_TL_SUBCMD" enum { /* XCP-Code of optional transport layer */
+                                 /* specific subcommand supported by the slave */
+      "GET_SLAVE_ID"             = 0xFF,
+      "GET_SLAVE_ID_EXTENDED"    = 0xFD,
+      "SET_SLAVE_IP_ADDRESS"     = 0xFC,
+      "GET_DAQ_CLOCK_MULTICAST"  = 0xFA
+    })*;
+  };
+};
+
+/************************* end of TCP_IP *******************/
+
+/************************ start of UDP_IP ******************/
+
+struct UDP_IP_Parameters {
+
+  uint;                          /* XCP on UDP_IP version */
+                                 /* "1.4" = 0x0104 */
+  uint;                          /* PORT */
+
+  taggedunion {
+    "HOST_NAME" char[256];
+    "ADDRESS" char[15];
+    "IPV6" char[39];
+  };
+  taggedstruct{
+    "MAX_BUS_LOAD"  ulong;       /* maximum available bus */
+                                 /* load in percent */
+    "MAX_BIT_RATE"  ulong;       /* Network speed which is */
+                                 /* the base for MAX_BUS_LOAD in Mbit */
+  };
+
+  taggedstruct{
+    "PACKET_ALIGNMENT" enum {
+      "PACKET_ALIGNMENT_8"  = 0, /* This is the default if the keyword is missing */
+      "PACKET_ALIGNMENT_16" = 1,
+      "PACKET_ALIGNMENT_32" = 2
+    };
+  };
+
+  taggedstruct{
+    ("OPTIONAL_TL_SUBCMD" enum { /* XCP-Code of optional transport layer */
+                                 /* specific subcommand supported by the slave */
+      "GET_SLAVE_ID"             = 0xFF,
+      "GET_SLAVE_ID_EXTENDED"    = 0xFD,
+      "SET_SLAVE_IP_ADDRESS"     = 0xFC,
+      "GET_DAQ_CLOCK_MULTICAST"  = 0xFA
+    })*;
+  };
+};
+
+/*************************** end of UDP_IP *****************/
+
+/************************ start of USB *********************/
+
+struct ep_parameters {
+  uchar;                             /* ENDPOINT_NUMBER, not endpoint address */
+  enum {
+    "BULK_TRANSFER"      = 2,        /* Numbers according to USB spec. */
+    "INTERRUPT_TRANSFER" = 3
+  };
+  uint;                              /* wMaxPacketSize: Maximum packet */
+                                     /* size of endpoint in bytes */
+  uchar;                             /* bInterval: polling of endpoint */
+  enum {                             /* Packing of XCP Messages */
+    "MESSAGE_PACKING_SINGLE"    = 0, /* Single per USB data packet */
+    "MESSAGE_PACKING_MULTIPLE"  = 1, /* Multiple per USB data packet */
+    "MESSAGE_PACKING_STREAMING" = 2  /* No restriction by packet sizes */
+  };
+  enum {                             /* Alignment mandatory for all */
+    "ALIGNMENT_8_BIT" = 0,           /* packing types */
+    "ALIGNMENT_16_BIT"= 1,
+    "ALIGNMENT_32_BIT"= 2,
+    "ALIGNMENT_64_BIT"= 3
+  };
+  taggedstruct {                     /* Optional */
+    "RECOMMENDED_HOST_BUFSIZE" uint; /* Recommended size for the host */
+                                     /* buffer size. The size is defined */
+                                     /* as multiple of wMaxPacketSize. */
+  };
+};                                   /* end of ep_parameters */
+
+struct USB_Parameters {
+  uint;                              /* XCP on USB version */
+                                     /* 1.4 = 0x0104 */
+  uint;                              /* Vendor ID */
+  uint;                              /* Product ID */
+  uchar;                             /* Number of interface */
+  enum {
+    "HEADER_LEN_BYTE"      = 0,
+    "HEADER_LEN_CTR_BYTE"  = 1,
+    "HEADER_LEN_FILL_BYTE"  = 2,
+    "HEADER_LEN_WORD"      = 3,
+    "HEADER_LEN_CTR_WORD"  = 4,
+    "HEADER_LEN_FILL_WORD" = 5
+  };
+  taggedunion {                      /* OUT-EP for CMD and */
+                                     /* STIM (if not specified otherwise) */
+    block "OUT_EP_CMD_STIM" struct ep_parameters;
+  };
+  taggedunion {                      /* IN-EP for RES/ERR, */
+                                     /* DAQ (if not specified otherwise) and */
+                                     /* EV/SERV (if not specified otherwise) */
+    block "IN_EP_RESERR_DAQ_EVSERV" struct ep_parameters;
+  };
+                                     /* Begin of optional */
+  taggedstruct {                     /* Optional */
+    "ALTERNATE_SETTING_NO" uchar;    /* Number of alternate setting */
+                                     /* String Descriptor of XCP */
+                                     /* interface */
+    "INTERFACE_STRING_DESCRIPTOR" char [101];
+                                     /* multiple OUT-EP's for STIM */
+    (block "OUT_EP_ONLY_STIM" struct ep_parameters)*;
+                                     /* multiple IN-EP's for DAQ */
+    (block "IN_EP_ONLY_DAQ" struct ep_parameters)*;
+                                     /* only one IN-EP for EV/SERV */
+    block "IN_EP_ONLY_EVSERV" struct ep_parameters;
+    (block "DAQ_LIST_USB_ENDPOINT" struct {
+      uint;                          /* reference to DAQ_LIST_NUMBER */
+      taggedstruct {                 /* only mentioned if not VARIABLE */
+        "FIXED_IN" uchar;            /* this DAQ list always */
+                                     /* ENDPOINT_NUMBER, not endpoint address */
+        "FIXED_OUT" uchar;           /* this STIM list always */
+                                     /* ENDPOINT_NUMBER, not endpoint address */
+      };
+    })*;                             /* end of DAQ_LIST_USB_ENDPOINT */
+  };
+
+  taggedstruct {
+    ("OPTIONAL_TL_SUBCMD" enum {     /* XCP-Code of optional transport layer */
+                                     /* specific subcommand supported by the slave */
+      "GET_DAQ_EP"         = 0xFF,
+      "SET_DAQ_EP"         = 0xFE
+    })*;
+
+  };                                 /* end of optional */
+};
+
+/************************* end of USB **********************/
+
+/************************ start of FLX *********************/
+
+enum packet_assignment_type {
+  "NOT_ALLOWED",
+  "FIXED",
+  "VARIABLE_INITIALISED",
+  "VARIABLE"
+};                               /* end of packet_assignment_type */
+
+struct buffer {
+
+  uchar;                         /* FLX_BUF */
+
+  taggedstruct {
+
+    "MAX_FLX_LEN_BUF" taggedunion {
+      "FIXED" uchar;             /* constant value */
+      "VARIABLE" uchar;          /* initial value */
+    };                           /* end of MAX_FLX_LEN_BUF */
+
+    block "LPDU_ID" taggedstruct {
+
+      "FLX_SLOT_ID" taggedunion {
+        "FIXED" uint;
+        "VARIABLE" taggedstruct{
+          "INITIAL_VALUE" uint;
+        };
+      };                         /* end of FLX_SLOT_ID */
+
+      "OFFSET" taggedunion {
+        "FIXED" uchar;
+        "VARIABLE" taggedstruct{
+          "INITIAL_VALUE" uchar;
+        };
+      };                         /* end of OFFSET */
+
+      "CYCLE_REPETITION" taggedunion {
+        "FIXED" uchar;
+        "VARIABLE" taggedstruct{
+          "INITIAL_VALUE" uchar;
+        };
+      };                         /* end of CYCLE_REPETITION */
+
+      "CHANNEL" taggedunion {
+        "FIXED" enum {
+          "A" = 0,
+          "B" = 1
+        };
+        "VARIABLE" taggedstruct{
+          "INITIAL_VALUE" enum {
+            "A" = 0,
+            "B" = 1
+          };
+        };
+      };                         /* end of CHANNEL */
+
+    };                           /* end of LPDU_ID */
+
+    block "XCP_PACKET" taggedstruct {
+
+      "CMD" enum packet_assignment_type;
+      "RES_ERR" enum packet_assignment_type;
+      "EV_SERV" enum packet_assignment_type;
+      "DAQ" enum packet_assignment_type;
+      "STIM" enum packet_assignment_type;
+      "MULTICAST" enum packet_assignment_type;
+
+    };                           /* end of XCP_PACKET */
+  };
+
+};                               /* end of buffer */
+
+struct FLX_Parameters {
+
+  uint;                          /* XCP on FlexRay version */
+                                 /* "1.4" = 0x0104 */
+
+  uint;                          /* T1_FLX [ms] */
+
+  char[256];                     /* FIBEX-file including CHI information */
+                                 /* including extension */
+                                 /* without path */
+
+  char[256];                     /* Cluster-ID */
+
+  uchar;                         /* NAX */
+
+  enum {
+    "HEADER_NAX"               = 0,
+    "HEADER_NAX_FILL"          = 1,
+    "HEADER_NAX_CTR"           = 2,
+    "HEADER_NAX_FILL3"         = 3,
+    "HEADER_NAX_CTR_FILL2"     = 4,
+    "HEADER_NAX_LEN"           = 5,
+    "HEADER_NAX_CTR_LEN"       = 6,
+    "HEADER_NAX_FILL2_LEN"     = 7,
+    "HEADER_NAX_CTR_FILL_LEN"  = 8
+  };
+
+
+  enum {
+    "PACKET_ALIGNMENT_8"  = 0,
+    "PACKET_ALIGNMENT_16" = 1,
+    "PACKET_ALIGNMENT_32" = 2
+  };
+
+  taggedunion {
+    block "INITIAL_CMD_BUFFER" struct buffer;
+  };
+
+  taggedunion {
+    block "INITIAL_RES_ERR_BUFFER" struct buffer;
+  };
+
+  taggedstruct {
+    (block "POOL_BUFFER" struct buffer)*;
+  };
+
+  taggedstruct {
+    ("OPTIONAL_TL_SUBCMD" enum { /* XCP-Code of optional transport layer */
+                                 /* specific subcommand supported by the slave */
+      "FLX_ASSIGN"               = 0xFF,
+      "FLX_ACTIVATE"             = 0xFE,
+      "FLX_DEACTIVATE"           = 0xFD,
+      "GET_DAQ_FLX_BUF"          = 0xFC,
+      "SET_DAQ_FLX_BUF"          = 0xFB,
+      "GET_DAQ_CLOCK_MULTICAST"  = 0xFA
+    })*;
+  };
+};
+
+block "IF_DATA" taggedunion if_data {
+"XCP" struct {
+  taggedstruct Common_Parameters;  /* default parameters */
+  taggedstruct {
+	block "XCP_ON_CAN" struct {
+	  struct CAN_Parameters;  /* specific for CAN */
+	  taggedstruct Common_Parameters;  /* overruling of default */
+	};
+	block "XCP_ON_SxI" struct {
+	  struct SxI_Parameters;  /* specific for SxI */
+	  taggedstruct Common_Parameters;  /* overruling of default */
+	};
+	block "XCP_ON_TCP_IP" struct {
+	  struct TCP_IP_Parameters;  /* specific for TCP_IP */
+	  taggedstruct Common_Parameters;  /* overruling of default */
+	};
+	block "XCP_ON_UDP_IP" struct {
+	  struct UDP_IP_Parameters;  /* specific for UDP */
+	  taggedstruct Common_Parameters;  /* overruling of default */
+	};
+	block "XCP_ON_USB" struct {
+	  struct USB_Parameters;  /* specific for USB      */
+	  taggedstruct Common_Parameters;  /* overruling of default */
+	};
+	block "XCP_ON_FLX" struct {
+	  struct FLX_Parameters;  /* specific for FlexRay  */
+	  taggedstruct Common_Parameters;  /* overruling of default */
+	};
+  };  /* transport layer parameters*/
+};
+
+"XCPplus" struct {
+  uint; /* XCP plus AML structure version */
+  taggedstruct Common_Parameters; /* default parameters */
+  taggedstruct {
+	(block "XCP_ON_CAN" struct {
+	  struct CAN_Parameters; /* specific for CAN */
+	  taggedstruct Common_Parameters; /* overruling of default */
+	  taggedstruct {
+		"TRANSPORT_LAYER_INSTANCE" char[101]; /* name of the transport layer instance */
+	  };
+	})*;
+	(block "XCP_ON_SxI" struct {
+	  struct SxI_Parameters; /* specific for SxI */
+	  taggedstruct Common_Parameters; /* overruling of default */
+	  taggedstruct {
+		"TRANSPORT_LAYER_INSTANCE" char[101]; /* name of the transport layer instance */
+	  };
+	})*;
+	(block "XCP_ON_TCP_IP" struct {
+	  struct TCP_IP_Parameters; /* specific for TCP_IP */
+	  taggedstruct Common_Parameters; /* overruling of default */
+	  taggedstruct {
+		"TRANSPORT_LAYER_INSTANCE" char[101]; /* name of the transport layer instance */
+	  };
+	})*;
+	(block "XCP_ON_UDP_IP" struct {
+	  struct UDP_IP_Parameters; /* specific for UDP */
+	  taggedstruct Common_Parameters; /* overruling of default */
+	  taggedstruct {
+		"TRANSPORT_LAYER_INSTANCE" char[101]; /* name of the transport layer instance */
+	  };
+	})*;
+	(block "XCP_ON_USB" struct {
+	  struct USB_Parameters; /* specific for USB */
+	  taggedstruct Common_Parameters; /* overruling of default */
+	  taggedstruct {
+		"TRANSPORT_LAYER_INSTANCE" char[101]; /* name of the transport layer instance */
+	  };
+	})*;
+	(block "XCP_ON_FLX" struct {
+	  struct FLX_Parameters; /* specific for FlexRay */
+	  taggedstruct Common_Parameters; /* overruling of default */
+	  taggedstruct {
+		"TRANSPORT_LAYER_INSTANCE" char[101]; /* name of the transport layer instance */
+	  };
+	})*;
+  }; /* transport layer specific parameters */
+};
+};
+
+/end A2ML

@@ -12,7 +12,6 @@ use std::error::Error;
 use crate::bin_reader::bin_format::{CalSegDescriptor, EventDescriptor};
 use crate::bin_reader::{write_bin_file, write_hex_file};
 
-use super::xcp::*;
 use super::*;
 
 impl XcpClient {

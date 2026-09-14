@@ -3,9 +3,9 @@
 
 /*
 Claude note on XCPlite version V2.1.10 :-):
-3-way merge of a2ltool upstream v3.2.0 to v3.4.1 onto V2.1.9 was conflict-free. 
+3-way merge of a2ltool upstream v3.2.0 to v3.4.1 onto V2.1.9 was conflict-free.
 Local edits survived unchanged.
-The header now records the base version and commit so the next sync does not need archaeology. 
+The header now records the base version and commit so the next sync does not need archaeology.
 Brings:
 - struct/class unification
 - inheritance on struct-tagged types
@@ -15,6 +15,16 @@ Brings:
 - 64-bit enum signedness
 With unit test, and the "double" typo fix.
 */
+
+// Orientation (XCPlite addition, the rest of the file is upstream code):
+// load_types reads the DWARF type of every variable into a TypeInfo, keyed by the .debug_info offset of the type entry.
+// A DWARF type is a chain of entries: a variable's DW_AT_type may point to a typedef, which points to a const qualifier,
+// which points to a struct, whose members point to base types. get_type follows the chain recursively and folds typedefs
+// and qualifiers away, keeping the first name found as the name of the type. Types can be recursive (a struct with a
+// pointer to itself), wip_items is the stack of types currently being read which breaks that recursion.
+// The bitfield code has to deal with the two ways DWARF describes bit positions: DW_AT_bit_offset (DWARF 2/3, counted from
+// the most significant bit of the containing type) and DW_AT_data_bit_offset (DWARF 4/5, counted from the start of the
+// containing storage), both are converted to an offset from the least significant bit.
 
 use super::{DbgDataType, TypeInfo, VarInfo};
 use super::{DebugDataReader, attributes::*};
@@ -28,17 +38,19 @@ use std::num::Wrapping;
 /// inside the containing type
 type MemberMap = IndexMap<String, (TypeInfo, u64)>;
 
+// A type which is currently being read (work in progress), see get_pointer_name
 #[derive(Debug)]
 struct WipItemInfo {
-    offset: usize,
-    name: Option<String>,
+    offset: usize,        // .debug_info offset of the type entry
+    name: Option<String>, // DW_AT_name of the entry, if it has one
     tag: DwTag,
 }
 
+// The state of one load_types run, becomes DebugData.types and DebugData.typenames
 struct TypeReaderData {
-    types: HashMap<usize, TypeInfo>,
-    typenames: HashMap<String, Vec<usize>>,
-    wip_items: Vec<WipItemInfo>,
+    types: HashMap<usize, TypeInfo>,        // .debug_info offset -> loaded type
+    typenames: HashMap<String, Vec<usize>>, // type name -> offsets of all types with this name
+    wip_items: Vec<WipItemInfo>,            // the stack of types being read, outermost first, to detect recursion
 }
 
 impl DebugDataReader<'_> {
@@ -72,6 +84,8 @@ impl DebugDataReader<'_> {
         (typereader_data.types, typereader_data.typenames)
     }
 
+    // get one type from the debug info, by the offset of its entry; on failure a placeholder of type Other is returned
+    // and stored, so that a struct with one unreadable member can still be used
     fn get_type(&self, current_unit: usize, dbginfo_offset: DebugInfoOffset, typereader_data: &mut TypeReaderData) -> Result<TypeInfo, String> {
         let wip_items_orig_len = typereader_data.wip_items.len();
         match self.get_type_wrapped(current_unit, dbginfo_offset, typereader_data) {
@@ -236,6 +250,7 @@ impl DebugDataReader<'_> {
         Ok(typeinfo)
     }
 
+    // read a DW_TAG_array_type: element type, dimensions (one DW_TAG_subrange_type child per dimension) and stride
     fn get_array_type(
         &self,
         entry: &gimli::DebuggingInformationEntry<EndianSlice<'_, RunTimeEndian>, usize>,
@@ -342,6 +357,7 @@ impl DebugDataReader<'_> {
         })
     }
 
+    // read a DW_TAG_enumeration_type: size and signedness of the underlying integer and the enumerators (name, value)
     fn get_enumeration_type(&self, current_unit: usize, offset: UnitOffset, typereader_data: &mut TypeReaderData) -> Result<DbgDataType, String> {
         let (unit, abbrev) = &self.units[current_unit];
         let mut entries_tree = unit.entries_tree(abbrev, Some(offset)).map_err(|err| err.to_string())?;
@@ -452,7 +468,7 @@ impl DebugDataReader<'_> {
                 // Union members and Dwarf 4/5 bitfields have no DW_AT_data_member_location.
                 // Zero is the correct default for union members; for bitfields the byte offset is
                 // derived from DW_AT_data_bit_offset in get_bitfield_entry() below.
-                let mut offset = get_data_member_location_attribute(self, child_entry, unit.encoding(), current_unit).unwrap_or(0);
+                let mut offset = get_data_member_location_attribute(self, child_entry, unit.encoding(), current_unit, opt_name.as_deref().unwrap_or("<anonymous>")).unwrap_or(0);
 
                 // get the type of the member
                 if let Some((new_cur_unit, new_dbginfo_offset)) = get_type_attribute(child_entry, &self.units, current_unit)?
@@ -490,6 +506,8 @@ impl DebugDataReader<'_> {
         Ok((members, inheritance))
     }
 
+    // wrap the type of a struct member which has a DW_AT_bit_size into a Bitfield type, see the orientation comment
+    // for the two DWARF encodings of the bit position. offset (the byte offset of the member) may be adjusted
     fn get_bitfield_entry(
         &self,
         unit: &gimli::UnitHeader<EndianSlice<RunTimeEndian>, usize>,
@@ -574,7 +592,7 @@ impl DebugDataReader<'_> {
     ) -> Result<(String, TypeInfo, u64), String> {
         let (unit, _) = &self.units[current_unit];
         let data_location =
-            get_data_member_location_attribute(self, child_entry, unit.encoding(), current_unit).ok_or_else(|| "missing byte offset for inherited class".to_string())?;
+            get_data_member_location_attribute(self, child_entry, unit.encoding(), current_unit, "<inherited class>").ok_or_else(|| "missing byte offset for inherited class".to_string())?;
 
         let Some((new_cur_unit, new_dbginfo_offset)) = get_type_attribute(child_entry, &self.units, current_unit)? else {
             // a base class whose type is "nothing"?
@@ -596,6 +614,7 @@ impl DebugDataReader<'_> {
     }
 }
 
+// widen the integer type containing a bitfield if the bits do not fit into it (a DWARF 2/3 bit offset may be negative)
 fn fix_bitfield_container_type(membertype: &mut TypeInfo, offset: u64, bit_size: u64, bit_offset: u64) {
     let type_size = membertype.get_size();
     if bit_offset + bit_size > type_size * 8 {
@@ -642,6 +661,7 @@ fn enum_is_signed(underlying_signed: bool, size: u64, enumerators: &[(String, i6
     min_val < 0 && i128::from(max_val) < signed_limit
 }
 
+// map a DW_TAG_base_type (DW_AT_encoding: signed, unsigned, float, boolean, ... and DW_AT_byte_size) to a DbgDataType
 fn get_base_type(entry: &gimli::DebuggingInformationEntry<EndianSlice<RunTimeEndian>, usize>, unit: &gimli::UnitHeader<EndianSlice<RunTimeEndian>>) -> (DbgDataType, String) {
     let byte_size = get_byte_size_attribute(entry).unwrap_or(1u64);
     let encoding = get_encoding_attribute(entry).unwrap_or(gimli::constants::DW_ATE_unsigned);

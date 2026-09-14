@@ -29,13 +29,13 @@
 #include <mach-o/ldsyms.h>  // for _mh_execute_header
 #endif
 
-#include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #ifdef OPTION_ENABLE_PERSISTENCE
 #include "persistence.h" // for XcpBinFreezeCalSeg
 #endif
-#include "platform.h"    // for atomics OS abstraction
-#include "xcp.h"         // XCP protocol definitions
-#include "xcplite.h"     // XCP protocol layer interface functions
+#include "platform.h" // for atomics OS abstraction
+#include "xcp.h"      // XCP protocol definitions
+#include "xcplite.h"  // XCP protocol layer interface functions
 
 /**************************************************************************/
 // State
@@ -143,7 +143,7 @@ uint16_t XcpRegisterSectionCalSegs(void) {
             *(e->indexp) = index; // initialize the segment index pointer
         }
     } else {
-        DBG_PRINT_WARNING("(ELF): No xcp_cals section found\n");
+        DBG_PRINT3("(ELF): No xcp_cals section found for pre-registration\n");
     }
 #elif defined(__APPLE__)
     unsigned long sz = 0;
@@ -162,7 +162,7 @@ uint16_t XcpRegisterSectionCalSegs(void) {
             *(e->indexp) = index;
         }
     } else {
-        DBG_PRINT_WARNING("(MacOS): No xcp_cals section found\n");
+        DBG_PRINT3("(MacOS): No xcp_cals section found for pre-registration\n");
     }
 #else
 #ifndef _WIN

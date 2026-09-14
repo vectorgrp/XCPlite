@@ -23,7 +23,8 @@
 #include <stdlib.h>    // for malloc, free
 #include <string.h>    // for sprintf
 
-#include "platform.h" // from libxcplite for SOCKET_HANDLE, ...
+#include "platform.h" // from libxcplite for MUTEX, mutexInit, mutexLock, mutexUnlock, clockGetMonotonicNs, sleepUs
+#include "sockets.h"  // from libxcplite for SOCKET_HANDLE, htonll
 
 #include "ptp.h"
 

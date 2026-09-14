@@ -350,7 +350,7 @@ static void initAnalogConverter() {
 
     ads1115Present = ads1115.begin(ADS1115_I2C_ADDRESS, &Wire);
     if (!ads1115Present) {
-        Serial.printf("ADS1115 not found at I2C address 0x%02X; using sine signal\n", ADS1115_I2C_ADDRESS);
+        Serial.printf("ADS1115 not found at I2C address 0x%02X\n", ADS1115_I2C_ADDRESS);
         return;
     }
 

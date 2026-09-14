@@ -19,10 +19,32 @@ The library has **mutually exclusive build configurations** selected via `XCPLIT
 | `ptp` | `build-ptp/` | `xcplib_ptp_cfg.h` | Like default with socket hardware timestamps; requires Linux and a PTP-capable NIC |
 | `shm` | `build-shm/` | `xcplib_shm_cfg.h` | Shared-memory multi-application mode (shmtool, xcpdaemon) |
 | `rtos` | `build-rtos/` | `xcplib_rtos_cfg.h` | FreeRTOS embedded targets: reduced footprint, no filesystem, 32-bit |
+| `raw` | `build-raw/` | `xcplib_raw_cfg.h` | Raw Ethernet transport: UDP/IPv4 inside xcplib, no TCP/IP stack (Linux only) |
 
 Each `src/xcplib_<name>_cfg.h` header documents the exact overrides applied on top of the defaults in `src/xcplib_cfg.h`.
 
 > **Use a separate build directory per configuration.** Configurations apply different compile definitions to the library object files; mixing them in one build directory produces incorrect results.
+
+### Application specific configuration override
+
+The shipped configurations are override headers `src/xcplib_<name>_cfg.h`, which `src/xcplib_cfg.h` includes at its end when the preprocessor symbol `XCPLIB_CFG_OVERRIDE` names them. An application can supply its own header in the same style (`#undef`/`#define` of `OPTION_*`, see `docs/xcplib_cfg.md` for the tunables) via the CMake variable `XCPLITE_CFG_OVERRIDE`:
+
+```bash
+# Standalone library build
+cmake -B build -S . -DXCPLITE_CFG_OVERRIDE=/path/to/xcplib_app_cfg.h
+```
+
+```cmake
+# Consuming project (add_subdirectory / FetchContent), before FetchContent_MakeAvailable()
+set(XCPLITE_CFG_OVERRIDE "${CMAKE_CURRENT_SOURCE_DIR}/config/xcplib_app_cfg.h")
+```
+
+xcplite defines `XCPLIB_CFG_OVERRIDE="<file name>"` and adds the header's directory to the include path, both as PUBLIC usage requirements of the `xcplite` target, so the library and every consumer see the same options (struct layouts and macro expansions depend on them). With install rules enabled the header is installed next to `xcplib_cfg.h`, so `find_package` consumers get the identical configuration.
+
+- Only valid with `XCPLITE_CONFIGURATION=default`. To build on a shipped configuration, `#include` its header (e.g. `"xcplib_no_a2l_cfg.h"`) at the top of the custom header.
+- The file name must differ from the shipped headers, since `src/` is searched first.
+
+`examples/fetchcontent_example/config/xcplib_app_cfg.h` is a complete example.
 
 ## Build options
 
@@ -35,6 +57,8 @@ Within a chosen configuration, the following options control what gets built:
 | `XCPLITE_BUILD_TOOLS` | `OFF` | Build tool targets for the selected configuration (see table below) |
 | `XCPLITE_BUILD_RUST_TOOLS` | `OFF` | Build Rust tools `xcpclient` and `bintool` via cargo (any configuration; requires Rust toolchain) |
 | `XCPLITE_BUILD_BPF_DEMO` | `OFF` | Build `bpf_demo` (default configuration, Linux only; requires libbpf) |
+| `XCPLITE_INSTALL` | `ON` top-level, `OFF` as subproject | Generate install rules (`cmake --install`). Automatically `OFF` when xcplite is consumed via `add_subdirectory`/`FetchContent`, so a consuming project's install does not pull in xcplite unless requested |
+| `XCPLITE_CFG_OVERRIDE` | *(empty)* | Path to an application specific configuration override header, applied on top of `src/xcplib_cfg.h`. Only with `XCPLITE_CONFIGURATION=default`; see [Application specific configuration override](#application-specific-configuration-override) |
 
 ### Targets per configuration
 
@@ -45,13 +69,15 @@ Within a chosen configuration, the following options control what gets built:
 | `ptp` | ptp4l_demo¹ | clock_test | ptptool¹ |
 | `shm` | hello_xcp (SHM), hello_xcp_cpp (SHM) | *(none)* | shmtool, xcpdaemon³ |
 | `rtos` | freertos_emu_demo³ (downloads FreeRTOS-Kernel) | *(none)* | *(none)* |
+| `raw` | udp_raw_demo (Linux only) | socket_raw_test | *(none)* |
 
 ¹ Linux only  ² requires libbpf  ³ not supported on Windows
 
-### Standalone examples (built separately after install)
+### Standalone examples (built separately)
 
-These examples have their own `CMakeLists.txt` and use `find_package(xcplite)` against an installed library. They are **not** built from the root CMake project:
+These examples have their own `CMakeLists.txt` and consume xcplite either from an installed package (`find_package(xcplite)`) or directly from source (`FetchContent`). They are not built from the root CMake project:
 
+- **`examples/fetchcontent_example/`** — Minimal C/C++ consumer example using `FetchContent`. Clones and builds xcplite from git as part of the example's own build; no install step needed. See `examples/fetchcontent_example/README.md` and [Using xcplite via FetchContent](#using-xcplite-via-fetchcontent).
 - **`examples/silkit_demo/`** — Requires [SilKit](https://github.com/vectorgrp/sil-kit) and an installed xcplite (shm configuration recommended). See `examples/silkit_demo/README.md`.
 - **`examples/external_example/`** — Minimal C/C++ consumer example. Shows how to use xcplite from an installed package. See `examples/external_example/README.md`.
 - **`examples/esp32_freertos_demo/`** — ESP32 FreeRTOS target. Uses the same `xcplib_rtos_cfg.h` override as the `rtos` CMake configuration, but is built with [PlatformIO](https://platformio.org/). Not a CMake project. The CMake `rtos` configuration builds `freertos_emu_demo` instead, which runs the same FreeRTOS xcplite code on a POSIX simulator for host-side testing (Linux/macOS only).
@@ -71,7 +97,7 @@ These examples have their own `CMakeLists.txt` and use `find_package(xcplite)` a
 | Argument group | Values | Default |
 |----------------|--------|---------|
 | Build type | `debug` \| `release` \| `relwithdebinfo` | `debug` |
-| Configuration | `default` \| `no_a2l` \| `ptp` \| `shm` \| `rtos` | `default` |
+| Configuration | `default` \| `no_a2l` \| `ptp` \| `shm` \| `rtos` \| `raw` | `default` |
 | Target | `lib` \| `examples` \| `tests` \| `tools` \| `rust_tools` \| `all` | `examples` |
 | Options | `clean` `cleanall` `install` `install=<path>` `cargo_install` `tidy` | — |
 
@@ -110,6 +136,9 @@ Examples:
 
 # rtos config: freertos_demo (Linux/macOS only)
 ./build.sh rtos examples
+
+# raw config: udp_raw_demo, raw Ethernet transport (Linux only, needs CAP_NET_RAW)
+./build.sh raw examples
 
 # Library only, install to build/install
 ./build.sh lib install
@@ -172,6 +201,10 @@ cmake --build build-shm --parallel
 # rtos configuration — freertos_demo (downloads FreeRTOS-Kernel; Linux/macOS only)
 cmake -B build-rtos -S . -DXCPLITE_CONFIGURATION=rtos -DXCPLITE_BUILD_EXAMPLES=ON
 cmake --build build-rtos --parallel
+
+# raw configuration — udp_raw_demo, raw Ethernet transport (Linux only)
+cmake -B build-raw -S . -DXCPLITE_CONFIGURATION=raw -DXCPLITE_BUILD_EXAMPLES=ON
+cmake --build build-raw --parallel
 
 # Build a specific target
 cmake --build build --target hello_xcp
@@ -272,6 +305,42 @@ target_link_libraries(your_target PRIVATE xcplite::xcplite)
 cmake -B build -S . -DCMAKE_PREFIX_PATH=/path/to/xcplite/build/install
 ```
 
+### Using xcplite via FetchContent
+
+Instead of installing xcplite first, a project can build it from source as part of its own build. CMake clones the repository at configure time into `<build>/_deps/xcplite-src` and adds it as a subdirectory:
+
+```cmake
+include(FetchContent)
+
+FetchContent_Declare(xcplite
+    GIT_REPOSITORY https://github.com/vectorgrp/XCPlite.git
+    GIT_TAG        V2.2.2
+    GIT_SHALLOW    TRUE
+)
+
+# Select the configuration and targets before FetchContent_MakeAvailable()
+# (the CACHE ... FORCE form works as well)
+set(XCPLITE_CONFIGURATION  "default")   # default | no_a2l | ptp | shm | raw
+set(XCPLITE_BUILD_EXAMPLES OFF)
+set(XCPLITE_BUILD_TESTS    OFF)
+
+FetchContent_MakeAvailable(xcplite)
+
+target_link_libraries(your_target PRIVATE xcplite::xcplite)
+```
+
+Notes:
+
+- `xcplite::xcplite` is provided by both consumption paths, so the link line is the same as with `find_package`. The plain target name `xcplite` also works in the FetchContent case.
+- When consumed this way xcplite does not touch the consuming project's `CMAKE_INSTALL_PREFIX` or `CMAKE_<LANG>_FLAGS_<CONFIG>` and, with the default `XCPLITE_INSTALL=OFF`, adds no install rules. Set `-DXCPLITE_INSTALL=ON` to install xcplite together with your project.
+- The library needs only a C compiler; the root project also enables C++ because the C++ examples and tests live in the same tree.
+- For local development against a checked-out source tree, skip the clone with the standard override `-DFETCHCONTENT_SOURCE_DIR_XCPLITE=/path/to/XCPlite`.
+- An application specific override header can be applied with `XCPLITE_CFG_OVERRIDE`, see [Application specific configuration override](#application-specific-configuration-override).
+- The `rtos` configuration requires the consuming project to provide the FreeRTOS and lwIP headers and to define `_FREE_RTOS` on the `xcplite` target; see `examples/freertos_demo/freertos_emu_demo/CMakeLists.txt` for the pattern.
+
+See `examples/fetchcontent_example/` for a complete standalone project.
+
+
 ### Building Standalone Examples Against the Installed Library
 
 `silkit_demo` and `external_example` are standalone projects that consume an installed xcplite:
@@ -341,5 +410,6 @@ To test all configurations:
 ./build.sh ptp tools               # ptp config, tools (Linux only)
 ./build.sh no_a2l examples         # no_a2l config
 ./build.sh rtos examples           # rtos config (Linux/macOS only)
+./build.sh raw examples            # raw config (Linux only, see docs/SOCKET_RAW.md)
 ```
 

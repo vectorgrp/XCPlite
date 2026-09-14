@@ -13,13 +13,10 @@
 
 #define FASTTASK_PRIORITY (configMAX_PRIORITIES - 1)
 #define FASTTASK_STACKSIZE 4096
-#define FASTTASK_PERIOD_MIN_MS 1
-#define FASTTASK_PERIOD_MAX_MS 100
+
 
 #define SLOWTASK_PRIORITY 3
 #define SLOWTASK_STACKSIZE 4096
-#define SLOWTASK_PERIOD_MIN_MS 1
-#define SLOWTASK_PERIOD_MAX_MS 1000
 
 // Initialize XCP demo (start XCP server and demo tasks)
 bool xcp_demo_init(void);

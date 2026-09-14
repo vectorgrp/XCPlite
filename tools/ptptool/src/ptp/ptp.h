@@ -4,8 +4,9 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 
-#include "platform.h" // from libxcplite for SOCKET_HANDLE, THREAD_HANDLE, ...
+#include "platform.h" // from libxcplite for THREAD_HANDLE, MUTEX
 #include "ptpHdr.h"   // for struct ptphdr
+#include "sockets.h"  // from libxcplite for SOCKET_HANDLE
 #include "util.h"     // for average filter
 
 //-------------------------------------------------------------------------------------------------------

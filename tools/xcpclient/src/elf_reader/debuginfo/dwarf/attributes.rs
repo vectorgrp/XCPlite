@@ -1,4 +1,23 @@
 // Taken from Github repository a2ltool by DanielT
+//
+// Readers for the DWARF attributes this tool needs. Each function reads one attribute (DW_AT_xxx) of a debug info entry
+// and converts it to a plain Rust value.
+//
+// Why every getter matches on several AttributeValue variants: DWARF separates the meaning of an attribute (DW_AT_byte_size)
+// from its storage format, the "form" (DW_FORM_data1, DW_FORM_data2, DW_FORM_udata, ...). The compiler picks the form which
+// takes the least space, so a byte size of 4 may arrive as Data1(4) from one compiler and as Udata(4) from another. gimli
+// hands the value over as the AttributeValue enum variant of its form, the getters accept every form which makes sense.
+//
+// Kinds of values which occur here:
+//   constants     Data1/2/4/8, Udata, Sdata: sizes, offsets, enumerator values, bit positions
+//   strings       String (inline), DebugStrRef (offset into .debug_str), DebugStrOffsetsIndex (DWARF 5 index, resolved
+//                 through the .debug_str_offsets table of the unit), DebugLineStrRef (.debug_line_str, file names)
+//   references    UnitRef (offset relative to the unit), DebugInfoRef (offset relative to .debug_info): the type of a
+//                 variable, the declaration a definition belongs to, the original of an inlined copy
+//   addresses     Addr (a plain address), DebugAddrIndex (DWARF 5 index into .debug_addr)
+//   expressions   Exprloc: a location expression, a small program which computes where a variable lives, see evaluate_exprloc.
+//                 LocationListsRef / DebugLocListsIndex: a list of (address range, expression) pairs for variables whose
+//                 location changes during the function (optimized code)
 
 use super::{DebugDataReader, UnitList};
 use gimli::{DebugAddrBase, DebuggingInformationEntry, EndianSlice, RunTimeEndian, UnitHeader};
@@ -6,11 +25,47 @@ use gimli::{DebugAddrBase, DebuggingInformationEntry, EndianSlice, RunTimeEndian
 type SliceType<'a> = EndianSlice<'a, RunTimeEndian>;
 type OptionalAttribute<'data> = Option<gimli::AttributeValue<SliceType<'data>>>;
 
+// Start address of a function: DW_AT_low_pc is a direct address (DW_FORM_addr) or, in DWARF 5, an index into the address table
+// of the unit (DW_FORM_addrx, Clang and split DWARF), which the caller resolves with resolve_index (Dwarf::address), it is only
+// called for the index form. name is the function name for the log message. Returns None if the attribute is missing or unresolved
+pub(crate) fn get_low_pc_attribute<R: gimli::Reader>(
+    entry: &DebuggingInformationEntry<R>,
+    name: &str,
+    resolve_index: impl FnOnce(gimli::DebugAddrIndex<R::Offset>) -> gimli::Result<u64>,
+) -> Option<u64> {
+    match entry.attr_value(gimli::constants::DW_AT_low_pc)? {
+        gimli::AttributeValue::Addr(addr) => Some(addr),
+        gimli::AttributeValue::DebugAddrIndex(index) => match resolve_index(index) {
+            Ok(addr) => Some(addr),
+            Err(e) => {
+                log::warn!("Function '{}': DW_AT_low_pc address index {:?} not resolved: {}", name, index, e);
+                None
+            }
+        },
+        other => {
+            log::warn!("Function '{}': unsupported form {:?} of DW_AT_low_pc, the function start address is unknown", name, other);
+            None
+        }
+    }
+}
+
+// The DW_AT_producer of a compilation unit: the compiler, its version and its command line options
+pub(crate) fn get_producer_attribute(
+    entry: &DebuggingInformationEntry<SliceType, usize>,
+    dwarf: &gimli::Dwarf<EndianSlice<RunTimeEndian>>,
+    unit_header: &gimli::UnitHeader<EndianSlice<RunTimeEndian>>,
+) -> Result<String, String> {
+    let producer_attr = get_attr_value(entry, gimli::constants::DW_AT_producer).ok_or_else(|| "failed to get producer attribute".to_string())?;
+    decode_string_attribute(producer_attr, dwarf, unit_header)
+}
+
 // try to get the attribute of the type attrtype for the DIE
 pub(crate) fn get_attr_value<'data>(entry: &DebuggingInformationEntry<SliceType<'data>, usize>, attrtype: gimli::DwAt) -> OptionalAttribute<'data> {
     entry.attr_value(attrtype)
 }
 
+// Decode a string attribute value in any of its forms, see the module comment. The DWARF 5 indexed form needs the
+// str_offsets_base of the unit, which is why a Unit is constructed from the header for that case only
 fn decode_string_attribute(
     attr: gimli::AttributeValue<SliceType>,
     dwarf: &gimli::Dwarf<EndianSlice<RunTimeEndian>>,
@@ -73,6 +128,9 @@ pub(crate) fn get_name_attribute(
     decode_string_attribute(name_attr, dwarf, unit_header)
 }
 
+// get the mangled (linker) name of a C++ variable or function from the DW_AT_linkage_name attribute, e.g. _ZN13motor_control5inputE
+// DW_AT_MIPS_linkage_name is the name of the attribute before it was standardized in DWARF 4, still emitted by some compilers.
+// C entities and C++ entities with internal linkage have no linkage name
 pub(crate) fn get_linkage_name_attribute(
     entry: &DebuggingInformationEntry<SliceType, usize>,
     dwarf: &gimli::Dwarf<EndianSlice<RunTimeEndian>>,
@@ -102,21 +160,35 @@ pub(crate) fn get_typeref_attribute(entry: &DebuggingInformationEntry<SliceType,
     }
 }
 
-// get the address of a variable from a DW_AT_location attribute
+// get the address of a variable from a DW_AT_location attribute, as (address extension, address), see VarInfo
 // The DW_AT_location contains an Exprloc expression that allows the address to be calculated
-// in complex ways, so the expression must be evaluated in order to get the address
+// in complex ways, so the expression must be evaluated in order to get the address.
+// A location list (several expressions, each valid for a range of code addresses) is accepted if all its entries agree
 pub(crate) fn get_location_attribute(
     debug_data_reader: &DebugDataReader,
     entry: &DebuggingInformationEntry<SliceType, usize>,
     encoding: gimli::Encoding,
     current_unit: usize,
+    name: &str,
 ) -> Option<(u8, u64)> {
     let loc_attr = get_attr_value(entry, gimli::constants::DW_AT_location)?;
     match loc_attr {
-        gimli::AttributeValue::Exprloc(expression) => evaluate_exprloc(debug_data_reader, expression, encoding, current_unit),
-        gimli::AttributeValue::LocationListsRef(offset) => evaluate_location_list(debug_data_reader, offset, encoding, current_unit),
+        gimli::AttributeValue::Exprloc(expression) => evaluate_exprloc(debug_data_reader, expression, encoding, current_unit, name),
+        gimli::AttributeValue::LocationListsRef(offset) => evaluate_location_list(debug_data_reader, offset, encoding, current_unit, name),
+        gimli::AttributeValue::DebugLocListsIndex(index) => {
+            // DWARF 5: index into the location list offset table of the unit (DW_FORM_loclistx)
+            let (unit_header, _) = &debug_data_reader.units[current_unit];
+            let unit = debug_data_reader.dwarf.unit(*unit_header).ok()?;
+            match debug_data_reader.dwarf.locations_offset(&unit, index) {
+                Ok(offset) => evaluate_location_list(debug_data_reader, offset, encoding, current_unit, name),
+                Err(e) => {
+                    log::debug!("get_location_attribute: '{name}': location list index {index:?} not resolved: {e}");
+                    None
+                }
+            }
+        }
         _ => {
-            log::error!("get_location_attribute: Unexpected location attribute type: {loc_attr:#?}");
+            log::warn!("get_location_attribute: '{name}': unexpected location attribute type: {loc_attr:#?}");
             None
         }
     }
@@ -128,11 +200,12 @@ pub(crate) fn get_data_member_location_attribute(
     entry: &DebuggingInformationEntry<SliceType, usize>,
     encoding: gimli::Encoding,
     current_unit: usize,
+    name: &str,
 ) -> Option<u64> {
     let loc_attr = get_attr_value(entry, gimli::constants::DW_AT_data_member_location)?;
     match loc_attr {
         gimli::AttributeValue::Exprloc(expression) => {
-            if let Some((addr_ext, addr)) = evaluate_exprloc(debug_data_reader, expression, encoding, current_unit) {
+            if let Some((addr_ext, addr)) = evaluate_exprloc(debug_data_reader, expression, encoding, current_unit, name) {
                 Some(addr)
             } else {
                 None
@@ -144,7 +217,7 @@ pub(crate) fn get_data_member_location_attribute(
         gimli::AttributeValue::Data4(val) => Some(u64::from(val)),
         gimli::AttributeValue::Data8(val) => Some(val),
         other => {
-            log::warn!("unexpected data_member_location attribute: {other:?}");
+            log::warn!("'{name}': unexpected data_member_location attribute: {other:?}");
             None
         }
     }
@@ -170,7 +243,7 @@ pub(crate) fn get_encoding_attribute(entry: &DebuggingInformationEntry<SliceType
     if let gimli::AttributeValue::Encoding(enc) = encoding_attr { Some(enc) } else { None }
 }
 
-// get the upper bound of an array from the DW_AT_upper_bound attribute
+// get the lower bound of an array dimension from the DW_AT_lower_bound attribute (0 for C/C++, the attribute is usually absent)
 pub(crate) fn get_lower_bound_attribute(entry: &DebuggingInformationEntry<SliceType, usize>) -> Option<u64> {
     let lbound_attr = get_attr_value(entry, gimli::constants::DW_AT_lower_bound)?;
     match lbound_attr {
@@ -198,7 +271,7 @@ pub(crate) fn get_upper_bound_attribute(entry: &DebuggingInformationEntry<SliceT
     }
 }
 
-// get the upper bound of an array from the DW_AT_upper_bound attribute
+// get the number of elements of an array dimension from the DW_AT_count attribute (clang emits this instead of the upper bound)
 pub(crate) fn get_count_attribute(entry: &DebuggingInformationEntry<SliceType, usize>) -> Option<u64> {
     let count_attr = get_attr_value(entry, gimli::constants::DW_AT_count)?;
     match count_attr {
@@ -212,7 +285,7 @@ pub(crate) fn get_count_attribute(entry: &DebuggingInformationEntry<SliceType, u
     }
 }
 
-// get the byte stride of an array from the DW_AT_upper_bound attribute
+// get the byte stride of an array from the DW_AT_byte_stride attribute
 // this attribute is only present if the stride is different from the element size
 pub(crate) fn get_byte_stride_attribute(entry: &DebuggingInformationEntry<SliceType, usize>) -> Option<u64> {
     let stride_attr = get_attr_value(entry, gimli::constants::DW_AT_byte_stride)?;
@@ -286,6 +359,9 @@ pub(crate) fn get_data_bit_offset_attribute(entry: &DebuggingInformationEntry<Sl
     }
 }
 
+// Follow the DW_AT_specification attribute: the entry is the definition (out of line) of something declared in another entry,
+// e.g. the definition of a C++ static class member or a namespace variable. Returns the declaration entry, which holds the
+// name, type and scope, while the definition entry holds the location
 pub(crate) fn get_specification_attribute<'data>(
     entry: &DebuggingInformationEntry<SliceType<'data>, usize>,
     unit: &UnitHeader<EndianSlice<'data, RunTimeEndian>>,
@@ -304,6 +380,8 @@ pub(crate) fn get_specification_attribute<'data>(
     }
 }
 
+// Follow the DW_AT_abstract_origin attribute: the entry is a concrete copy (inlined or out of line) of a function or of a
+// variable of a function which the compiler inlined. Returns the "abstract instance" entry, which holds name and type
 pub(crate) fn get_abstract_origin_attribute<'data>(
     entry: &DebuggingInformationEntry<SliceType<'data>, usize>,
     unit: &UnitHeader<EndianSlice<'data, RunTimeEndian>>,
@@ -316,6 +394,8 @@ pub(crate) fn get_abstract_origin_attribute<'data>(
     }
 }
 
+// get the DW_AT_addr_base attribute of a compilation unit entry: the start of the unit's part of the DWARF 5 .debug_addr table,
+// needed to resolve indexed addresses (DW_FORM_addrx / DW_OP_addrx) of the unit
 pub(crate) fn get_addr_base_attribute(entry: &DebuggingInformationEntry<SliceType, usize>) -> Option<DebugAddrBase> {
     let origin_attr = get_attr_value(entry, gimli::constants::DW_AT_addr_base)?;
     match origin_attr {
@@ -324,15 +404,25 @@ pub(crate) fn get_addr_base_attribute(entry: &DebuggingInformationEntry<SliceTyp
     }
 }
 
-// log location list entries for debugging
-fn evaluate_location_list(debug_data_reader: &DebugDataReader, offset: gimli::LocationListsOffset, encoding: gimli::Encoding, current_unit: usize) -> Option<(u8, u64)> {
+// Evaluate a location list (a variable whose location depends on the PC, optimized code)
+// The trigger point of the event is not known here, so the list is only accepted if all its entries describe the same memory
+// location, which is then valid wherever the event is triggered. A variable which is held in a register or in different
+// memory locations in parts of the function is not measurable, this is reported as address extension 0x80 like a register
+// location of a single expression, so that the address is not looked up in the symbol table by name
+fn evaluate_location_list(
+    debug_data_reader: &DebugDataReader,
+    offset: gimli::LocationListsOffset,
+    encoding: gimli::Encoding,
+    current_unit: usize,
+    name: &str,
+) -> Option<(u8, u64)> {
     let (unit_header, _) = &debug_data_reader.units[current_unit];
 
     // Create a Unit from the UnitHeader
     let unit = match debug_data_reader.dwarf.unit(*unit_header) {
         Ok(unit) => unit,
         Err(e) => {
-            log::warn!("LocationList: Failed to create unit: {}", e);
+            log::warn!("LocationList: '{name}': failed to create unit: {}", e);
             return None;
         }
     };
@@ -341,16 +431,15 @@ fn evaluate_location_list(debug_data_reader: &DebugDataReader, offset: gimli::Lo
     let loclists = match debug_data_reader.dwarf.locations(&unit, offset) {
         Ok(loclists) => loclists,
         Err(e) => {
-            log::warn!("LocationList: Failed to get location list at offset {:?}: {}", offset, e);
+            log::warn!("LocationList: '{name}': failed to get location list at offset {:?}: {}", offset, e);
             return None;
         }
     };
 
     // Print
-    log::debug!("LocationList: offset={:?}, entries:", offset);
+    log::debug!("LocationList: '{name}': offset={:?}, entries:", offset);
 
-    let mut addr_ext: u8 = 0xff;
-    let mut addr: u64 = 0;
+    let mut location: Option<(u8, u64)> = None;
 
     // Iterate through location list entries
     let mut entry_count = 0;
@@ -384,29 +473,53 @@ fn evaluate_location_list(debug_data_reader: &DebugDataReader, offset: gimli::Lo
             }
         }
 
-        // Evaluate the expression to get a measurable (if possible) address
-        if let Some(ea) = evaluate_exprloc(debug_data_reader, expression, encoding, current_unit) {
-            log::debug!("    Evaluated Address: addr_ext={}, address=0x{:x}", ea.0, ea.1);
-            // @@@@ TODO: For now, just return the lowest evaluated valid address extension
-            if ea.0 < addr_ext {
-                addr_ext = ea.0;
-                addr = ea.1;
+        // Evaluate the expression, all entries must describe the same memory location
+        match evaluate_exprloc(debug_data_reader, expression, encoding, current_unit, name) {
+            Some(ea) if ea.0 < 0x80 => {
+                log::debug!("    Evaluated Address: addr_ext={}, address=0x{:x}", ea.0, ea.1);
+                if location.is_some_and(|l| l != ea) {
+                    log::debug!("LocationList: '{name}': entries describe different locations, not measurable");
+                    return Some((0x80, 0));
+                }
+                location = Some(ea);
+            }
+            _ => {
+                log::debug!("LocationList: '{name}': entry is not a memory location, not measurable");
+                return Some((0x80, 0));
             }
         }
     }
 
-    if entry_count == 0 || addr_ext == 0xff {
-        return None;
-    }
-    return Some((addr_ext, addr));
+    // A list without entries has no location, like a missing location attribute
+    location
 }
 
-// evaluate an exprloc expression to get a variable address or struct member offset
+// Evaluate an exprloc expression to get a variable address or struct member offset, as (address extension, address)
+//
+// A DWARF location expression is a small stack machine program (DW_OP_addr 0x2000, DW_OP_fbreg -20, DW_OP_plus_uconst 4, ...)
+// which a debugger runs to find a variable. Typical expressions:
+//   DW_OP_addr <address>        a global or static variable at a fixed address
+//   DW_OP_addrx <index>         the same, DWARF 5, the address is in the .debug_addr table
+//   DW_OP_fbreg <offset>        a stack variable, offset relative to the frame base of the function (DW_AT_frame_base)
+//   DW_OP_reg<n>                the variable lives in register n, DW_OP_breg<n> <offset>: relative to register n
+//   DW_OP_plus_uconst <offset>  member offset inside a struct (DW_AT_data_member_location)
+//
+// gimli evaluates the program and stops whenever it needs something only the running program knows (the frame base, a
+// register value, a relocated address): evaluate() returns a RequiresXxx result, the caller supplies the value with
+// resume_with_xxx() and the evaluation continues until Complete. This tool has no running program, so it supplies:
+//   RequiresRelocatedAddress    the address itself (no relocation in a linked executable): address extension 0
+//   RequiresFrameBase           the dummy frame base 0x80000000, so the result is 0x80000000 + offset: address extension 2,
+//                               register_variables subtracts the dummy again and combines the offset with the event trigger
+//   RequiresIndexedAddress      the address from the .debug_addr table of the unit: address extension 0
+//   anything else               not measurable, reported with the internal address extensions 0x80 (register), 0x81 (thread
+//                               local), 0x82 (other), no further evaluation
+// The result is a list of "pieces" (a variable may be split over several locations), only a single piece is supported
 fn evaluate_exprloc(
     debug_data_reader: &DebugDataReader,
     expression: gimli::Expression<EndianSlice<RunTimeEndian>>,
     encoding: gimli::Encoding,
     current_unit: usize,
+    name: &str,
 ) -> Option<(u8, u64)> {
     let mut addr_ext = 0;
     let mut evaluation = expression.evaluation(encoding);
@@ -416,7 +529,7 @@ fn evaluate_exprloc(
     let mut eval_result = evaluation
         .evaluate()
         .map_err(|e| {
-            log::error!("evaluate_exprloc: Initial evaluation failed: {e:?}");
+            log::debug!("evaluate_exprloc: Initial evaluation failed: {e:?}");
             e
         })
         .ok()?;
@@ -435,7 +548,7 @@ fn evaluate_exprloc(
                 eval_result = evaluation
                     .resume_with_relocated_address(address)
                     .map_err(|e| {
-                        log::error!("evaluate_exprloc: resume_with_relocated_address failed: {e:?}");
+                        log::debug!("evaluate_exprloc: resume_with_relocated_address failed: {e:?}");
                         e
                     })
                     .ok()?;
@@ -449,7 +562,7 @@ fn evaluate_exprloc(
                 eval_result = evaluation
                     .resume_with_frame_base(0x80000000)
                     .map_err(|e| {
-                        log::error!("evaluate_exprloc: resume_with_frame_base failed: {e:?}");
+                        log::debug!("evaluate_exprloc: resume_with_frame_base failed: {e:?}");
                         e
                     })
                     .ok()?;
@@ -470,7 +583,7 @@ fn evaluate_exprloc(
                 eval_result = evaluation
                     .resume_with_indexed_address(addr)
                     .map_err(|e| {
-                        log::error!("evaluate_exprloc: resume_with_indexed_address failed: {e:?}");
+                        log::debug!("evaluate_exprloc: resume_with_indexed_address failed: {e:?}");
                         e
                     })
                     .ok()?;
@@ -478,19 +591,33 @@ fn evaluate_exprloc(
             }
 
             // Error: Not supported
-            gimli::EvaluationResult::RequiresRegister { .. } => {
-                // the value is relative to a register (e.g. the stack base)
+            gimli::EvaluationResult::RequiresRegister { register, .. } => {
+                // DW_OP_breg<N> <offset>: the location is (register N's runtime value + offset), i.e. an address, not a
+                // plain register value - but we have no runtime register value to resolve it with.
                 // this means it cannot be referenced and is not suitable for use in a2l yet
                 // @@@@ xcp_client: allow register addresses ????
                 addr_ext = 0x80;
-                log::debug!("RequiresRegister: expression not evaluated, unsupported, eval_result={eval_result:?}");
+                if super::stack_pointer_registers(debug_data_reader.architecture).contains(&register.0) {
+                    // Seen with Clang: some locals are located directly as "DW_OP_breg<sp> <offset>" instead of going
+                    // through DW_AT_frame_base/DW_OP_fbreg like GCC does (RequiresFrameBase, handled above). The offset
+                    // here is relative to the live stack pointer, NOT to the frame base (they differ by the function's
+                    // stack frame size), so it must not be reported with the frame-base address extension (2) - that
+                    // would silently produce a wrong address. Needs its own address extension / resolution, not yet implemented.
+                    log::warn!(
+                        "RequiresRegister: '{name}': variable location is stack-pointer-relative (DW_OP_breg{} <offset>), not frame-base-relative; \
+                         not measurable yet, eval_result={eval_result:?}",
+                        register.0
+                    );
+                } else {
+                    log::warn!("RequiresRegister: '{name}': expression not evaluated, unsupported, eval_result={eval_result:?}");
+                }
                 return Some((addr_ext, 0));
             }
             gimli::EvaluationResult::RequiresTls(address) => {
                 // Thread local storage address
                 // @@@@ xcp_client: allow TLS addresses ????
                 addr_ext = 0x81;
-                log::debug!("RequiresTls: expression not evaluated, unsupported, eval_result={eval_result:?}");
+                log::warn!("RequiresTls: '{name}': expression not evaluated, unsupported, eval_result={eval_result:?}");
                 return Some((addr_ext, address));
             }
             // @@@@ TODO: Clarifiy if we need to handle RequiresCallFrameCfa
@@ -498,19 +625,20 @@ fn evaluate_exprloc(
                 // there are a lot of other types of address expressions that can only be evaluated by a debugger while a program is running
                 // none of these can be handled in the a2lfile use-case.
                 addr_ext = 0x82;
-                log::debug!("Other: expression not evaluated, unsupported, eval_result={_other:?}");
+                log::warn!("Other: '{name}': expression not evaluated, unsupported, eval_result={_other:?}");
                 return Some((addr_ext, 0));
             }
         };
     }
+
     let result = evaluation.result();
     if result.len() > 1 {
-        log::debug!("evaluate_exprloc: Multiple pieces in evaluation result are not supported yet: {:?}", result);
+        log::warn!("evaluate_exprloc: '{name}': multiple pieces in evaluation result are not supported yet: {:?}", result);
         return None;
     }
-    log::debug!("evaluate_exprloc: Evaluation result: {:?}", result[0]);
+    log::debug!("evaluate_exprloc: '{name}': evaluation result: {:?}", result[0]);
     if result.is_empty() {
-        log::debug!("evaluate_exprloc: Evaluation result is empty");
+        log::warn!("evaluate_exprloc: '{name}': evaluation result is empty");
         Some((0xFF, 0))
     } else {
         let (addr_ext, address) = match &result[0] {
@@ -518,8 +646,7 @@ fn evaluate_exprloc(
                 location: gimli::Location::Address { address },
                 ..
             } => {
-                log::debug!("evaluate_exprloc: Location is an address {}:0x{:08X}", addr_ext, *address);
-
+                log::debug!("evaluate_exprloc: '{name}': location is an address {}:0x{:08X}", addr_ext, *address);
                 (addr_ext, *address)
             }
 
@@ -527,7 +654,7 @@ fn evaluate_exprloc(
                 location: gimli::Location::Register { register },
                 ..
             } => {
-                log::debug!("evaluate_exprloc: Location is a register {:?}", register);
+                log::warn!("evaluate_exprloc: '{name}': location is a register {:?}", register);
                 (0x80, 0)
             }
 
@@ -535,29 +662,17 @@ fn evaluate_exprloc(
                 location: gimli::Location::Value { value },
                 ..
             } => {
-                log::debug!("evaluate_exprloc: Location is a constant value {:?}", value);
+                log::warn!("evaluate_exprloc: '{name}': location is a constant value {:?}", value);
                 (0x81, value.to_u64(0).unwrap_or(0))
             }
 
             other => {
-                log::debug!("evaluate_exprloc: Location evaluation result not handled  {:?}", other);
+                log::warn!("evaluate_exprloc: '{name}': location evaluation result not handled {:?}", other);
                 (0xFF, 0)
             }
         };
         Some((addr_ext, address))
     }
-
-    // if let gimli::Piece {
-    //     location: gimli::Location::Address { address },
-    //     ..
-    // } = result[0]
-    // {
-    //     log::info!("evaluate_exprloc: Address is {}:0x{:x}", addr_ext, address);
-    //     Some((addr_ext, address))
-    // } else {
-    //     log::warn!("evaluate_exprloc: Location is not a measurement address {:?}", result[0]);
-    //     None
-    // }
 }
 
 // Get a DW_AT_type attribute and return the number of the unit in which the type is located
@@ -586,7 +701,8 @@ pub(crate) fn get_type_attribute(
     }
 }
 
-// get the DW_AT_declaration attribute
+// get the DW_AT_declaration attribute: true if the entry only declares something which is defined elsewhere (a struct
+// declared but not defined in this unit, a static class member, an extern variable)
 pub(crate) fn get_declaration_attribute(entry: &DebuggingInformationEntry<SliceType, usize>) -> Option<bool> {
     let decl_attr = get_attr_value(entry, gimli::constants::DW_AT_declaration)?;
     if let gimli::AttributeValue::Flag(flag) = decl_attr { Some(flag) } else { None }

@@ -13,8 +13,8 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 pub mod bin_format;
-use bin_format::{BinHeader, CalSegDescriptor, EventDescriptor};
 use bin_format::{BIN_SIGNATURE, BIN_VERSION};
+use bin_format::{BinHeader, CalSegDescriptor, EventDescriptor};
 
 #[derive(Error, Debug)]
 pub enum Bin2HexError {
@@ -34,12 +34,7 @@ pub enum Bin2HexError {
     SegmentMismatch(String),
 }
 
-pub fn write_bin_file(
-    _path: &PathBuf,
-    epk: &str,
-    events: &[EventDescriptor],
-    calseg_data: &[(CalSegDescriptor, Vec<u8>)],
-) -> Result<(), Bin2HexError> {
+pub fn write_bin_file(_path: &PathBuf, epk: &str, events: &[EventDescriptor], calseg_data: &[(CalSegDescriptor, Vec<u8>)]) -> Result<(), Bin2HexError> {
     let mut file = File::create(_path)?;
 
     // Create header
@@ -69,17 +64,7 @@ pub fn write_bin_file(
     Ok(())
 }
 
-pub fn read_bin_file(
-    path: &PathBuf,
-    verbose: bool,
-) -> Result<
-    (
-        BinHeader,
-        Vec<EventDescriptor>,
-        Vec<(CalSegDescriptor, Vec<u8>)>,
-    ),
-    Bin2HexError,
-> {
+pub fn read_bin_file(path: &PathBuf, verbose: bool) -> Result<(BinHeader, Vec<EventDescriptor>, Vec<(CalSegDescriptor, Vec<u8>)>), Bin2HexError> {
     let mut file = File::open(path)?;
 
     // Read header
@@ -253,22 +238,14 @@ fn dump_hex_data(data: &[u8], base_address: u32) {
     }
 }
 
-pub fn write_hex_file(
-    path: &PathBuf,
-    calseg_data: &[(CalSegDescriptor, Vec<u8>)],
-) -> Result<(), Bin2HexError> {
+pub fn write_hex_file(path: &PathBuf, calseg_data: &[(CalSegDescriptor, Vec<u8>)]) -> Result<(), Bin2HexError> {
     let mut records = Vec::new();
 
     for (desc, data) in calseg_data {
         // Use the address from the descriptor
         let segment_address = desc.addr;
 
-        log::debug!(
-            "Writing segment '{}' (index {}) at address 0x{:08X}",
-            desc.name,
-            desc.index,
-            segment_address
-        );
+        log::debug!("Writing segment '{}' (index {}) at address 0x{:08X}", desc.name, desc.index, segment_address);
 
         // Create data records for this segment
         // Split into chunks (typically 16 or 32 bytes per record)
@@ -300,10 +277,7 @@ pub fn write_hex_file(
     let hex_content = ihex::create_object_file_representation(&records)?;
     std::fs::write(path, hex_content)?;
 
-    log::debug!(
-        "\nIntel-Hex file written successfully to: {}",
-        path.display()
-    );
+    log::debug!("\nIntel-Hex file written successfully to: {}", path.display());
     log::debug!("Total records: {}", records.len());
 
     Ok(())
@@ -357,8 +331,7 @@ fn read_hex_file(path: &PathBuf) -> Result<std::collections::HashMap<u32, Vec<u8
                 }
 
                 // Copy data
-                segment_data[offset_in_segment..offset_in_segment + value.len()]
-                    .copy_from_slice(&value);
+                segment_data[offset_in_segment..offset_in_segment + value.len()].copy_from_slice(&value);
             }
             ihex::Record::ExtendedLinearAddress(addr) => {
                 current_extended_addr = (addr as u32) << 16;
@@ -379,11 +352,7 @@ fn read_hex_file(path: &PathBuf) -> Result<std::collections::HashMap<u32, Vec<u8
     Ok(segments)
 }
 
-fn apply_hex_to_bin(
-    bin_path: &PathBuf,
-    hex_path: &PathBuf,
-    verbose: bool,
-) -> Result<(), Bin2HexError> {
+fn apply_hex_to_bin(bin_path: &PathBuf, hex_path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
     if verbose {
         println!("Applying Intel-Hex data to BIN file");
         println!("  BIN file: {}", bin_path.display());
@@ -400,10 +369,7 @@ fn apply_hex_to_bin(
     }
 
     // Open BIN file for reading and writing
-    let mut file = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(bin_path)?;
+    let mut file = std::fs::OpenOptions::new().read(true).write(true).open(bin_path)?;
 
     // Read BIN header to get segment information
     let header = BinHeader::read_from(&mut file)?;
@@ -439,14 +405,8 @@ fn apply_hex_to_bin(
     for (i, calseg_desc, data_position, segment_addr) in &segment_info {
         if let Some(hex_data) = hex_segments.get(segment_addr) {
             if verbose {
-                println!(
-                    "Validating segment {} '{}' at file offset 0x{:X}",
-                    i, calseg_desc.name, data_position
-                );
-                println!(
-                    "  Segment address: 0x{:08X}, size: {} bytes",
-                    segment_addr, calseg_desc.size
-                );
+                println!("Validating segment {} '{}' at file offset 0x{:X}", i, calseg_desc.name, data_position);
+                println!("  Segment address: 0x{:08X}, size: {} bytes", segment_addr, calseg_desc.size);
                 println!("  HEX data size: {} bytes", hex_data.len());
             }
 
@@ -468,8 +428,7 @@ fn apply_hex_to_bin(
                 // Check content
                 if bin_epk_data != *hex_data {
                     return Err(Bin2HexError::SegmentMismatch(
-                        "EPK segment content mismatch between BIN and HEX. Refusing to patch."
-                            .to_string(),
+                        "EPK segment content mismatch between BIN and HEX. Refusing to patch.".to_string(),
                     ));
                 }
             }
@@ -502,16 +461,10 @@ fn apply_hex_to_bin(
             updated_count += 1;
 
             if verbose {
-                println!(
-                    "Updated segment {} '{}' at file offset 0x{:X}",
-                    i, calseg_desc.name, data_position
-                );
+                println!("Updated segment {} '{}' at file offset 0x{:X}", i, calseg_desc.name, data_position);
             }
         } else if verbose {
-            println!(
-                "Skipped segment {} '{}' (not in HEX file)",
-                i, calseg_desc.name
-            );
+            println!("Skipped segment {} '{}' (not in HEX file)", i, calseg_desc.name);
         }
     }
 
@@ -523,12 +476,7 @@ fn apply_hex_to_bin(
         println!("Update complete!");
         println!("  Updated {} segment(s)", updated_count);
     } else {
-        println!(
-            "Updated {} of {} segment(s) in '{}'",
-            updated_count,
-            header.calseg_count,
-            bin_path.display()
-        );
+        println!("Updated {} of {} segment(s) in '{}'", updated_count, header.calseg_count, bin_path.display());
     }
 
     Ok(())

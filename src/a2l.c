@@ -455,7 +455,7 @@ static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
 
 // Calibration segment addressing mode
 // Used for calibration parameters ins a XCP calibration segment (A2L MEMORY_SEGMENT)
-#if defined(XCP_ENABLE_CALSEG_LIST)
+#if defined(XCP_ENABLE_CALSEG_LIST) && !defined(OPTION_CAL_SEGMENTS_ABS)
 static void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
     gA2lAddrIndex = calseg_index;
     gA2lBasePtr = calseg_instance_addr; // Address of the calibration segment instance which is used in the macros to create the components
@@ -1515,8 +1515,9 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     gA2lUseTCP = useTCP;
 
     // Check mode
-    if ((gA2lMode & A2L_MODE_WRITE_ALWAYS) == 0 && (XcpGetInitMode() & XCP_MODE_PERSISTENCE) == 0) {
+    if ((gA2lMode & A2L_MODE_WRITE_ONCE) && (XcpGetInitMode() & XCP_MODE_PERSISTENCE) == 0) {
         mode |= A2L_MODE_WRITE_ALWAYS;
+        mode &= ~(A2L_MODE_WRITE_ONCE);
         DBG_PRINT_WARNING("Persistence mode not enabled, mode A2L_MODE_WRITE_ONCE ignored!\n");
     }
 

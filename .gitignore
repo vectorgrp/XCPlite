@@ -26,6 +26,7 @@ RecycleBin.ini
 test_bintool
 *.bak
 *.log
+*.pcap
 
 # Other
 .vscode
@@ -36,3 +37,7 @@ test_bintool
 /docs/SUBMODULE_GUIDE.md
 /shm_*.sh
 wlan.h
+/TODO_old.md
+/examples/freertos_demo/freertos_stm32_demo/CANape/CmpConfig.json
+/examples/freertos_demo/freertos_stm32_demo/CANape/D8F0.tmp.A2lPROJ
+/test.txt

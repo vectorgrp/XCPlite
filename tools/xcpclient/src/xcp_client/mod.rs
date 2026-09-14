@@ -24,18 +24,16 @@ pub use types::*;
 mod decoder;
 pub use decoder::*;
 
-mod transport;
-mod protocol;
 mod a2l;
 mod cal;
 mod daq;
+mod protocol;
+mod transport;
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
 // XCP Parameters
 
 pub const CMD_TIMEOUT: Duration = Duration::from_secs(3);
-
-
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
 // Type to control the receive task sent over the receive task control channel
@@ -113,20 +111,20 @@ pub struct XcpClient {
     bind_addr: SocketAddr,
     dest_addr: SocketAddr,
 
-    // Information from connect and get_comm_mode_info commands
-    pub resources: u8,
-    pub comm_mode_basic: u8,
-    pub max_cto_size: u8,
-    pub max_dto_size: u16,
-    pub protocol_version: u16,
-    pub transport_layer_version: u16,
-    pub comm_mode_optional: u8,
-    pub driver_version: u8,
-    pub max_segments: u8,
-    pub freeze_supported: bool,
-    pub max_events: u16,
+    // Information from the CONNECT, GET_COMM_MODE_INFO, GET_DAQ_PROCESSOR_INFO and GET_PAG_PROCESSOR_INFO commands
+    resources: u8,
+    comm_mode_basic: u8,
+    max_cto_size: u8,
+    max_dto_size: u16,
+    protocol_version: u16,
+    transport_layer_version: u16,
+    comm_mode_optional: u8,
+    driver_version: u8,
+    max_segments: u8,
+    freeze_supported: bool,
+    max_events: u16,
 
-    pub registry: Option<xcp_registry::Registry>,
+    registry: Option<xcp_registry::Registry>,
 
     timestamp_resolution_ns: u64,
     daq_header_size: u8,
@@ -141,6 +139,9 @@ pub struct XcpClient {
 
     calibration_object_list: Vec<XcpClientCalibrationObject>,
     measurement_object_list: Vec<XcpClientMeasurementObject>,
+
+    // Event id used for the DAQ measurement of objects without a fixed event (global variables), None: such objects can not be measured
+    default_event: Option<u16>,
 }
 
 impl XcpClient {
@@ -177,10 +178,57 @@ impl XcpClient {
             registry: None,
             calibration_object_list: Vec::new(),
             measurement_object_list: Vec::new(),
+            default_event: None,
         }
+    }
+
+    /// Set the event id used for the DAQ measurement of objects without a fixed event (global variables)
+    pub fn set_default_event(&mut self, event: Option<u16>) {
+        self.default_event = event;
     }
 
     pub fn set_registry(&mut self, registry: xcp_registry::Registry) {
         self.registry = Some(registry);
+    }
+
+    //------------------------------------------------------------------------
+    // Information from the XCP server, valid after connect
+
+    /// COMM_MODE_BASIC from CONNECT (byte order, address granularity, block modes)
+    pub fn comm_mode_basic(&self) -> u8 {
+        self.comm_mode_basic
+    }
+
+    /// Number of events from GET_DAQ_PROCESSOR_INFO, 0 if the server does not support event information
+    pub fn max_events(&self) -> u16 {
+        self.max_events
+    }
+
+    /// Number of calibration segments from GET_PAG_PROCESSOR_INFO, 0 if the server does not support segment information
+    pub fn max_segments(&self) -> u8 {
+        self.max_segments
+    }
+
+    /// Log the XCP protocol information obtained from the server
+    pub fn log_connect_info(&self) {
+        log::info!("XCP Protocol Information:");
+        log::info!("  XCP MAX_CTO = {}", self.max_cto_size);
+        log::info!("  XCP MAX_DTO = {}", self.max_dto_size);
+        log::info!(
+            "  XCP RESOURCES = 0x{:02X} {} {} {} {}",
+            self.resources,
+            if (self.resources & 0x01) != 0 { "CAL" } else { "" },
+            if (self.resources & 0x04) != 0 { "DAQ" } else { "" },
+            if (self.resources & 0x10) != 0 { "PGM" } else { "" },
+            if (self.resources & 0x40) != 0 { "STM" } else { "" }
+        );
+        log::info!("  XCP COMM_MODE_BASIC = 0x{:02X}", self.comm_mode_basic);
+        log::info!("  XCP COMM_MODE_OPTIONAL = 0x{:02X}", self.comm_mode_optional);
+        log::info!("  XCP PROTOCOL_VERSION = 0x{:04X}", self.protocol_version);
+        log::info!("  XCP TRANSPORT_LAYER_VERSION = 0x{:04X}", self.transport_layer_version);
+        log::info!("  XCP DRIVER_VERSION = 0x{:02X}", self.driver_version);
+        log::info!("  XCP MAX_SEGMENTS = {}", self.max_segments);
+        log::info!("  XCP FREEZE_SUPPORTED = {}", self.freeze_supported);
+        log::info!("  XCP MAX_EVENTS = {}", self.max_events);
     }
 }

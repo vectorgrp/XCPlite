@@ -105,10 +105,11 @@ XCP_UNIT(params__delay_us, "us");
 */
 
 //-----------------------------------------------------------------------------------------------------
-// Demo global measurement values
+// Demo global measurement variables
 
 // Global measurement variable
 uint16_t global_counter = 0;
+static uint16_t global_static_counter = 0;
 
 // Meta data annotation as code
 // Modified in function foo, measuring it in main or task, is possible, but asynchronous and may give inconsistent results
@@ -133,7 +134,9 @@ int64_t global_test_int64 = -64;
 float global_test_float = 0.4f;
 double global_test_double = 0.8;
 bool global_test_bool = true;
+
 uint8_t global_test_array[3] = {1, 2, 3};
+
 struct test_struct {
     uint16_t a;
     int16_t b;
@@ -141,6 +144,43 @@ struct test_struct {
     uint8_t d[3];
 };
 struct test_struct global_test_struct = {1, -2, 0.3f, {1, 2, 3}};
+
+class test_class {
+  public:
+    int16_t a;
+    uint16_t b;
+    double f;
+    uint16_t d[3];
+};
+class test_class global_test_class = {1, 2, 0.3, {1, 2, 3}};
+
+//-----------------------------------------------------------------------------------------------------
+// Demo namespaces with types and variables of the same name
+
+// Types with the same name in different namespaces (or nested in different classes) are common in larger code bases.
+// A2L has one flat name space for typedefs.
+// The ELF->A2L generator therefore qualifies the typedef names of such types with their namespace or enclosing class
+// (motor_control.Input, valve_control.Input), types with a unique name keep their plain name.
+// Global variables with the same name in different namespaces are qualified with their namespace as well (motor_control.input, valve_control.input).
+// Metadata annotations (XCP_COMMENT, XCP_UNIT, ...) placed in the same namespace as the variable do not need the namespace prefix,
+// the ELF->A2L generator qualifies the name with the namespace of the annotation itself.
+
+namespace motor_control {
+struct Input {
+    int32_t speed;
+};
+Input input = {0};
+XCP_COMMENT(input, "Motor control input");
+} // namespace motor_control
+
+namespace valve_control {
+struct Input {
+    int32_t flow;
+    int32_t pressure;
+};
+Input input = {0, 0};
+XCP_COMMENT(input, "Valve control input");
+} // namespace valve_control
 
 //-----------------------------------------------------------------------------------------------------
 // Demo class
@@ -171,11 +211,13 @@ template <typename CounterType, typename ParamsType> class CounterControl {
         if (value > cal->max || cal->state == RESET) {
             value = 0;
         }
+        value_ = value;
     }
 
   private:
     // The calibration segment handle is stored as a member variable, and is used to access the calibration parameters in a thread-safe and consistent manner
     const CalSegHandle &calseg_;
+    mutable CounterType value_;
 };
 
 //-----------------------------------------------------------------------------------------------------
@@ -202,33 +244,53 @@ CounterControl<uint16_t, CounterCtlParams> counter_ctl(counter_ctl_calseg_handle
 //-----------------------------------------------------------------------------------------------------
 // Demo functions
 
-void foo() {
+void bar() {
+
+    XCP_COMMENT(bar__static_counter, "Static local measurement variable in function bar, writable");
+    XCP_READ_WRITE(bar__static_counter);
+    volatile static uint16_t static_counter = 0;
+
+    volatile uint16_t counter;
+
+    static_counter++;
+    counter = static_counter;
+}
+
+// Avoid inlining to be able to measure local variables
+// xcpclient ELF->A2L does not support inlined function and silently drop them
+XCP_NOINLINE void foo() {
 
     // Static local scope measurement variable
-    XCP_COMMENT(foo__static_counter, "Static local measurement variable in function foo"); // Example for meta data annotation as code
+    XCP_COMMENT(foo__static_counter, "Static local measurement variable in function foo");
     static uint16_t static_counter = 0;
 
     // Operate the local static counters using the global counter ctl instance
     counter_ctl.step(static_counter);
 
-    // Local variables
-    // volatile to prevent compiler optimization
-    XCP_COMMENT(foo__counter, "Local measurement variable in function foo"); // Example for meta data annotation as code
-    volatile uint16_t counter = static_counter;
-    volatile float test_float = 0.001f * counter;
-    volatile double test_double = 0.001 * counter;
-    volatile uint8_t test_uint8 = 1;
-    volatile uint16_t test_uint16 = 2;
-    volatile uint32_t test_uint32 = 3;
-    volatile uint64_t test_uint64 = 4;
-    volatile int8_t test_int8 = -1;
-    volatile int16_t test_int16 = -2;
-    volatile int32_t test_int32 = -3;
-    volatile uint64_t test_int64 = 1;
-    volatile struct test_struct test_struct = {1, -2, 0.001f * counter, {1, 2, 3}};
+    // Local measurement variable
+    XCP_COMMENT(foo__counter, "Local captured measurement variable in function foo");
+    uint16_t counter = static_counter;
+
+    // More local measurement variables
+    // Measured via capture, variables stay in their registers
+    float test_float = 0.001f * counter;
+    double test_double = 0.001 * counter;
+    uint8_t test_uint8 = 1;
+    uint16_t test_uint16 = 2;
+    uint32_t test_uint32 = 3;
+    uint64_t test_uint64 = 4;
+    struct test_struct test_struct = {1, -2, 0.001f * counter, {1, 2, 3}};
     uint8_t test_array[3] = {1, 2, 3};
 
-    DaqCreateAndTriggerEvent(foo);
+    // Measure via stack, register variables spilled to stack
+    XCP_MEAS int8_t test_int8 = -1;
+    XCP_MEAS int16_t test_int16 = -2;
+    XCP_MEAS int32_t test_int32 = -3;
+    XCP_MEAS uint64_t test_int64 = 1;
+
+    bar();
+
+    DaqCreateAndTriggerEventCapture(foo, counter, test_float, test_double, test_uint8, test_uint16, test_uint32, test_uint64, test_struct, test_array);
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -322,8 +384,14 @@ int main(int argc, char *argv[]) {
     while (gRun) {
 
         counter_ctl.step(global_counter);
+        counter_ctl.step(global_static_counter);
         counter_ctl.step(static_counter);
         counter_ctl.step(counter);
+
+        // Update the measurement variables of the demo namespaces
+        motor_control::input.speed = counter;
+        valve_control::input.flow = counter / 2;
+        valve_control::input.pressure = -counter;
 
         // Demonstrate calibration thread safety and consistency (typical concern on 32 bit microctls)
         {

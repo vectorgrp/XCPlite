@@ -22,10 +22,7 @@
 // Public XCPlite API
 #include "xcplib_cfg.h" // for OPTION_xxx
 
-// Disable socket support with vectored IO to avoid platform.h includes queue.h
-#undef OPTION_ENABLE_TCP
-#undef OPTION_ENABLE_UDP
-#include "platform.h"
+#include "platform.h" // for THREAD_HANDLE, MUTEX, THREAD_FUNC_RETURN, create_thread, cancel_thread, sleepUs, clockGetMonotonicNs, ...
 
 // Option XCP server for online performance monitoring and logging of the queue test
 #ifdef USE_XCP

@@ -27,9 +27,9 @@
 //-----------------------------------------------------------------------------------------------------
 // Test configuration
 
-#define THREAD_COUNT 8             // Number of threads to create
-#define THREAD_DELAY_US 1000       // Default delay in microseconds for the thread loops, calibration parameter
-#define THREAD_DELAY_OFFSET_US 100 // Default offset  added to the delay (* task index) for each thread instance, to create different sampling rates
+#define THREAD_COUNT 8            // Number of threads to create
+#define THREAD_DELAY_US 500       // Default delay in microseconds for the thread loops, calibration parameter
+#define THREAD_DELAY_OFFSET_US 50 // Default offset  added to the delay (* task index) for each thread instance, to create different sampling rates
 #define THREAD_TIME_SHIFT_US                                                                                                                                                       \
     (500000 / THREAD_COUNT) // Default time shift in microseconds (* task index) for each thread instance, to disturb the sequential time ordering of events
 

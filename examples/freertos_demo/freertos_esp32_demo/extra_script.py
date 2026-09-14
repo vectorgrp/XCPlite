@@ -13,6 +13,7 @@ env.Append(CPPPATH=[str(xcplite_inc), str(xcplite_src),  str(common_inc)])
 xcplite_sources = [
     "cal.c",
     "platform.c",
+    "sockets.c",
     "queue32m.c",
     "xcpappl.c",
     "xcpethserver.c",

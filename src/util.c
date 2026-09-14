@@ -24,7 +24,7 @@
 #include <string.h>   // for sprintf, memset
 
 #include "dbg_print.h" // for DBG_PRINTF
-#include "platform.h"
+#include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex, spinlock
 
 /**************************************************************************/
 // Simple pseudo random generator

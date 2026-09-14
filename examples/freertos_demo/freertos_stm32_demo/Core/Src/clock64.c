@@ -1,6 +1,5 @@
 // clock54.c - 64-bit microsecond-resolution clock using DWT cycle counter.
 
-
 #include "clock64.h"
 #include "stm32h7xx_hal.h"
 

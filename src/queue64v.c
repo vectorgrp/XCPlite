@@ -90,6 +90,18 @@ static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platfo
 // Test atomic_uint_least32_t availability
 static_assert(sizeof(atomic_uint_least32_t) == 4, "atomic_uint_least32_t must be 4 bytes");
 
+// Every queue entry starts with an atomic_uint_least32_t entry_header and entries are laid out back
+// to back, so the alignment of the entry length decides the alignment of that atomic. It must
+// therefore be a multiple of 4. This is what made QUEUE_PAYLOAD_SIZE_ALIGNMENT == 2 unusable here.
+#if (QUEUE_PAYLOAD_SIZE_ALIGNMENT % 4) != 0
+#error "QUEUE_PAYLOAD_SIZE_ALIGNMENT must be a multiple of 4 in this queue variant: the atomic entry header requires it"
+#endif
+
+// This queue does not support message accumulation into segments (queue_pop() is not supported), so the segment header size must be 0
+#if QUEUE_SEGMENT_HEADER_SIZE > 0
+#error "QUEUE_SEGMENT_HEADER_SIZE not supported in this queue variant"
+#endif
+
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Test
 
@@ -369,16 +381,10 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
     // Align the entry length
     uint16_t entry_len = packet_len + QUEUE_ENTRY_USER_HEADER_SIZE;
-#if QUEUE_PAYLOAD_SIZE_ALIGNMENT == 2
-    entry_len = (uint16_t)((entry_len + 1) & 0xFFFE); // Add fill %2
-#error "QUEUE_PAYLOAD_SIZE_ALIGNMENT == 2 is not supported, use 4"
-#endif
-#if QUEUE_PAYLOAD_SIZE_ALIGNMENT == 4
-    entry_len = (uint16_t)((entry_len + 3) & 0xFFFC); // Add fill %4
-#endif
-#if QUEUE_PAYLOAD_SIZE_ALIGNMENT == 8
-    entry_len = (uint16_t)((entry_len + 7) & 0xFFF8); // Add fill %8
-#endif
+    // Round up to QUEUE_PAYLOAD_SIZE_ALIGNMENT, queue.h checks it to be a power of two.
+    // This used to be #if branches for the values 2, 4 and 8, where an unknown value silently
+    // skipped the alignment altogether and the branch for 8 was unreachable.
+    entry_len = (uint16_t)((entry_len + (QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1)) & ~(QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1));
     assert(entry_len <= QUEUE_MAX_ENTRY_SIZE);
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING

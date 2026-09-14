@@ -18,9 +18,10 @@
 #include <stdint.h>   // for uintxx_t
 #include <string.h>   // for memcpy, strcmp
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT, ...
-#include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
-#include "queue.h"
+#include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT, ...
+#include "platform.h"   // for MUTEX, THREAD_HANDLE, create_thread, sleepMs, clockGetMonotonicNs, ...
+#include "queue.h"      // for tQueueHandle, queueInitFromMemory, queuePush, queuePop, ...
+#include "sockets.h"    // for SOCKET_HANDLE, socketXxx
 #include "xcp.h"        // for CRC_XXX
 #include "xcp_cfg.h"    // for XCP_xxx
 #include "xcplib_cfg.h" // for OPTION_xxx
@@ -126,13 +127,18 @@ static int handleXcpMulticastCommand(int n, tXcpCtoMessage *p, uint8_t *dstAddr,
 
 // Transmit a UDP datagram or TCP segment (contains multiple XCP DTO messages or a single CRM message (len+ctr+packet+fill))
 // Must be thread safe, because it is called from CMD and from DAQ thread
+// has_headroom: true if XCPTL_TX_HEADROOM writable bytes precede data, which lets the raw Ethernet
+//               transport write its header in place instead of copying the payload (zero copy).
+//               Only the transmit queue segments have that headroom, CRM messages are built on the
+//               stack and do not. Ignored unless XCPTL_TX_HEADROOM > 0.
 // Returns false on error
-static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr, uint16_t port) {
+static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr, uint16_t port, bool has_headroom) {
 
     int r;
 
     assert(size > 0 && size <= XCPTL_MAX_SEGMENT_SIZE);
     assert(data != NULL);
+    (void)has_headroom; // unused unless the zero copy transmit path is enabled
     DBG_PRINTF5("XcpEthTlSend: msg_len = %u\n", size);
 
 #ifdef TEST_ENABLE_DBG_METRICS
@@ -153,7 +159,14 @@ static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr
                 DBG_PRINT_ERROR("XcpEthTlSend: invalid master address!\n");
                 return false;
             }
-            r = socketSendTo(gXcpTl.socket, data, size, gXcpTl.master_addr, gXcpTl.master_port, NULL);
+#if XCPTL_TX_HEADROOM > 0
+            if (has_headroom) { // zero copy: the transport writes its header into the headroom
+                r = socketSendToReserved(gXcpTl.socket, data, size, gXcpTl.master_addr, gXcpTl.master_port, NULL);
+            } else
+#endif
+            {
+                r = socketSendTo(gXcpTl.socket, data, size, gXcpTl.master_addr, gXcpTl.master_port, NULL);
+            }
         }
     }
 #endif // UDP
@@ -235,6 +248,8 @@ void XcpTlSendCrm(const uint8_t *data, uint8_t size) {
     mutexLock(&gXcpTl.ctr_mutex);
 
     // Build XCP CTO message (ctr+dlc+packet)
+    // Note: dlc is the exact packet size here, command responses are NOT padded to
+    // XCPTL_PACKET_ALIGNMENT, unlike DAQ messages built in queueAcquire - see the TODO there
     tXcpCtoMessage msg; // @@@@ STACK buffer for tXcpCtoMessage
     msg.dlc = size;
     msg.ctr = gXcpTl.ctr++; // Get next response packet counter
@@ -247,7 +262,7 @@ void XcpTlSendCrm(const uint8_t *data, uint8_t size) {
     tQueueBuffer buf = {.buffer = (uint8_t *)&msg, .size = (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)};
     XcpEthTlSendV(&buf, 1);
 #else
-    XcpEthTlSend((const uint8_t *)&msg, (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), NULL, 0);
+    XcpEthTlSend((const uint8_t *)&msg, (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), NULL, 0, false); // stack buffer, no headroom
 #endif
 
     mutexUnlock(&gXcpTl.ctr_mutex);
@@ -267,7 +282,7 @@ void XcpEthTlSendMulticastCrm(const uint8_t *packet, uint16_t packet_size, const
     memcpy(msg.packet, packet, packet_size);
 
     // No error handling, loosing a CRM message will lead to a timeout in the XCP client
-    XcpEthTlSend((uint8_t *)&msg, (uint16_t)(packet_size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), addr, port);
+    XcpEthTlSend((uint8_t *)&msg, (uint16_t)(packet_size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), addr, port, false); // stack buffer, no headroom
 }
 #endif
 
@@ -490,6 +505,11 @@ bool XcpEthTlHandleCommands(void) {
 #ifdef TEST_ENABLE_DBG_METRICS
             gXcpRxPacketCount++;
 #endif
+            // @@@@ TODO: A single malformed datagram terminates the XCP server receive thread.
+            // Returning false here makes XcpServerReceiveThread break out of its loop (xcpethserver.c),
+            // so any host on the network can permanently kill the XCP server with one packet.
+            // Reproduced on UDP and on the raw Ethernet transport. A corrupt datagram should be
+            // counted and dropped, and only a real socket error should terminate the thread.
             if (msgBuf.dlc != n - XCPTL_TRANSPORT_LAYER_HEADER_SIZE) {
                 DBG_PRINT_ERROR("XcpEthTlHandleCommands: Corrupt message received!\n");
                 return false; // Error
@@ -573,7 +593,7 @@ extern THREAD_FUNC_RETURN XcpTlMulticastThread(void *par) {
 bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle Queue) {
 
     DBG_PRINT3("Init XCP transport layer\n");
-    DBG_PRINTF3("  MAX_CTO_SIZE=%u\n", XCPTL_MAX_CTO_SIZE);
+    DBG_PRINTF3("  MAX_SEGMENT_SIZE=%u\n", XCPTL_MAX_SEGMENT_SIZE);
     DBG_PRINTF5("  sizeof(gXcpTl)=%u\n", (uint32_t)sizeof(gXcpTl));
 
 #ifdef XCPTL_ENABLE_MULTICAST
@@ -634,6 +654,15 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle 
 
         DBG_PRINTF3("  Listening for XCP commands on UDP %u.%u.%u.%u port %u\n", bind_addr[0], bind_addr[1], bind_addr[2], bind_addr[3], port);
     }
+
+#ifdef OPTION_ENABLE_UDP_RAW
+    // The raw Ethernet transport knows both values for certain: the application supplied
+    // the IP address (0.0.0.0 is rejected by socketBind) and the Ethernet HAL supplied the
+    // MAC. Fill them unconditionally so XcpEthTlGetInfo and the A2L IF_DATA report the real
+    // address instead of the 127.0.0.1 fallback, without needing OPTION_ENABLE_GET_LOCAL_ADDR.
+    memcpy(gXcpTl.server_addr, bind_addr, 4);
+    socketRawGetLocalMac(gXcpTl.socket, gXcpTl.server_mac);
+#endif
 
 #ifdef OPTION_ENABLE_GET_LOCAL_ADDR
     {
@@ -711,7 +740,7 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 
     if (isTcp != NULL)
         *isTcp = gXcpTl.server_use_tcp;
-#ifdef OPTION_ENABLE_GET_LOCAL_ADDR
+#if defined(OPTION_ENABLE_GET_LOCAL_ADDR) || defined(OPTION_ENABLE_UDP_RAW)
     if (addr != NULL)
         memcpy(addr, gXcpTl.server_addr, 4);
     if (mac != NULL)
@@ -924,7 +953,8 @@ int32_t XcpTlHandleTransmitQueue(void) {
                 break; // queue is empty, break inner loop and sleep a bit
             } else {
                 // Send this frame (blocking)
-                bool r = XcpEthTlSend(b, l, NULL, 0);
+                // A transmit queue segment has QUEUE_SEGMENT_HEADER_SIZE headroom in front of it
+                bool r = XcpEthTlSend(b, l, NULL, 0, true);
                 mutexUnlock(&gXcpTl.ctr_mutex);
 
                 // Free this buffer

@@ -10,7 +10,6 @@
 
 // Disclaimer:
 // This example does not use calibration segments, so thread safety is not guaranteed for direct write access to global calibration variables.
-// Calibration segments may be turned off in the library (xcplib_cfg.h) to safe code size
 
 #include <signal.h>
 #include <stdbool.h>

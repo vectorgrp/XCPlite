@@ -26,6 +26,8 @@
 #include <string.h>   // for
 
 #include "dbg_print.h" // for DBG_PRINT
+#include "platform.h"  // for SNPRINTF, SPRINTF
+#include "sockets.h"   // for socketGetLocalAddr
 #include "xcp_cfg.h"   // for XCP_xxx
 #include "xcplite.h"   // for tXcpCalSeg, tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcptl_cfg.h" // for XCPTL_xxx

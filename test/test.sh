@@ -161,13 +161,14 @@ fi
 # Function to get protocol for an example
 # TCP examples: hello_xcp, hello_xcp_cpp, struct_demo
 # UDP examples: c_demo, cpp_demo, multi_thread_demo
+# Keep in sync with OPTION_USE_TCP in the main source file of each example
 get_example_protocol() {
     local example_name="$1"
     case "$example_name" in
-        hello_xcp|hello_xcp_cpp|point_cloud_demo|struct_demo)
+        point_cloud_demo|struct_demo)
             echo "tcp"
             ;;
-        c_demo|cpp_demo|multi_thread_demo)
+        hello_xcp|hello_xcp_cpp|c_demo|cpp_demo|multi_thread_demo)
             echo "udp"
             ;;
         *)
@@ -186,6 +187,7 @@ SKIPPED=0
 
 # Counter for xcpclient tests
 XCP_CRASHED=0
+XCP_FAILED=0
 
 # Counter for hex file comparisons
 HEX_COMPARED=0
@@ -292,7 +294,8 @@ run_example() {
             log_plain "${RED}         This indicates a bug in xcpclient - check the log file for details${NC}"
             XCP_CRASHED=$((XCP_CRASHED + 1))
         else
-            log_plain "${YELLOW}      ⚠ xcpclient exited with code $xcp_exit (connection may have failed)${NC}"
+            log_plain "${RED}      ✗ xcpclient test failed (exit code $xcp_exit) - check the log file for details${NC}"
+            XCP_FAILED=$((XCP_FAILED + 1))
         fi
         
         # Give the server a moment to finish writing the A2L file
@@ -320,9 +323,8 @@ run_example() {
     done
     
     if [ "$process_exited" = true ]; then
-        # Process exited before timeout - check exit code
-        wait "$pid" 2>/dev/null || true
-        EXIT_CODE=$?
+        # Process exited before timeout - check exit code (the || form keeps set -e from aborting the script)
+        wait "$pid" 2>/dev/null && EXIT_CODE=0 || EXIT_CODE=$?
         if [ $EXIT_CODE -eq 0 ]; then
             log_plain "${GREEN}  Passed: ${example} completed successfully${NC}"
             PASSED=$((PASSED + 1))
@@ -528,6 +530,10 @@ if [ $XCP_CRASHED -gt 0 ]; then
     log_plain "${RED}  This indicates bugs in xcpclient that need to be fixed!${NC}"
     log_plain ""
 fi
+if [ $XCP_FAILED -gt 0 ]; then
+    log_plain "${RED}✗ xcpclient test failed $XCP_FAILED time(s)${NC}"
+    log_plain ""
+fi
 if [ $HEX_COMPARED -gt 0 ]; then
     log_plain "${BLUE}HEX File Comparisons:${NC}"
     log_plain "  Compared:   $HEX_COMPARED"
@@ -578,6 +584,9 @@ log_plain "Full log saved to: $LOG_FILE"
 # Exit with appropriate code
 if [ $FAILED -gt 0 ]; then
     log_plain "${RED}Some examples failed!${NC}"
+    exit 1
+elif [ $XCP_FAILED -gt 0 ] || [ $XCP_CRASHED -gt 0 ]; then
+    log_plain "${RED}Some xcpclient tests failed!${NC}"
     exit 1
 elif [ $HEX_MISMATCHED -gt 0 ]; then
     log_plain "${RED}Some HEX files don't match their fixtures!${NC}"

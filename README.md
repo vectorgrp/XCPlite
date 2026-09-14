@@ -43,7 +43,7 @@ For save operation, the client tool must respect fixed event definitions and han
 
 If a tool understands ABI details of complex data instances, it may still perform the usual address calculations to access individual fields of composite types, array elements, or merge memory ranges to optimize upload, download, and data acquisition.
 
-General-purpose A2L editors/creators typically cannot reconstruct XCPlite-specific relative address encoding automatically. In this case, you are limited to use only global memory objects. For full featured offline A2L generation, you may use the XCPlite-aware xcpclient tool workflow described in the [technical documentation](docs/TECHNICAL.md).
+General-purpose A2L editors/creators typically cannot reconstruct XCPlite-specific relative address encoding automatically. In this case, you are limited to use only global memory objects. For full featured offline A2L generation, use the XCPlite-aware xcpclient tool, see [Offline A2L Generation](docs/OFFLINE_A2L.md).
 
 Support for A2L TYPEDEF and shared axis references with `this.` is beneficial, but not strictly required.
 
@@ -105,7 +105,8 @@ Details how to build for Linux, QNX, macOS, and Windows are in the [building doc
 - **[API Reference](docs/xcplib.md)** - XCP instrumentation API
 - **[Configuration](docs/xcplib_cfg.md)** - Configuration options
 - **[Examples](examples/README.md)** - Example applications and CANape setup
-- **[Technical Details](docs/TECHNICAL.md)** - Addressing modes, A2L generation, instrumentation costs
+- **[Technical Details](docs/TECHNICAL.md)** - Addressing modes, on-target A2L generation, instrumentation costs and markers
+- **[Offline A2L Generation](docs/OFFLINE_A2L.md)** - A2L generation from the ELF file with xcpclient
 - **[Building](docs/BUILDING.md)** - Detailed build instructions
 - **[XCP Introduction](docs/XCP_INTRODUCTION.md)** - What is XCP?
 
