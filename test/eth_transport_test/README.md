@@ -1,6 +1,6 @@
 # Ethernet transport tests
 
-`eth_transport_test` validates TCP and UDP command framing and recovery from malformed traffic using loopback sockets. `socket_recv_test` checks assembly of fragmented socket reads.
+`eth_transport_test` validates TCP and UDP command framing and recovery from malformed traffic using loopback sockets. `socket_recv_test` checks fragmented reads and allocation-failure cleanup.
 
 ## Build
 
@@ -47,4 +47,5 @@ To run a single transport scenario, pass its name, for example:
 - Covers invalid lengths, timeouts, EOF, reconnection, UDP peer preservation, and server-thread recovery.
 - Uses ephemeral loopback ports; no external XCP client is required. Raw Ethernet hardware validation is not covered.
 - Checks remain active in Release builds. Use `-DCMAKE_BUILD_TYPE=Release` on Linux/macOS, or `--config Release` and the `Release` executable directory on Windows.
+- For Linux timestamp-enabled tests, add `-DOPTION_SOCKET_HW_TIMESTAMPS` to both `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS` in a separate build. This enables `socket_recv_test socket_open_allocation_failure` and `socket_recv_test socket_accept_allocation_failure`; no timestamp-capable hardware is required.
 - For Linux ASan/UBSan coverage, configure a separate build with `-DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'` and `-DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'`. Run with `UBSAN_OPTIONS=halt_on_error=1`.

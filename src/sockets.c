@@ -428,6 +428,11 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
 
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
+    if (socket == NULL) {
+        close(sock);
+        errno = ENOMEM;
+        return false;
+    }
     memset(socket, 0, sizeof(struct socket));
     socket->sock = sock;
     *socketp = socket;
@@ -959,6 +964,11 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
     }
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
+    if (socket == NULL) {
+        close(sock);
+        errno = ENOMEM;
+        return INVALID_SOCKET_HANDLE;
+    }
     memset(socket, 0, sizeof(struct socket));
     socket->sock = sock;
     socket->ifindex = listenSocket->ifindex;
