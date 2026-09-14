@@ -100,7 +100,7 @@ static void expect_no_response(void) {
 }
 
 static int16_t checked_socket_recv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t size, bool wait_all) {
-    if (expect_header_only) {
+    if (expect_header_only == true) {
         CHECK(++header_only_reads == 1);
         CHECK(size == XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
     }
@@ -117,7 +117,7 @@ static int16_t checked_socket_recv_from(SOCKET_HANDLE socket, uint8_t *buffer, u
 }
 
 static void open_client(void) {
-    client = socket(AF_INET, use_tcp ? SOCK_STREAM : SOCK_DGRAM, 0);
+    client = socket(AF_INET, (use_tcp == true) ? SOCK_STREAM : SOCK_DGRAM, 0);
     CHECK(client != INVALID_SOCKET);
 #ifdef _WIN
     DWORD timeout = 1000;
@@ -131,18 +131,18 @@ static void open_client(void) {
 static void setup(bool tcp) {
     const uint8_t loopback[] = {127, 0, 0, 1};
     use_tcp = tcp;
-    if (threaded) {
+    if (threaded == true) {
         CHECK(XcpEthServerInit(loopback, 0, tcp, 16 * 1024));
     } else {
         CHECK(XcpEthTlInit(loopback, 0, tcp, test_queue));
     }
     socklen_t size = sizeof(server_addr);
-    CHECK(getsockname(SOCKET_FD(tcp ? gXcpTl.listen_socket : gXcpTl.socket), (struct sockaddr *)&server_addr, &size) == 0);
+    CHECK(getsockname(SOCKET_FD((tcp == true) ? gXcpTl.listen_socket : gXcpTl.socket), (struct sockaddr *)&server_addr, &size) == 0);
     open_client();
 }
 
 static void teardown(void) {
-    if (threaded) {
+    if (threaded == true) {
         close_client();
         CHECK(XcpEthServerShutdown());
         return;
@@ -160,7 +160,7 @@ static void send_bytes(const uint8_t *data, size_t size) {
             continue;
         }
         CHECK(n >= 0);
-        if (!use_tcp) {
+        if (use_tcp == false) {
             CHECK((size_t)n == size);
             return;
         }
@@ -186,7 +186,7 @@ static void receive_bytes(uint8_t *data, size_t size) {
 
 static void send_command(uint8_t command, uint16_t size) {
     uint8_t frame[XCPTL_TRANSPORT_LAYER_HEADER_SIZE + XCPTL_MAX_CTO_SIZE] = {0};
-    CHECK(size > 0 && size <= XCPTL_MAX_CTO_SIZE);
+    CHECK((size > 0) && (size <= XCPTL_MAX_CTO_SIZE));
     frame[0] = (uint8_t)size;
     frame[1] = (uint8_t)(size >> 8);
     frame[4] = command;
@@ -196,15 +196,15 @@ static void send_command(uint8_t command, uint16_t size) {
 static uint16_t expect_response(uint8_t pid) {
     uint8_t frame[XCPTL_TRANSPORT_LAYER_HEADER_SIZE + XCPTL_MAX_CTO_SIZE];
     ssize_t n;
-    if (use_tcp) {
+    if (use_tcp == true) {
         receive_bytes(frame, 4);
         uint16_t size = frame[0] | (uint16_t)frame[1] << 8;
-        CHECK(size > 0 && size <= XCPTL_MAX_CTO_SIZE);
+        CHECK((size > 0) && (size <= XCPTL_MAX_CTO_SIZE));
         receive_bytes(frame + 4, size);
     } else {
         n = recv(client, (char *)frame, sizeof(frame), 0);
         CHECK(n >= 5);
-        CHECK(n == 4 + (frame[0] | (uint16_t)frame[1] << 8));
+        CHECK(n == (4 + (frame[0] | ((uint16_t)frame[1] << 8))));
     }
     CHECK(frame[4] == pid);
     return frame[0] | (uint16_t)frame[1] << 8;
@@ -212,18 +212,18 @@ static uint16_t expect_response(uint8_t pid) {
 
 static void connect_xcp(void) {
     send_command(CC_CONNECT, 2);
-    if (!threaded) {
+    if (threaded == false) {
         CHECK(XcpEthTlHandleCommands());
     }
     CHECK(expect_response(PID_RES) == CRM_CONNECT_LEN);
-    if (!threaded) {
+    if (threaded == false) {
         CHECK(XcpIsConnected());
     }
 }
 
 static void check_status(void) {
     send_command(CC_GET_STATUS, 1);
-    if (!threaded) {
+    if (threaded == false) {
         CHECK(XcpEthTlHandleCommands());
     }
     CHECK(expect_response(PID_RES) == CRM_GET_STATUS_LEN);
@@ -257,10 +257,10 @@ static void test_tcp_oversized(void) {
 
 static void test_tcp_invalid_lengths(void) {
     const uint16_t lengths[] = {0, XCPTL_MAX_CTO_SIZE + 1, UINT16_MAX};
-    for (unsigned connected = 0; connected < 2; connected++) {
-        for (size_t i = 0; i < sizeof(lengths) / sizeof(lengths[0]); i++) {
+    for (unsigned connected = 0; (connected < 2); connected++) {
+        for (size_t i = 0; (i < (sizeof(lengths) / sizeof(lengths[0]))); i++) {
             setup(true);
-            if (connected) {
+            if (connected != 0) {
                 connect_xcp();
             }
             const uint8_t header[] = {(uint8_t)lengths[i], (uint8_t)(lengths[i] >> 8), 0, 0};
@@ -299,12 +299,12 @@ static void test_tcp_idle_timeout(void) {
 static void test_tcp_partial_frames(void) {
     const uint8_t frame[] = {2, 0, 0, 0, CC_CONNECT};
     const size_t sizes[] = {1, 3, 5};
-    for (unsigned eof = 0; eof < 2; eof++) {
-        for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+    for (unsigned eof = 0; (eof < 2); eof++) {
+        for (size_t i = 0; (i < (sizeof(sizes) / sizeof(sizes[0]))); i++) {
             setup(true);
             connect_xcp();
             send_bytes(frame, sizes[i]);
-            if (eof) {
+            if (eof != 0) {
                 shutdown_client_send();
             }
             CHECK(XcpEthTlHandleCommands());
@@ -317,7 +317,7 @@ static void test_tcp_partial_frames(void) {
 static void test_tcp_eof_stale_error(void) {
     const uint8_t frame[] = {2, 0, 0, 0, CC_CONNECT};
     const size_t sizes[] = {0, 1, 3, 4, 5};
-    for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+    for (size_t i = 0; (i < (sizeof(sizes) / sizeof(sizes[0]))); i++) {
         setup(true);
         connect_xcp();
         if (sizes[i] != 0) {
@@ -332,7 +332,7 @@ static void test_tcp_eof_stale_error(void) {
 }
 
 static void test_socket_eof_status(void) {
-    for (unsigned wait_all = 0; wait_all < 2; wait_all++) {
+    for (unsigned wait_all = 0; (wait_all < 2); wait_all++) {
         setup(true);
         connect_xcp();
         shutdown_client_send();
@@ -373,7 +373,7 @@ static void expect_udp_drop(const uint8_t *frame, size_t size) {
     CHECK(XcpEthTlHandleCommands());
     CHECK(XcpIsConnected() == connected);
     expect_no_response();
-    if (connected) {
+    if (connected == true) {
         check_status();
     } else {
         connect_xcp();
@@ -392,17 +392,17 @@ static const struct {
     {4, {0, 0, 0, 0}},                   // Empty command.
     {5, {2, 0, 0, 0, CC_CONNECT}},       // Payload shorter than declared.
     {6, {1, 0, 0, 0, CC_CONNECT, 0}},    // Payload longer than declared.
-    {5, {0xff, 0xff, 0, 0, CC_CONNECT}}, // Oversized declaration.
+    {5, {0xFF, 0xFF, 0, 0, CC_CONNECT}}, // Oversized declaration.
     {6, {1, 0, 0, 0, CC_DISCONNECT, 0}}, // Invalid frame must not disconnect.
 };
 
 static void test_udp_malformed(void) {
-    for (unsigned connected = 0; connected < 2; connected++) {
+    for (unsigned connected = 0; (connected < 2); connected++) {
         setup(false);
-        if (connected) {
+        if (connected != 0) {
             connect_xcp();
         }
-        for (size_t i = 0; i < sizeof(malformed_datagrams) / sizeof(malformed_datagrams[0]); i++) {
+        for (size_t i = 0; (i < (sizeof(malformed_datagrams) / sizeof(malformed_datagrams[0]))); i++) {
             expect_udp_drop(malformed_datagrams[i].data, malformed_datagrams[i].size);
         }
         teardown();
@@ -441,7 +441,7 @@ static void test_udp_other_peer(void) {
 // Valid command sizes
 
 static void test_valid_boundaries(void) {
-    for (unsigned tcp = 0; tcp < 2; tcp++) {
+    for (unsigned tcp = 0; (tcp < 2); tcp++) {
         setup(tcp != 0);
         connect_xcp();
         check_status(); // Smallest legal command.
@@ -471,7 +471,7 @@ static void reconnect_after_server_close(void) {
 static void test_tcp_server_recovery(void) {
     setup(true);
     const uint16_t lengths[] = {0, XCPTL_MAX_CTO_SIZE + 1, UINT16_MAX};
-    for (size_t i = 0; i < sizeof(lengths) / sizeof(lengths[0]); i++) {
+    for (size_t i = 0; (i < (sizeof(lengths) / sizeof(lengths[0]))); i++) {
         // The first malformed header arrives before XCP CONNECT.
         const uint8_t header[] = {(uint8_t)lengths[i], (uint8_t)(lengths[i] >> 8), 0, 0};
         send_bytes(header, sizeof(header));
@@ -479,7 +479,7 @@ static void test_tcp_server_recovery(void) {
     }
     const uint8_t frame[] = {2, 0, 0, 0, CC_CONNECT};
     const size_t sizes[] = {0, 1, 3, 4, 5};
-    for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+    for (size_t i = 0; (i < (sizeof(sizes) / sizeof(sizes[0]))); i++) {
         if (sizes[i] != 0) {
             send_bytes(frame, sizes[i]);
         }
@@ -496,7 +496,7 @@ static void test_tcp_streaming(void) {
     setup(true);
     const uint8_t connect_frame[] = {2, 0, 0, 0, CC_CONNECT, 0};
     // Split application writes at every header and payload boundary.
-    for (size_t split = 1; split < sizeof(connect_frame); split++) {
+    for (size_t split = 1; (split < sizeof(connect_frame)); split++) {
         send_bytes(connect_frame, split);
         send_bytes(connect_frame + split, sizeof(connect_frame) - split);
         CHECK(expect_response(PID_RES) == CRM_CONNECT_LEN);
@@ -515,7 +515,7 @@ static void test_udp_server_recovery(void) {
     // Verify CONNECT still works after malformed traffic before a session exists.
     send_bytes(malformed_datagrams[1].data, malformed_datagrams[1].size);
     connect_xcp();
-    for (size_t i = 0; i < sizeof(malformed_datagrams) / sizeof(malformed_datagrams[0]); i++) {
+    for (size_t i = 0; (i < (sizeof(malformed_datagrams) / sizeof(malformed_datagrams[0]))); i++) {
         send_bytes(malformed_datagrams[i].data, malformed_datagrams[i].size);
         check_status();
     }
@@ -558,7 +558,7 @@ int main(int argc, char **argv) {
     CHECK(argc <= 2);
     XcpSetLogLevel(0);
     unsigned executed = 0;
-    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+    for (size_t i = 0; (i < (sizeof(cases) / sizeof(cases[0]))); i++) {
         if ((argc == 2) && (strcmp(argv[1], cases[i].name) != 0)) {
             continue;
         }
@@ -566,14 +566,14 @@ int main(int argc, char **argv) {
         fflush(stdout);
         threaded = cases[i].threaded;
         CHECK(XcpInit("eth_transport_test", "1.0", XCP_MODE_LOCAL));
-        if (!threaded) {
+        if (threaded == false) {
             CHECK(socketStartup());
             test_queue = queueInit(16 * 1024);
             CHECK(test_queue != NULL);
             XcpStart(test_queue, false);
         }
         cases[i].run();
-        if (!threaded) {
+        if (threaded == false) {
             XcpDeinit();
             queueDeinit(test_queue);
             socketCleanup();

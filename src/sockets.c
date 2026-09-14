@@ -1243,7 +1243,6 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
     // Linux may return a partial size if the timeout fires mid-read.
     // We therefore implement a loop on top and return the timeout to the caller only when there is no data yet
     uint16_t received = 0;
-    uint32_t timeout_counter = 0;
     for (;;) {
         int16_t n = (int16_t)recv(sock, (char *)buffer + received, (uint16_t)(buffer_size - received), MSG_WAITALL);
 
@@ -1276,11 +1275,6 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
         received = (uint16_t)(received + (uint16_t)n);
         if (received >= buffer_size) {
             break; // done
-        }
-
-        if (++timeout_counter >= 4) {
-            DBG_PRINT_ERROR("socketRecv: recv waitall timeout mid-frame, giving up after 4 attempts\n");
-            break; // loop protection: should never happen
         }
 
         DBG_PRINTF_WARNING("socketRecv waitall: received %u bytes, waiting for %u more\n", received, buffer_size - received);
