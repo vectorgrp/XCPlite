@@ -4,13 +4,12 @@
 |
 |  Description:
 |    Implementation of the ASAM XCP Protocol Layer V1.4
-|    Version V2.1.x
+|    Version V2.2.x
 |       - Optimized for 64 bit POSIX based platforms (Linux, QNX or MacOS)
 |       - Compatible with 32 bit platforms
 |       - Tested on x86 strong and ARM weak memory model
 |       - Runs on Windows for demonstration purposes with some limitations
 
-|
 |  Limitations:
 |       - 8 bit and 16 bit CPUs are not supported
 |       - No Motorola byte sex

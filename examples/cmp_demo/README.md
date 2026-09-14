@@ -295,7 +295,7 @@ the outer transport is an ordinary UDP socket, and the emulated ECU address only
 inside the CMP payload.
 
 **`test.sh`** is the on-target one, modelled on
-[udp_raw_demo/test.sh](https://github.com/RainerZ/XCPlite/blob/master/examples/udp_raw_demo/test.sh). Set `TARGET_USER`
+[udp_raw_demo/test.sh]. Set `TARGET_USER`
 and `TARGET_HOST` at the top of it, then it:
 
 1. rsyncs the library sources and this example to the target;
@@ -385,21 +385,6 @@ test, since "everything on one box" is the only thing the port would buy.
 
 ---
 
-## Verified against
-
-| | |
-|---|---|
-| xcplite | https://github.com/RainerZ/XCPlite, `raw` configuration |
-| Library version | 2.2.1 (as reported by `find_package`) |
-| Specification | ASAM CMP Protocol Layer Specification V1.1.0, 2026-01-31 |
-| Target | Raspberry Pi 5 Model B Rev 1.1 (`pi6`), Debian, aarch64, GCC, `RelWithDebInfo` — via `./test.sh` |
-| Host | macOS 15 / arm64 / Apple clang, library built with `OPTION_UDP_RAW_HAL_EXTERNAL` — via `./test/test_local.sh` |
-| Checked on both | codec test 74/74 against the specification's sample files; XCP CONNECT tunnelled end to end through CMP; all four REST endpoints answered, with the `Transmitter` object advertising transmission; the built-in AF_PACKET backend confirmed absent from the linked binary |
-| Checked on the host | GET_STATUS and DISCONNECT as well; emitted messages re-decoded from the pcap |
-| **Not** yet checked | Wireshark dissection (no Wireshark on either machine); DAQ under load, which is where the MTU limit bites; CANape |
-
----
-
 ## Not implemented
 
 - **CMP over Ethernet, EtherType 0x99FE (§6.4.1).** This is the transport option the
@@ -424,5 +409,4 @@ test, since "everything on one box" is the only thing the port would buy.
   headroom. CMP must not participate in the zero-copy path or influence `XCPTL_TX_HEADROOM`.
 - The extra copy that costs is accepted — this is a test-bench path, not a performance one.
 
-See [docs/SOCKET_RAW.md](https://github.com/RainerZ/XCPlite/blob/master/docs/SOCKET_RAW.md) for the transport design and
-the HAL contract.
+See [docs/SOCKET_RAW.md] for the transport design and the HAL contract.

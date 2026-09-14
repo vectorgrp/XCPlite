@@ -8,7 +8,7 @@ The example configuration is for a STM NUCLEO-H753 board.
 The folder stm32_freertos_demo in the XCPlite examples includes only additional files and user modified CubeMX generated files.
 The content is generated from the Vector toolchain specific repo folder with  
 ```bash
-.\publish.ps1 -Destination \git\XCPlite-RainerZ\examples\freertos_demo\freertos_stm32_demo
+.\publish.ps1 -Destination ./freertos_stm32_demo
 ```
 
 If you are a user of the Vector internal toolchain and framework, see INSTALL.MD for instructions how to install the framework.  
