@@ -319,6 +319,20 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
         return 0;
     }
 
+#if defined(SO_NOSIGPIPE) && !defined(MSG_NOSIGNAL)
+    // Use the per-socket alternative on platforms without MSG_NOSIGNAL.
+    if (useTCP == true) {
+        int yes = 1;
+        if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes)) < 0) {
+            int err = errno;
+            DBG_PRINTF_ERROR("socketOpen: SO_NOSIGPIPE failed (errno=%d,%s)\n", err, socketGetErrorString(err));
+            close(sock);
+            errno = err;
+            return false;
+        }
+    }
+#endif
+
     if (reuseaddr) {
         int yes = 1;
         if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
@@ -413,8 +427,13 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
 #endif
 
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
-    SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
-    memset(socket, 0, sizeof(struct socket));
+    SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(*socket));
+    if (socket == NULL) {
+        close(sock);
+        errno = ENOMEM;
+        return false;
+    }
+    memset(socket, 0, sizeof(*socket));
     socket->sock = sock;
     *socketp = socket;
 #else
@@ -924,11 +943,31 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
     struct sockaddr_in sa;
     socklen_t sa_size = sizeof(sa);
     SOCKET sock = accept(SOCKET_FD(listenSocket), (struct sockaddr *)&sa, &sa_size);
-    if (addr)
-        *(uint32_t *)addr = sa.sin_addr.s_addr;
+    if (sock == INVALID_SOCKET) {
+        return INVALID_SOCKET_HANDLE;
+    }
+#if defined(SO_NOSIGPIPE) && !defined(MSG_NOSIGNAL)
+    // Set this explicitly rather than relying on inheritance from the listener.
+    int yes = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes)) < 0) {
+        int err = errno;
+        DBG_PRINTF_ERROR("socketAccept: SO_NOSIGPIPE failed (errno=%d,%s)\n", err, socketGetErrorString(err));
+        close(sock);
+        errno = err;
+        return INVALID_SOCKET_HANDLE;
+    }
+#endif
+    if (addr != NULL) {
+        memcpy(addr, &sa.sin_addr.s_addr, sizeof(sa.sin_addr.s_addr));
+    }
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
-    SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
-    memset(socket, 0, sizeof(struct socket));
+    SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(*socket));
+    if (socket == NULL) {
+        close(sock);
+        errno = ENOMEM;
+        return INVALID_SOCKET_HANDLE;
+    }
+    memset(socket, 0, sizeof(*socket));
     socket->sock = sock;
     socket->ifindex = listenSocket->ifindex;
     memcpy(socket->ifname, listenSocket->ifname, sizeof(socket->ifname));
@@ -1215,6 +1254,12 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
         // n = 0, socket close
         if (n == 0) {
             DBG_PRINT6("socketRecv: recv returned n=0, socket closed, return -1\n");
+            // recv() leaves the last error unchanged on EOF; report a defined close status.
+#ifdef _WIN
+            WSASetLastError(SOCKET_ERROR_NOTCONN);
+#else
+            errno = SOCKET_ERROR_NOTCONN;
+#endif
             return -1; // Socket closed
         }
 
@@ -1236,13 +1281,17 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
     // Linux may return a partial size if the timeout fires mid-read.
     // We therefore implement a loop on top and return the timeout to the caller only when there is no data yet
     uint16_t received = 0;
-    uint32_t timeout_counter = 0;
     for (;;) {
         int16_t n = (int16_t)recv(sock, (char *)buffer + received, (uint16_t)(buffer_size - received), MSG_WAITALL);
 
         // n = 0, socket close
         if (n == 0) {
             DBG_PRINT6("socketRecv: recv waitall returned n=0, socket closed, return -1\n");
+#ifdef _WIN
+            WSASetLastError(SOCKET_ERROR_NOTCONN);
+#else
+            errno = SOCKET_ERROR_NOTCONN;
+#endif
             return -1; // Socket closed
         }
 
@@ -1264,11 +1313,6 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
         received = (uint16_t)(received + (uint16_t)n);
         if (received >= buffer_size) {
             break; // done
-        }
-
-        if (++timeout_counter >= 4) {
-            DBG_PRINT_ERROR("socketRecv: recv waitall timeout mid-frame, giving up after 4 attempts\n");
-            break; // loop protection: should never happen
         }
 
         DBG_PRINTF_WARNING("socketRecv waitall: received %u bytes, waiting for %u more\n", received, buffer_size - received);
@@ -1395,7 +1439,12 @@ int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
     SOCKET sock = SOCKET_FD(socket);
     assert(sock != INVALID_SOCKET);
 
-    ssize_t n = send(sock, (const char *)buffer, size, 0);
+    // Report a broken pipe as a send error without changing application signal handlers.
+    int flags = 0;
+#ifdef MSG_NOSIGNAL
+    flags = MSG_NOSIGNAL;
+#endif
+    ssize_t n = send(sock, (const char *)buffer, size, flags);
     if (n < 0) {
         int32_t err = socketGetLastError();
         if (socketWouldBlock(err)) {
@@ -1511,9 +1560,13 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
     // Note: all sockets in this codebase are blocking (see socketOpen), so WBLOCK must not
     // occur. If it does mid-loop, the iovec state is partially consumed and the caller cannot
     // recover, so it is treated as an unrecoverable error rather than returning a partial count.
+    int flags = 0;
+#ifdef MSG_NOSIGNAL
+    flags = MSG_NOSIGNAL;
+#endif
     int32_t total = 0;
     for (;;) {
-        ssize_t n = sendmsg(sock, &msg, 0);
+        ssize_t n = sendmsg(sock, &msg, flags);
         if (n < 0) {
             int32_t err = socketGetLastError();
             if (socketWouldBlock(err)) {

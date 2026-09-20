@@ -375,15 +375,14 @@ static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPo
 }
 
 // Handle incoming XCP commands
-// Returns false on error
-// @@@@ TODO: Check error handling
+// Returns false on fatal socket errors; malformed frames are dropped or their TCP connection is closed.
 bool XcpEthTlHandleCommands(void) {
 
-    tXcpCtoMessage msgBuf; // @@@@ STACK buffer for tXcpCtoMessage
     int16_t n;
 
 #ifdef XCPTL_ENABLE_TCP
     if (isTCP()) {
+        tXcpCtoMessage msgBuf;
 
         // Listen mode
         // Listen to incoming TCP connection
@@ -423,7 +422,7 @@ bool XcpEthTlHandleCommands(void) {
             if (err == 0 || socketIsClosed(err) || socketTimeout(err)) { // Check for socket closed
             socket_closed:
                 DBG_PRINT6("XcpEthTlHandleCommands: socket_closed, disconnect XCP, goto accept mode again, return true\n");
-                DBG_PRINT3("XCP Master closed TCP connection! XCP disconnected.\n");
+                DBG_PRINT3("Closing XCP TCP connection. XCP disconnected.\n");
                 XcpDisconnect(); // Set XCP into disconnected state
                 // @@@@ TODO: Check if this sleep is really needed
                 sleepMs(100);
@@ -440,11 +439,16 @@ bool XcpEthTlHandleCommands(void) {
         // n > 0 ok, data received, should be the header
         else {
 
-            // @@@@ TODO: Check to be sure that the header is received, otherwise the TCP stream is desynchronised and we should close the connection to recover
-            assert(n == XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
+            // A partial frame cannot be resumed by the next call, which expects a new header.
             if (n != XCPTL_TRANSPORT_LAYER_HEADER_SIZE) {
-                DBG_PRINTF_ERROR("XcpEthTlHandleCommands: expected %u bytes, received %u bytes, closing connection\n", msgBuf.dlc, n);
-                goto socket_error; // Should not happen with waitall=true
+                DBG_PRINTF_ERROR("XcpEthTlHandleCommands: expected %u header bytes, received %u bytes, closing connection\n", XCPTL_TRANSPORT_LAYER_HEADER_SIZE, n);
+                goto socket_closed;
+            }
+
+            // Validate the untrusted length before receiving into the fixed-size packet buffer.
+            if (msgBuf.dlc == 0 || msgBuf.dlc > XCPTL_MAX_CTO_SIZE) {
+                DBG_PRINTF_ERROR("XcpEthTlHandleCommands: invalid command length %u, closing connection\n", msgBuf.dlc);
+                goto socket_closed;
             }
 
             // Receive packet
@@ -453,7 +457,7 @@ bool XcpEthTlHandleCommands(void) {
             // n = 0, no data, timeout from socketSetTimeout()
             if (n == 0) {
                 DBG_PRINT_ERROR("XcpEthTlHandleCommands: timeout on receiving packet data, closing connection\n");
-                return false; // Should not happen with waitall=true
+                goto socket_closed;
             }
 
             // Error n < 0 - Socket closed or other error
@@ -472,7 +476,7 @@ bool XcpEthTlHandleCommands(void) {
             else {
                 if (n != msgBuf.dlc) {
                     DBG_PRINTF_ERROR("XcpEthTlHandleCommands: expected %u bytes, received %u bytes, closing connection\n", msgBuf.dlc, n);
-                    goto socket_error; // Should not happen with waitall=true
+                    goto socket_closed;
                 }
 #ifdef TEST_ENABLE_DBG_METRICS
                 gXcpRxPacketCount++;
@@ -485,6 +489,11 @@ bool XcpEthTlHandleCommands(void) {
 
 #ifdef XCPTL_ENABLE_UDP
     if (!isTCP()) {
+        // The extra byte exposes oversized datagrams even when the socket API truncates them.
+        struct {
+            tXcpCtoMessage msg;
+            uint8_t overflow;
+        } msgBuf;
         uint16_t srcPort;
         uint8_t srcAddr[4];
         n = socketRecvFrom(gXcpTl.socket, (uint8_t *)&msgBuf, (uint16_t)sizeof(msgBuf), srcAddr, &srcPort, NULL);
@@ -496,7 +505,11 @@ bool XcpEthTlHandleCommands(void) {
 
         // n < 0 Error - Socket closed or other error
         else if (n < 0) {
-            DBG_PRINTF_ERROR("XcpEthTlHandleCommands: socketRecvFrom failed n=%d (errno=%d, %s)!\n", n, socketGetLastError(), socketGetErrorString(socketGetLastError()));
+            int32_t err = socketGetLastError();
+            if (err == SOCKET_ERROR_MSGSIZE) {
+                return true; // Windows reports oversized datagrams as a receive error.
+            }
+            DBG_PRINTF_ERROR("XcpEthTlHandleCommands: socketRecvFrom failed n=%d (errno=%d, %s)!\n", n, err, socketGetErrorString(err));
             return false; // Socket error
         }
 
@@ -505,16 +518,13 @@ bool XcpEthTlHandleCommands(void) {
 #ifdef TEST_ENABLE_DBG_METRICS
             gXcpRxPacketCount++;
 #endif
-            // @@@@ TODO: A single malformed datagram terminates the XCP server receive thread.
-            // Returning false here makes XcpServerReceiveThread break out of its loop (xcpethserver.c),
-            // so any host on the network can permanently kill the XCP server with one packet.
-            // Reproduced on UDP and on the raw Ethernet transport. A corrupt datagram should be
-            // counted and dropped, and only a real socket error should terminate the thread.
-            if (msgBuf.dlc != n - XCPTL_TRANSPORT_LAYER_HEADER_SIZE) {
+            // Check the received size before reading header fields or dispatching the command.
+            if ((n < (XCPTL_TRANSPORT_LAYER_HEADER_SIZE + 1)) || (n > (int16_t)sizeof(msgBuf.msg)) ||
+                (msgBuf.msg.dlc != (n - XCPTL_TRANSPORT_LAYER_HEADER_SIZE))) {
                 DBG_PRINT_ERROR("XcpEthTlHandleCommands: Corrupt message received!\n");
-                return false; // Error
+                return true; // Drop this datagram and keep serving.
             }
-            return handleXcpCommand(&msgBuf, srcAddr, srcPort);
+            return handleXcpCommand(&msgBuf.msg, srcAddr, srcPort);
         }
     }
 #endif // UDP

@@ -450,6 +450,12 @@ if(XCPLITE_BUILD_TESTS)
         add_executable(daq_config_test test/daq_config_test/src/main.c test/daq_config_test/src/xcptl_stub.c)
         target_link_libraries(daq_config_test PRIVATE xcplite)
 
+        add_executable(eth_transport_test test/eth_transport_test/src/main.c)
+        target_link_libraries(eth_transport_test PRIVATE xcplite)
+
+        add_executable(socket_recv_test test/eth_transport_test/src/socket_recv_test.c)
+        target_link_libraries(socket_recv_test PRIVATE xcplite)
+
         add_executable(clock_test test/clock_test/src/main.cpp)
         target_link_libraries(clock_test PRIVATE xcplite)
 
