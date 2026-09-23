@@ -121,7 +121,8 @@ tXcpCalSegNumber XcpGetCalSegNumber(tXcpCalSegIndex calseg);
 const uint8_t *XcpLockCalSeg(tXcpCalSegIndex index);
 
 /// Unlock a calibration segment
-uint8_t XcpUnlockCalSeg(tXcpCalSegIndex index);
+/// @return The lock count before the unlock, 1 for the outermost unlock of a recursive lock
+uint16_t XcpUnlockCalSeg(tXcpCalSegIndex index);
 
 /// Set all calibration segments to their default page
 /// Maybe used in emergency situation
@@ -224,14 +225,17 @@ static_assert(sizeof(((tXcpCalSegDescriptor *)0)->res) > 0, "tXcpCalSegDescripto
 
 /// Lock calibration segment macro
 /// Calibration segment descriptor must be visible in scope
+/// Passive mode: when the segment does not exist (calseg_id_##name is XCP_UNDEFINED_CALSEG, because XCP was initialized with XCP_MODE_DEACTIVATE
+/// or XcpInit() has not run yet), the default page instance is returned and XcpLockCalSeg() is not called, see the user contract in docs/CAL_RCU.md
 /// @param name given as identifier
-#define CalSegLock(name) ((const __typeof__(name) *)XcpLockCalSeg(calseg_id_##name))
-#define CalBlkLock(name) ((const __typeof__(name) *)XcpLockCalSeg(calblk_id_##name))
+#define CalSegLock(name) ((calseg_id_##name != XCP_UNDEFINED_CALSEG) ? (const __typeof__(name) *)XcpLockCalSeg(calseg_id_##name) : (const __typeof__(name) *)&(name))
+#define CalBlkLock(name) ((calblk_id_##name != XCP_UNDEFINED_CALSEG) ? (const __typeof__(name) *)XcpLockCalSeg(calblk_id_##name) : (const __typeof__(name) *)&(name))
 
 /// Unlock calibration segment macro
+/// Passive mode: nothing to unlock when the segment does not exist, see CalSegLock
 /// @param name given as identifier
-#define CalSegUnlock(name) XcpUnlockCalSeg(calseg_id_##name)
-#define CalBlkUnlock(name) XcpUnlockCalSeg(calblk_id_##name)
+#define CalSegUnlock(name) ((calseg_id_##name != XCP_UNDEFINED_CALSEG) ? XcpUnlockCalSeg(calseg_id_##name) : (uint16_t)0)
+#define CalBlkUnlock(name) ((calblk_id_##name != XCP_UNDEFINED_CALSEG) ? XcpUnlockCalSeg(calblk_id_##name) : (uint16_t)0)
 
 #endif // __cplusplus
 
