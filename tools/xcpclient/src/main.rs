@@ -312,6 +312,7 @@ struct Args {
 
     /// --test
     /// Execute a test sequence on the XCP server.
+    /// If there is a calibration segment named params (see daq_test, c_demo), a calibration consistency test will be performed.
     #[arg(long, default_value_t = false)]
     test: bool,
 

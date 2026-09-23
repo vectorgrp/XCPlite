@@ -27,6 +27,8 @@
 #include "xcp_cfg.h" // for dynamic address encoding
 #include "xcplite.h" // for the protocol-layer interface
 
+#include "../../support/check.h" // for the shared CHECK macro
+
 //-----------------------------------------------------------------------------------------------------
 // Test configuration
 
@@ -40,15 +42,6 @@ typedef union {
 static tQueueHandle test_queue;
 static tXcpEventId test_event;
 static tXcpEventId other_event;
-
-// Unlike assert(), CHECK always evaluates commands and initialization in Release builds.
-#define CHECK(condition)                                                                                                                                                           \
-    do {                                                                                                                                                                           \
-        if (!(condition)) {                                                                                                                                                        \
-            fprintf(stderr, "%s:%d: %s failed\n", __FILE__, __LINE__, #condition);                                                                                                 \
-            exit(EXIT_FAILURE);                                                                                                                                                    \
-        }                                                                                                                                                                          \
-    } while (0)
 
 //-----------------------------------------------------------------------------------------------------
 // XCP command helpers

@@ -337,6 +337,18 @@ int main(int argc, char *argv[]) {
     printf("\nXCP Calibration Segment Multi-Threading Test\n");
     printf("============================================\n");
 
+    // Run a hermetic self-check by default (no socket bound), so this test is CTest/CI friendly.
+    // --server / --interactive additionally starts the XCP eth server so a tool (CANape/xcpclient) can attach.
+    bool with_server = false;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--server") == 0 || strcmp(argv[i], "--interactive") == 0) {
+            with_server = true;
+        } else if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "-v") == 0) {
+            verbose = true;
+        }
+    }
+    printf("Mode: %s\n", with_server ? "interactive (XCP eth server on)" : "hermetic self-check (pass --server for interactive use)");
+
     // Initialize test statistics
     uint64_t total_errors = 0;
     thread_stats.clear();
@@ -355,11 +367,13 @@ int main(int argc, char *argv[]) {
     ApplXcpRegisterWriteCallback(cb_write);
 #endif
 
-    // Initialize XCP Server
+    // Initialize XCP Server (interactive part) - only when explicitly requested, so the self-check runs hermetically under CTest
     uint8_t addr[4] = OPTION_SERVER_ADDR;
-    if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
-        printf("Failed to initialize XCP server\n");
-        return 1;
+    if (with_server) {
+        if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
+            printf("Failed to initialize XCP server\n");
+            return 1;
+        }
     }
 
     // Initialize A2L generation
@@ -694,9 +708,11 @@ int main(int argc, char *argv[]) {
         printf(ANSI_COLOR_GREEN "SUCCESS: No errors occurred during the test\n" ANSI_COLOR_RESET);
     }
 
-    XcpDisconnect();        // Force disconnect the XCP client
-    A2lFinalize();          // Finalize A2L generation, if not done yet
-    XcpEthServerShutdown(); // Stop the XCP server
+    XcpDisconnect(); // Force disconnect the XCP client
+    A2lFinalize();   // Finalize A2L generation, if not done yet
+    if (with_server) {
+        XcpEthServerShutdown(); // Stop the XCP server
+    }
 
     if (total_errors == 0) {
         printf("\n" ANSI_COLOR_GREEN "Test completed successfully!\n" ANSI_COLOR_RESET);

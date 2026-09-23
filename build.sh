@@ -15,6 +15,7 @@ INSTALL_LIBRARY=false
 INSTALL_PREFIX=""
 CARGO_INSTALL=false
 RUN_CLANG_TIDY=false
+RUN_TESTS=false
 
 show_usage() {
     echo "Usage: $0 [build_type] [configuration] [target] [options]"
@@ -49,6 +50,7 @@ show_usage() {
     echo "  cargo_install      Run 'cargo install --locked' for xcpclient and bintool to ~/.cargo/bin"
     echo "                     (only meaningful with rust_tools or all target)"
     echo "  tidy               Run clang-tidy on library sources"
+    echo "  run                Build and run the test suite via ctest (use with the 'tests' target)"
     echo ""
     echo "Note: 'install' and 'cargo_install' are independent:"
     echo "  install         -> cmake --install  (library headers/cmake config to prefix)"
@@ -62,6 +64,7 @@ show_usage() {
     echo "  $0                                  # Library + examples, default config, debug"
     echo "  $0 release                          # Release build, default config, examples"
     echo "  $0 tests                            # Tests, default config, debug"
+    echo "  $0 tests run                        # Build and run the test suite via ctest"
     echo "  $0 shm tools                        # shm config: shmtool + xcpdaemon"
     echo "  $0 ptp tools                        # ptp config: ptptool (Linux only)"
     echo "  $0 no_a2l examples                  # no_a2l config: no_a2l_demo, no_a2l_demo_cpp"
@@ -112,6 +115,7 @@ for arg in "$@"; do
 
         # Options
         tidy)    RUN_CLANG_TIDY=true ;;
+        run)     RUN_TESTS=true ;;
         clean)   CLEAN_BUILD=true ;;
         cleanall)
             echo "Cleaning all build directories..."
@@ -359,10 +363,35 @@ fi
 echo "=================================================================="
 echo ""
 
-if [[ "$BUILD_SUCCESS" == true ]]; then
+# Run the test suite via ctest if requested (build.sh ... run)
+TEST_SUCCESS=true
+if [[ "$RUN_TESTS" == true ]]; then
+    if [[ "$CMAKE_BUILD_TESTS" != "ON" ]]; then
+        echo "Note: 'run' ignored — no tests were built (use the 'tests' target, e.g. '$0 tests run')"
+    elif [[ "$BUILD_SUCCESS" != true ]]; then
+        echo "Skipping tests — build failed"
+        TEST_SUCCESS=false
+    elif ! command -v ctest &> /dev/null; then
+        echo "Error: ctest not found — cannot run tests"
+        TEST_SUCCESS=false
+    else
+        echo "Running tests (ctest) in $BUILD_DIR ..."
+        echo ""
+        if ! ctest --test-dir "$BUILD_DIR" --output-on-failure; then
+            TEST_SUCCESS=false
+        fi
+        echo ""
+    fi
+fi
+
+if [[ "$BUILD_SUCCESS" == true && "$TEST_SUCCESS" == true ]]; then
     exit 0
 else
-    echo "Build failed — see errors above"
+    if [[ "$BUILD_SUCCESS" != true ]]; then
+        echo "Build failed — see errors above"
+    else
+        echo "Tests failed — see output above"
+    fi
     [[ "${OS:-}" == "Windows_NT" || -n "${MSYSTEM:-}" ]] && read -r -p "Press Enter to close..."
     exit 1
 fi

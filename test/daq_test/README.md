@@ -1,10 +1,19 @@
 
-# Daq test
+# Daq test (interactive)
 
-Use CANape or 
+Use xcpclient to run the automated measurement and calibration test sequence build into xcpclient.
+(Includes a calibration consistency test under heavy load included)
+
 
 ```bash
+./build/daq_test
 xcpclient --udp --test
+```
+
+Test measurement with xcpclient (upload A2L and measure):
+
+```bash
+./build/daq_test
 xcpclient --udp --upload-a2l --mea . 
 ```
 

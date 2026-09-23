@@ -11,6 +11,8 @@
 #include "sockets.h" // for socket handles and socketRecv
 #include "xcplib.h"  // for XcpSetLogLevel
 
+#include "../../support/check.h" // for the shared CHECK macro
+
 static int fragmented_recv(SOCKET socket, char *buffer, int size, int flags);
 
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
@@ -39,15 +41,6 @@ static SOCKET tracked_accept(SOCKET socket, struct sockaddr *addr, socklen_t *si
 
 #define TEST_DATA_PATTERN 0x5A
 #define TEST_GUARD_BYTE 0xA5
-
-// Unlike assert(), CHECK always evaluates commands and initialization in Release builds.
-#define CHECK(condition)                                                                                                                                                           \
-    do {                                                                                                                                                                           \
-        if (!(condition)) {                                                                                                                                                        \
-            fprintf(stderr, "%s:%d: %s failed\n", __FILE__, __LINE__, #condition);                                                                                                 \
-            exit(EXIT_FAILURE);                                                                                                                                                    \
-        }                                                                                                                                                                          \
-    } while (0)
 
 static uint8_t source[XCPTL_MAX_CTO_SIZE];
 static size_t total;

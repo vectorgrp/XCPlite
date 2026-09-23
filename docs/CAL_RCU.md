@@ -464,9 +464,8 @@ Remaining after the V2.3 changes. Items which are consequences of the design are
 
 ### 8.1 Full RCU with a reclamation list
 
-Replace the single free page by per page reference counting with a list of pages, so that publishing is driven by the writer and not by reader progress. This would remove the second lock visibility delay, the starvation of never locked segments and the coupling between readers. An analysis and a design in the style of this document is in [rcu_improvements/CAL_RCU_IMPROVEMENT.md](rcu_improvements/CAL_RCU_IMPROVEMENT.md).
+Replace the single free page by per page reference counting with a list of pages, so that publishing is driven by the writer and not by reader progress. This would remove the second lock visibility delay, the starvation of never locked segments and the coupling between readers.  
 
-Assessment: the design solves the visibility problems, but it tolerates only `PageCount - 3` leaked locks, which shifts the probability of a stall rather than establishing a contract, and it needs two more pages per segment and `thread_local` reader state. Thread local storage is the last option XCPlite wants to depend on, because of embedded targets and shared library TLS models. Not adopted so far.
 
 ### 8.2 Owned calibration segments
 
@@ -555,7 +554,7 @@ Use non blocking sockets and a waitable event for the XCP server thread, so that
 
 ### 8.5 Diagnostics for stalled segments
 
-Report a segment whose publishes stall to the tool and the user: expose the lock count and the pending state of each segment as measurement signals, detect on the writer side that a segment has been pending for longer than a threshold while its lock count did not return to zero, and stop acknowledging writes to such a segment with `CRC_CMD_OK`. Whether and how the XCP tool should be informed is an open discussion.
+Report a segment whose publishes stall to the tool and the user: expose the lock count and the pending state of each segment, detect on the writer side that a segment has been pending for longer than a threshold while its lock count did not return to zero, and stop acknowledging writes to such a segment with `CRC_CMD_OK`. Whether and how the XCP tool should be informed is an open discussion.
 
 ### 8.6 Scope guard for the C API
 
@@ -566,7 +565,7 @@ A `CalSegScopedLock(name, ptr)` based on `__attribute__((cleanup))` (GCC, Clang)
 
 ### V2.3.x
 
-Review of the RCU implementation exposed some possible improvements and bug which were fixed.  
+Review of the RCU implementation exposed some possible improvements and bugs which were fixed.  
 The specification of the contract was improved.   
 This document was clarified.  
 
