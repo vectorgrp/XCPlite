@@ -28,7 +28,7 @@ Selected via `-DXCPLITE_CONFIGURATION=<name>` (default: `default`). Within a con
 
 ### Common commands
 
-`build.sh` wraps CMake: `./build.sh [build_type] [configuration] [target] [options]` (any order; `build_type` = `debug`|`release`|`relwithdebinfo`, default `debug`; `configuration` = `default`|`no_a2l`|`ptp`|`shm`|`rtos`; `target` = `lib`|`examples`|`tests`|`tools`|`rust_tools`|`all`, default `examples`; `options` = `clean` `cleanall` `install` `install=<path>` `cargo_install` `tidy`).
+`build.sh` wraps CMake: `./build.sh [build_type] [configuration] [target] [options]` (any order; `build_type` = `debug`|`release`|`relwithdebinfo`, default `debug`; `configuration` = `default`|`no_a2l`|`ptp`|`shm`|`rtos`; `target` = `lib`|`examples`|`tests`|`tools`|`rust_tools`|`all`, default `examples`; `options` = `clean` `cleanall` `install` `install=<path>` `cargo_install` `tidy` `run`).
 
 ```bash
 ./build.sh                          # library + examples, default config, debug
@@ -56,13 +56,23 @@ Switching compilers requires a fresh build directory (CMake caches the compiler 
 
 ### Running tests
 
-Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `daq_config_test`, `clock_test`, `queue_test`, `xcp_test`, `type_detection_test_*`; `ptp` config: `clock_test` only). Build then run directly, e.g.:
+Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `daq_config_test`, `clock_test`, `queue_test`, `xcp_test`, `passive_test_c`, `passive_test_cpp`, `type_detection_test_*`; `ptp` config: `clock_test` only). Build then run directly, e.g.:
 
 ```bash
-./build.sh tests
+./build.sh tests           # build the test suite
+./build.sh tests run       # build the test suite and run it via ctest
 ./build/a2l_test
-./build/cal_test
+./build/cal_test           # hermetic self-check by default; pass --server for interactive CANape/xcpclient use
 ```
+
+The self-verifying tests are registered with CTest and can be run unattended (interactive server tests `daq_test`/`clock_test`, the client probe `xcp_test` and the `queue_test` benchmark are excluded and run by hand):
+
+```bash
+ctest --test-dir build --output-on-failure   # run all registered tests (same as: ./build.sh tests run)
+ctest --test-dir build -L unit               # only the fast unit tests
+```
+
+See [test/README.md](test/README.md) for the full taxonomy, conventions for new tests, and how to drive the interactive ones.
 
 `test/test.sh [clean] [example_name]` runs the example integration tests against `build/` (not the unit test binaries above): builds each example, exercises it, and diffs generated `.a2l` files against `test/fixtures/`. Omit `example_name` to run all examples; `clean` first deletes generated `.a2l`/`.bin`/`.hex` files from the workspace root.
 

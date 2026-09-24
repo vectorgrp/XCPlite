@@ -44,9 +44,9 @@ extern "C" {
 // Calibration segment name length, must be odd for null termination
 // Fixed length to pad tXcpCalSegHeader to 64 bytes, we use all the remaining bytes
 #if defined(PLATFORM_32BIT)
-#define XCP_MAX_CALSEG_NAME (29)
+#define XCP_MAX_CALSEG_NAME (27)
 #else
-#define XCP_MAX_CALSEG_NAME (25)
+#define XCP_MAX_CALSEG_NAME (23)
 #endif
 
 #ifndef XCP_MAX_CALSEG_COUNT
@@ -91,16 +91,16 @@ typedef struct {
 #endif
     atomic_uint_least32_t ecu_page_next; // offset into c->b[]
     atomic_uint_least32_t free_page;     // offset into c->b[]
-    uint32_t ecu_page;                   // offset into c->b[], or XCP_CALSEG_NO_PAGE
+    atomic_uint_least32_t ecu_page;      // offset into c->b[], or XCP_CALSEG_NO_PAGE, written by the reader thread which acquires the first lock
     uint32_t xcp_page;                   // offset into c->b[], or XCP_CALSEG_NO_PAGE
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
     uint32_t file_pos; // position of the calibration segment in the persistence file
 #else
     uint32_t res2;
 #endif
+    atomic_uint_least16_t lock_count; // number of locks hold on this segment by all reader threads, 0 = unlocked
     uint16_t size;
     atomic_uint_least8_t ecu_access; // page number for ECU access
-    atomic_uint_least8_t lock_count; // lock count for the segment, 0 = unlocked
     uint8_t xcp_access;              // page number for XCP access
     bool write_pending;              // write pending because write delay
     bool free_page_hazard;           // safe free page use is not guaranteed yet, it may be in use
@@ -111,11 +111,13 @@ typedef struct {
 #else
     uint8_t res3;
 #endif
+    uint8_t res4; // Padding, to keep the name length odd
     char name[XCP_MAX_CALSEG_NAME + 1];
 } tXcpCalSegHeader;
 
 static_assert(sizeof(bool) == 1, "Error: bool is not 1 byte");
 static_assert(sizeof(atomic_uint_least32_t) == 4, "Error: atomic_uint_least32_t is not 4 bytes");
+static_assert(sizeof(atomic_uint_least16_t) == 2, "Error: atomic_uint_least16_t is not 2 bytes");
 static_assert(sizeof(atomic_uint_least8_t) == 1, "Error: atomic_uint_least8_t is not 1 byte");
 static_assert(XCP_CALSEG_HEADER_SIZE % XCP_CALPAGE_ALIGNMENT == 0, "Error: XCP_CALSEG_HEADER_SIZE is not a multiple of XCP_CALPAGE_ALIGNMENT");
 static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: size of tXcpCalSegHeader is not equal to XCP_CALSEG_HEADER_SIZE");
@@ -131,7 +133,7 @@ static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: size o
 #define ECU_PAGE_OFFSET(aligned_page_size) (aligned_page_size)        // Initial of the ECU working page in the allocated memory buffer
 #define FREE_PAGE_OFFSET(aligned_page_size) (2 * (aligned_page_size)) // Initial of the free swap page in the allocated memory buffer
 #define CalSegDefaultPage(c) (const uint8_t *)(c)->h.default_page_ptr
-#define CalSegEcuPage(c) &(c)->b[(c)->h.ecu_page]
+#define CalSegEcuPage(c) (&(c)->b[atomic_load_explicit(&(c)->h.ecu_page, memory_order_acquire)])
 #define CalSegXcpPage(c) &(c)->b[(c)->h.xcp_page]
 
 #else
@@ -144,7 +146,7 @@ static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: size o
 #define ECU_PAGE_OFFSET(aligned_page_size) (2 * (aligned_page_size))  // Initial of the ECU working page in the allocated memory buffer
 #define FREE_PAGE_OFFSET(aligned_page_size) (3 * (aligned_page_size)) // Initial of the free swap page in the allocated memory buffer
 #define CalSegDefaultPage(c) &(c)->b[DEFAULT_PAGE_OFFSET]
-#define CalSegEcuPage(c) &(c)->b[(c)->h.ecu_page]
+#define CalSegEcuPage(c) (&(c)->b[atomic_load_explicit(&(c)->h.ecu_page, memory_order_acquire)])
 #define CalSegXcpPage(c) &(c)->b[(c)->h.xcp_page]
 
 #endif
@@ -197,7 +199,8 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
 
 // Unlock a calibration segment
 // Single threaded, must be used in the thread it was created
-uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+// Returns the lock count before the unlock
+uint16_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
 
 // Update the EKP segment with the current EPK value
 #ifdef XCP_ENABLE_EPK_CALSEG

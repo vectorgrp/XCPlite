@@ -2,6 +2,18 @@
 
 All notable changes to XCPlite are documented in this file.
 
+
+## [V2.2.3]
+
+- Improved CalSeg RCU, see CAL_RCU.md
+- Fixed CalSeg RCU with deactivated XCP (XcpInit(XCP_MODE_DEACTIVATE))
+- Fixed Ethernet command framing and socket error handling (#135)
+- Test: 
+    - Add passive_test_c/cpp verifying XCP_MODE_DEACTIVATE behavior. 
+    - Register self-verifying tests with CTest (labels + timeouts).
+    - Unify the CHECK macro for self-verifying tests
+
+
 ## [V2.2.2] 
 
 - New macros `DaqTriggerEventCapture` and `DaqCreateAndTriggerEventCapture` in `xcplib.h` to measure local variables which are not addressable via the frame pointer or which the user does not want to spill.

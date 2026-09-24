@@ -126,7 +126,7 @@ endif()
 #                external_example is also a standalone project; see examples/external_example/
 #     rtos     -> freertos_demo (downloads FreeRTOS-Kernel via FetchContent)
 #   XCPLITE_BUILD_TESTS
-#     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, type_detection_test_*
+#     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp
 #     ptp      -> clock_test
 #     others   -> (none)
 #   XCPLITE_BUILD_TOOLS
@@ -429,6 +429,14 @@ endif() # XCPLITE_BUILD_EXAMPLES
 # =============================================================================
 if(XCPLITE_BUILD_TESTS)
 
+    # Register the self-verifying tests with CTest so `ctest` can run them unattended.
+    #   Run all:              ctest --test-dir build --output-on-failure
+    #   Only fast unit tests: ctest --test-dir build -L unit
+    # Only hermetic, self-terminating tests are registered here. Interactive server tests
+    # (daq_test, clock_test), the client probe (xcp_test) and the throughput benchmark
+    # (queue_test) are run by hand - see test/README.md.
+    enable_testing()
+
     if(XCPLITE_CONFIGURATION STREQUAL "default")
 
         # Type detection tests
@@ -467,6 +475,35 @@ if(XCPLITE_BUILD_TESTS)
             target_link_libraries(xcp_test PRIVATE ws2_32)
         endif()
 
+        add_executable(passive_test_c test/passive_test/src/main.c)
+        target_link_libraries(passive_test_c PRIVATE xcplite)
+
+        add_executable(passive_test_cpp test/passive_test/src/main.cpp)
+        target_link_libraries(passive_test_cpp PRIVATE xcplite)
+
+        # Test registration (default configuration)
+        foreach(_xcp_unit_test
+                type_detection_test_c
+                type_detection_test_cpp
+                daq_config_test
+                eth_transport_test
+                socket_recv_test
+                cal_test
+                passive_test_c
+                passive_test_cpp)
+            add_test(NAME ${_xcp_unit_test} COMMAND ${_xcp_unit_test})
+            set_tests_properties(${_xcp_unit_test} PROPERTIES LABELS "unit" TIMEOUT 60)
+        endforeach()
+
+        # a2l_test validates its generated A2L with the external 'a2ltool'; register only if present.
+        find_program(A2LTOOL_EXECUTABLE a2ltool)
+        if(A2LTOOL_EXECUTABLE)
+            add_test(NAME a2l_test COMMAND a2l_test)
+            set_tests_properties(a2l_test PROPERTIES LABELS "unit;tool" TIMEOUT 120)
+        else()
+            message(STATUS "a2l_test: not registered with CTest (a2ltool not found on PATH)")
+        endif()
+
     elseif(XCPLITE_CONFIGURATION STREQUAL "ptp")
 
         # Clock synchronization test with hardware timestamps
@@ -491,6 +528,8 @@ if(XCPLITE_BUILD_TESTS)
                 $<$<PLATFORM_ID:Linux>:_GNU_SOURCE>
             )
             message(STATUS "socket_raw_test: building for raw configuration")
+            add_test(NAME socket_raw_test COMMAND socket_raw_test)
+            set_tests_properties(socket_raw_test PROPERTIES LABELS "unit" TIMEOUT 60)
         else()
             message(STATUS "socket_raw_test: skipped (Linux only, raw Ethernet HAL uses AF_PACKET)")
         endif()

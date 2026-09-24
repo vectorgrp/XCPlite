@@ -46,14 +46,13 @@ template <typename T> class CalSeg {
     /// Constructor - creates the calibration segment struct wrapper
     /// @param name Name of the calibration segment
     /// @param default_params Default parameter values (reference page)
-    CalSeg(const char *name, const T *default_params) {
+    CalSeg(const char *name, const T *default_params) : params_ptr_(default_params), index_(XCP_UNDEFINED_CALSEG) {
         if (XcpIsActivated()) {
             index_ = XcpCreateCalSeg(name, default_params, sizeof(T));
             assert(index_ != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
             A2lSetSegmentAddrMode__i(index_, NULL);
-        } else {
-            params_ptr_ = default_params;
         }
+        // Passive mode (XCP_MODE_DEACTIVATE): no segment is created, lock() returns the default page
     }
 
     /// Get the segment index (for direct XCP or A2L API calls if needed)
@@ -66,16 +65,20 @@ template <typename T> class CalSeg {
         tXcpCalSegIndex index_;
 
       public:
-        /// Constructor - locks the calibration segment
-        explicit CalSegGuard(tXcpCalSegIndex index, const T *params_ptr) : index_(index), params_ptr_(params_ptr) {
-            if (XcpIsActivated()) {
+        /// Constructor - locks the calibration segment, in passive mode the default page is used unlocked
+        explicit CalSegGuard(tXcpCalSegIndex index, const T *params_ptr) : params_ptr_(params_ptr), index_(index) {
+            if (index_ != XCP_UNDEFINED_CALSEG) {
                 params_ptr_ = reinterpret_cast<const T *>(XcpLockCalSeg(index_));
             }
         }
 
+        /// Not copyable, a copy would unlock twice and underflow the lock count (see the user contract in docs/CAL_RCU.md)
+        CalSegGuard(const CalSegGuard &) = delete;
+        CalSegGuard &operator=(const CalSegGuard &) = delete;
+
         /// Destructor - unlocks the calibration segment
         ~CalSegGuard() {
-            if (XcpIsActivated()) {
+            if (index_ != XCP_UNDEFINED_CALSEG) {
                 XcpUnlockCalSeg(index_);
             }
         }
@@ -134,7 +137,7 @@ template <typename T> class CalSegRef {
       public:
         /// Constructor - locks the calibration segment, unless index is XCP_UNDEFINED_CALSEG
         explicit CalSegGuard(tXcpCalSegIndex index, const T *default_params) : index_(index), params_ptr_(default_params) {
-            if (XcpIsActivated() && index_ != XCP_UNDEFINED_CALSEG) {
+            if (index_ != XCP_UNDEFINED_CALSEG) {
                 params_ptr_ = reinterpret_cast<const T *>(XcpLockCalSeg(index_));
             }
         }
@@ -148,7 +151,7 @@ template <typename T> class CalSegRef {
 
         /// Destructor - unlocks the calibration segment, unless index is XCP_UNDEFINED_CALSEG
         ~CalSegGuard() {
-            if (XcpIsActivated() && index_ != XCP_UNDEFINED_CALSEG) {
+            if (index_ != XCP_UNDEFINED_CALSEG) {
                 XcpUnlockCalSeg(index_);
             }
         }
@@ -189,14 +192,13 @@ template <typename T> class CalBlk {
     /// Constructor - creates the calibration segment struct wrapper
     /// @param name Name of the calibration segment
     /// @param default_params Default parameter values (reference page)
-    CalBlk(const char *name, const T *default_params) {
+    CalBlk(const char *name, const T *default_params) : params_ptr_(default_params), index_(XCP_UNDEFINED_CALSEG) {
         if (XcpIsActivated()) {
             index_ = XcpCreateCalBlk(name, default_params, sizeof(T));
             assert(index_ != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
             A2lSetSegmentAddrMode__i(index_, NULL);
-        } else {
-            params_ptr_ = default_params;
         }
+        // Passive mode (XCP_MODE_DEACTIVATE): no segment is created, lock() returns the default page
     }
 
     /// Get the segment index (for direct XCP or A2L API calls if needed)
@@ -209,16 +211,20 @@ template <typename T> class CalBlk {
         tXcpCalSegIndex calseg_index_;
 
       public:
-        /// Constructor - locks the calibration segment
-        explicit CalSegGuard(tXcpCalSegIndex calseg_index, const T *params_ptr) : calseg_index_(calseg_index), params_ptr_(params_ptr) {
-            if (XcpIsActivated()) {
+        /// Constructor - locks the calibration segment, in passive mode the default page is used unlocked
+        explicit CalSegGuard(tXcpCalSegIndex calseg_index, const T *params_ptr) : params_ptr_(params_ptr), calseg_index_(calseg_index) {
+            if (calseg_index_ != XCP_UNDEFINED_CALSEG) {
                 params_ptr_ = reinterpret_cast<const T *>(XcpLockCalSeg(calseg_index_));
             }
         }
 
+        /// Not copyable, a copy would unlock twice and underflow the lock count (see the user contract in docs/CAL_RCU.md)
+        CalSegGuard(const CalSegGuard &) = delete;
+        CalSegGuard &operator=(const CalSegGuard &) = delete;
+
         /// Destructor - unlocks the calibration segment
         ~CalSegGuard() {
-            if (XcpIsActivated()) {
+            if (calseg_index_ != XCP_UNDEFINED_CALSEG) {
                 XcpUnlockCalSeg(calseg_index_);
             }
         }

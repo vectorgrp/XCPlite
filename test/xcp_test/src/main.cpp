@@ -69,7 +69,7 @@ typedef int socket_t;
 // ---------------------------------------------------------------------------
 
 static constexpr uint16_t XCP_SERVER_PORT = 5555;
-static constexpr const char *XCP_SERVER_ADDR = "192.168.0.207";
+static constexpr const char *XCP_SERVER_ADDR = "127.0.0.1";
 static constexpr int RECV_TIMEOUT_MS = 3000;
 
 static constexpr uint8_t CC_CONNECT = 0xFF;
@@ -152,8 +152,7 @@ static bool receive_xcp_response(socket_t sock, RxMessage &rx, bool timeout_enab
     const int udp_payload_len = received - 4;
     std::cout << "Transport layer header:\n";
     std::cout << "  payload_len : " << rx.tl_len << " bytes\n";
-    std::cout << "  counter     : " << rx.tl_ctr << " (0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0') << rx.tl_ctr << ")\n"
-              << std::dec;
+    std::cout << "  counter     : " << rx.tl_ctr << " (0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0') << rx.tl_ctr << ")\n" << std::dec;
     std::cout << "  udp_payload : " << udp_payload_len << " bytes\n";
 
     if (udp_payload_len != static_cast<int>(rx.tl_len)) {
@@ -300,13 +299,11 @@ static void decode_get_comm_mode_info_response(const uint8_t *payload, int paylo
     const uint8_t xcp_driver_version_number = payload[7];
 
     std::cout << "  PID                      : 0xFF  (POSITIVE_RESPONSE)\n";
-    std::cout << "  comm_mode_optional       : 0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
-              << static_cast<int>(comm_mode_optional) << '\n';
+    std::cout << "  comm_mode_optional       : 0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(comm_mode_optional) << '\n';
     std::cout << "  max_bs                   : " << std::dec << static_cast<int>(max_bs) << '\n';
     std::cout << "  min_st                   : " << static_cast<int>(min_st) << '\n';
     std::cout << "  queue_size               : " << static_cast<int>(queue_size) << '\n';
-    std::cout << "  driver_version           : 0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
-              << static_cast<int>(xcp_driver_version_number) << '\n';
+    std::cout << "  driver_version           : 0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(xcp_driver_version_number) << '\n';
     std::cout << std::dec;
 }
 
@@ -417,7 +414,8 @@ int main(int argc, char **argv) {
         std::cout << "TX raw bytes: ";
         print_hex(pkt.data(), static_cast<int>(pkt.size()));
 
-        int sent = static_cast<int>(sendto(sock, reinterpret_cast<const char *>(pkt.data()), static_cast<int>(pkt.size()), 0, reinterpret_cast<const sockaddr *>(&server), sizeof(server)));
+        int sent = static_cast<int>(
+            sendto(sock, reinterpret_cast<const char *>(pkt.data()), static_cast<int>(pkt.size()), 0, reinterpret_cast<const sockaddr *>(&server), sizeof(server)));
         if (sent != static_cast<int>(pkt.size())) {
             std::cerr << "sendto() failed (sent=" << sent << ")\n";
             return false;

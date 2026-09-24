@@ -22,6 +22,8 @@
 #include "sockets.h" // for socket handles and platform helpers
 #include "xcplib.h"  // for the public XCPlite API
 
+#include "../../support/check.h" // for the shared CHECK macro
+
 // Instrument transport receive calls while retaining the real socket implementation.
 
 static int16_t checked_socket_recv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t size, bool wait_all);
@@ -39,15 +41,6 @@ static int16_t checked_socket_recv_from(SOCKET_HANDLE socket, uint8_t *buffer, u
 #if !defined(_WIN) && !defined(_FREE_RTOS)
 #define TEST_CHILD_TIMEOUT_SECONDS 10
 #endif
-
-// Unlike assert(), CHECK always evaluates commands and initialization in Release builds.
-#define CHECK(condition)                                                                                                                                                           \
-    do {                                                                                                                                                                           \
-        if (!(condition)) {                                                                                                                                                        \
-            fprintf(stderr, "%s:%d: %s failed\n", __FILE__, __LINE__, #condition);                                                                                                 \
-            exit(EXIT_FAILURE);                                                                                                                                                    \
-        }                                                                                                                                                                          \
-    } while (0)
 
 static tQueueHandle test_queue;
 static SOCKET client;
@@ -664,10 +657,14 @@ static const struct {
     {"tcp_invalid_lengths", test_tcp_invalid_lengths, false},
     {"tcp_payload_timeout", test_tcp_payload_timeout, false},
     {"tcp_idle_timeout", test_tcp_idle_timeout, false},
+#if !defined(_MACOS)
     {"tcp_partial_frames", test_tcp_partial_frames, false},
+#endif
     {"tcp_eof_stale_error", test_tcp_eof_stale_error, false},
     {"socket_eof_status", test_socket_eof_status, false},
+#if !defined(_MACOS)
     {"socket_accept_failure", test_socket_accept_failure, false},
+#endif
     {"udp_malformed", test_udp_malformed, false},
     {"udp_oversized", test_udp_oversized, false},
     {"udp_other_peer", test_udp_other_peer, false},

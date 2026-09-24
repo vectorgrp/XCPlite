@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # Script to test XCPlite examples
-# Usage: ./test.sh [clean] [example_name]
+# Usage: ./test_exampkes.sh [clean] [example_name]
 #   If example_name is provided, only that example will be tested
 #   If no parameter is given, all examples will be tested
 #   If 'clean' is given, all generated files (.a2l, .bin, .hex) will be deleted before running tests
 # Examples:
-#   ./test.sh              # Run all examples
-#   ./test.sh hello_xcp    # Run only hello_xcp
-#   ./test.sh c_demo       # Run only c_demo
-#   ./test.sh clean        # Clean and run all examples
-#   ./test.sh clean hello_xcp  # Clean and run only hello_xcp
+#   ./test_exampkes.sh              # Run all examples
+#   ./test_exampkes.sh hello_xcp    # Run only hello_xcp
+#   ./test_exampkes.sh c_demo       # Run only c_demo
+#   ./test_exampkes.sh clean        # Clean and run all examples
+#   ./test_exampkes.sh clean hello_xcp  # Clean and run only hello_xcp
 
 # Exit on error
 set -e
@@ -95,7 +95,7 @@ if [ -n "$SPECIFIC_EXAMPLE" ]; then
     LOG_NAME="${SPECIFIC_EXAMPLE}"
     LOG_FILE="${SCRIPT_DIR}/test_${LOG_NAME}.log"
 else
-    LOG_FILE="${SCRIPT_DIR}/test_all.log"
+    LOG_FILE="${SCRIPT_DIR}/test_examples.log"
 fi
 
 # Delete existing log file to start fresh
