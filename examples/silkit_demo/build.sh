@@ -1,88 +1,73 @@
 #!/bin/bash
 # Build script for XCPlite silkit_demo
-# Builds XCPlite (if needed), installs SilKit (if needed), then builds the demo.
+#
+#   ./build.sh [debug|release|relwithdebinfo] [local] [clean]
+#
+#   debug | release | relwithdebinfo   CMake build type (default: debug)
+#   local                              Build against this repository's working tree instead of cloning xcplite
+#   clean                              Remove the build directory first
+#
+# Arguments can be given in any order.
+#
+# SIL Kit and xcplite (shm configuration) are fetched and built from source via CMake FetchContent,
+# see CMakeLists.txt. Nothing has to be installed. The first build clones and compiles SIL Kit,
+# which takes a few minutes.
+# To build against a local sil-kit checkout (with submodules), set SILKIT_SOURCE_DIR:
+#   SILKIT_SOURCE_DIR=../../../sil-kit ./build.sh
 
 set -e
 
 GREEN='\033[0;32m'
-BLUE='\033[0;34m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-XCPLITE_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-XCPLITE_INSTALL="${XCPLITE_ROOT}/build-shm/install"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
+usage() {
+    sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
 
-# ---------------------------------------------------------------------------
-# SilKit paths – adjust to your environment
-# ---------------------------------------------------------------------------
-SILKIT_BUILD_DIR="${SILKIT_BUILD_DIR:-${XCPLITE_ROOT}/../sil-kit/_build/debug}"
-SILKIT_INSTALL_DIR="${SILKIT_INSTALL_DIR:-${XCPLITE_ROOT}/../sil-kit/_install/debug}"
-SILKIT_CMAKE_DIR="${SILKIT_INSTALL_DIR}/lib/cmake/SilKit"
+BUILD_TYPE=Debug
+CLEAN=false
+CMAKE_ARGS=()
 
-echo ""
-echo -e "${BLUE}xcplite root   :${NC} ${XCPLITE_ROOT}"
-echo -e "${BLUE}xcplite install:${NC} ${XCPLITE_INSTALL}"
-echo -e "${BLUE}SilKit build   :${NC} ${SILKIT_BUILD_DIR}"
-echo -e "${BLUE}SilKit install :${NC} ${SILKIT_INSTALL_DIR}"
-echo ""
+for arg in "$@"; do
+    case "$arg" in
+        debug)          BUILD_TYPE=Debug ;;
+        release)        BUILD_TYPE=Release ;;
+        relwithdebinfo) BUILD_TYPE=RelWithDebInfo ;;
+        local)          CMAKE_ARGS+=("-DFETCHCONTENT_SOURCE_DIR_XCPLITE=${REPO_ROOT}") ;;
+        clean)          CLEAN=true ;;
+        -h|--help)      usage; exit 0 ;;
+        *)              echo "Unknown argument: $arg"; echo ""; usage; exit 1 ;;
+    esac
+done
 
-# Clean
-if [ "$1" == "clean" ]; then
-    echo "Cleaning previous build..."
+if [[ -n "${SILKIT_SOURCE_DIR:-}" ]]; then
+    CMAKE_ARGS+=("-DFETCHCONTENT_SOURCE_DIR_SILKIT=$(cd "${SILKIT_SOURCE_DIR}" && pwd)")
+fi
+
+if [[ "$CLEAN" == true ]]; then
+    echo "Removing ${SCRIPT_DIR}/build"
     rm -rf "${SCRIPT_DIR}/build"
 fi
 
-# ---------------------------------------------------------------------------
-# Step 1: Build & install xcplite
-# ---------------------------------------------------------------------------
-echo -e "${GREEN}Step 1: Building and installing xcplite in shared memory mode...${NC}"
-echo "--------------------------------------------------------------------------------"
-cd "${XCPLITE_ROOT}"
-# ./build.sh shm release install
-./build.sh shm install
-
-# ---------------------------------------------------------------------------
-# Step 2: Install SilKit from its build tree (idempotent)
-# Only the 'bin' (shared library) and 'dev' (headers + cmake config) components
-# are installed. This avoids errors from utility binaries (sil-kit-monitor etc.)
-# that may not have been built.
-# ---------------------------------------------------------------------------
-echo -e "${GREEN}Step 2: Installing SilKit to ${SILKIT_INSTALL_DIR} ...${NC}"
-echo "--------------------------------------------------------------------------"
-cmake --install "${SILKIT_BUILD_DIR}" --prefix "${SILKIT_INSTALL_DIR}" --component bin
-cmake --install "${SILKIT_BUILD_DIR}" --prefix "${SILKIT_INSTALL_DIR}" --component dev
-
-if [ ! -f "${SILKIT_CMAKE_DIR}/SilKitConfig.cmake" ]; then
-    echo "ERROR: SilKitConfig.cmake not found at ${SILKIT_CMAKE_DIR}"
-    echo "Please build SilKit first:  cmake --preset debug  &&  cmake --build _build/debug"
-    exit 1
-fi
-
-# ---------------------------------------------------------------------------
-# Step 3: Configure and build the silkit_demo
-# ---------------------------------------------------------------------------
-echo -e "${GREEN}Step 3: Building silkit_demo ...${NC}"
-echo "------------------------------------------------------------"
 cd "${SCRIPT_DIR}"
-cmake -B build -S . \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DSilKit_DIR="${SILKIT_CMAKE_DIR}" \
-    -DCMAKE_PREFIX_PATH="${XCPLITE_INSTALL}"
-cmake --build build
+cmake -B build -S . -DCMAKE_BUILD_TYPE=${BUILD_TYPE} "${CMAKE_ARGS[@]}"
+# Limit the parallel jobs to the number of cores. A plain --parallel is an unlimited 'make -j',
+# which exhausts the memory of small targets (Raspberry Pi) when compiling SIL Kit.
+JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+cmake --build build --parallel "${JOBS}"
 
 echo ""
 echo -e "${GREEN}Build successful.${NC}"
-echo "Binaries: ${SCRIPT_DIR}/build/"
-echo "  SilKitDemoPublisher"
-echo "  SilKitDemoSubscriber"
+echo "Demo binaries   : ${SCRIPT_DIR}/build/"
+echo "  SilKitDemoPublisher, SilKitDemoSubscriber, SilKitXcpServer, shmtool"
+echo "SIL Kit binaries: ${SCRIPT_DIR}/build/${BUILD_TYPE}/"
+echo "  sil-kit-registry, sil-kit-system-controller, sil-kit-monitor"
 echo ""
-
-
-
-echo "Run the demo with:"
-echo "../../../sil-kit/_build/debug/Debug/sil-kit-registry"
-echo "./build/SilKitDemoPublisher --sim-step-duration 10000 --fast" 
-echo "./build/SilKitDemoSubscriber --sim-step-duration 10000 --fast" 
-echo "../../../sil-kit/_build/debug/Debug/sil-kit-system-controller Publisher Subscriber"
-
+echo "Run the demo with ./run.sh or manually:"
+echo "./build/${BUILD_TYPE}/sil-kit-registry"
+echo "./build/SilKitDemoPublisher --sim-step-duration 10000 --fast"
+echo "./build/SilKitDemoSubscriber --sim-step-duration 10000 --fast"
+echo "./build/${BUILD_TYPE}/sil-kit-system-controller Publisher Subscriber"

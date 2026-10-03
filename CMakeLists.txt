@@ -123,9 +123,6 @@ endif()
 #     no_a2l   -> no_a2l_demo, no_a2l_demo_cpp
 #     ptp      -> ptp4l_demo (Linux)
 #     shm      -> hello_xcp (SHM mode), hello_xcp_cpp (SHM mode)
-#                Note: silkit_demo is a standalone project (requires SilKit + installed xcplite);
-#                build it separately from examples/silkit_demo/ after installing xcplite.
-#                external_example is also a standalone project; see examples/external_example/
 #     rtos     -> freertos_demo (downloads FreeRTOS-Kernel via FetchContent)
 #   XCPLITE_BUILD_TESTS
 #     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp
@@ -411,10 +408,6 @@ if(XCPLITE_BUILD_EXAMPLES)
 
         add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp)
         target_link_libraries(hello_xcp_cpp PRIVATE xcplite)
-
-        # silkit_demo is a standalone project requiring SilKit + an installed xcplite.
-        # Build it separately: cd examples/silkit_demo && cmake -B build -DSilKit_DIR=... -Dxcplite_DIR=...
-        message(STATUS "silkit_demo: not built from root (standalone project, see examples/silkit_demo/)")
 
     elseif(XCPLITE_CONFIGURATION STREQUAL "raw")
 
