@@ -14,7 +14,7 @@ Designed exclusively for the **XCP on Ethernet Transport Layer** (using TCP or U
 - **Thread-safe & lock-free** - Consistent data acquisition and parameter modification across multiple cores, free of blocking and inter-thread contention
 - **Deterministic runtime and low resource consumption** - No heap allocations, static memory usage, zero copy and predictable execution times for real-time applications
 - **Runtime A2L generation and download** - Define events, measurements and parameters, with metadata as code; the description file (A2L format, see note below) is generated on target and downloaded from target automatically
-- **Buildtime A2L generation** - Define events, measurements and parameters, with metadata as code and use a XCPlite code instrumentation aware ELF->A2L generator during buildtime
+- **Build-time A2L generation** - Define events, measurements and parameters, with metadata as code and use a XCPlite code instrumentation aware ELF->A2L generator at build time
 - **Complex type support** - Handles basic types, structs, arrays, and nested structures
 - **Calibration segments** - Calibration parameter page switching, consistent atomic modification, and persistence
 - **PTP timestamps** - Prepared for high-precision PTP synchronized timestamps
@@ -113,7 +113,7 @@ Multiple examples demonstrating different features are available in the [example
 
 **Advanced examples:**
 - [no_a2l_demo](examples/no_a2l_demo/README.md) - Linux workflow without runtime A2L generation (offline A2L generation from ELF file by using the included xcpclient tool)
-- [no_a2l_demo_cpp](examples/no_a2l_demo_cpp/README.md) - C++ no-A2L workflow with offline A2L generation from ELF via xcpclient
+- [no_a2l_demo_cpp](examples/no_a2l_demo_cpp/README.md) - C++ workflow with offline A2L generation
 - [freertos_demo](examples/freertos_demo/README.md) - FreeRTOS/lwip demo applications for STM32, ESP32 and the FreeRTOS POSIX simulator (Linux)
 - [silkit_demo](examples/silkit_demo/README.md) - SIL-Kit multi-participant measurement and calibration (via shared memory (SHM mode))
 - [ptp4l_demo](examples/ptp4l_demo/README.md) - Using a PTP synchronized clock as XCP timestamp source
@@ -126,17 +126,6 @@ Multiple examples demonstrating different features are available in the [example
 
 For detailed information about each example and how to set up CANape projects, see the [examples overview](examples/README.md).
 
-**Requirements:**
-
-The examples leverage:
-
-- **Runtime A2L creation and upload** - No manual A2L file management required
-- **A2L TYPEDEFs** - Complex data structures with reusable type definitions
-- **Address extensions** - Support for relative addressing (stack,heap) and multiple memory spaces
-- **Shared axis in typedefs** - Advanced calibration structures (CANape 24+, see `cpp_demo`)
-
-These features enable efficient workflows for modern multicore HPC applications. While XCPlite is XCP-compliant and works with any XCP tool, the examples take full advantage of CANape's support for dynamic systems, complex data structures, and advanced A2L features.
-
 Some XCPlite examples are designed to showcase advanced CANape capabilities and require **CANape 24+** (free demo version available).
 
 **Download:** [CANape demo version](https://www.vector.com/de/de/support-downloads/download-center)
@@ -146,7 +135,8 @@ Some XCPlite examples are designed to showcase advanced CANape capabilities and 
 
 XCPlite uses CMake as the build system.  
 For quick builds of all examples, use the provided build scripts.  
-Details how to build for Linux, QNX, macOS, and Windows are in the [building documentation](docs/BUILDING.md). For microcontroller builds, refer to the READMEs in the RTOS example folders.  
+Details how to build for Linux, QNX, macOS, and Windows are in the [building documentation](docs/BUILDING.md).  
+For microcontroller builds, refer to the READMEs in the RTOS example folders.  
 
 
 ## Documentation

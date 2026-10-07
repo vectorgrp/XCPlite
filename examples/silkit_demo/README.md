@@ -9,7 +9,7 @@ There are some tunable parameters to demonstrate thread-safe calibration and par
 
 Compared to other XCP integration examples, this demo focuses on 2 special aspects:
 
-- Simulation time vs. real time: The demo can be configured to use either the virtual simulation time (which advances non-realtime in fixed steps) or real wall-clock time for XCP event timestamps. 
+- Simulation time vs. real time: The demo can be configured to use either the virtual simulation time (which advances in fixed steps, not in real time) or real wall-clock time for XCP event timestamps. 
 - Multi application support: The demo can be run with either separate XCP servers for participants, or a single XCP server in multi-application shared memory mode used for both participants (default).
 
 The XCP server can be realized as a separate participant (in `XcpServer.cpp`) or integrated into the participants.  
@@ -52,9 +52,9 @@ See the documentation of XCPlite SHM mode (in docs/SHM.md) for more details on t
 
 ## Simulated Time
 
-The XCP events can be timestamped with either the virtual simulation time (which advances non real-time in fixed steps) or real wall-clock time.  
+The XCP events can be timestamped with either the virtual simulation time (which advances in fixed steps, not in real time) or real wall-clock time.  
 
-To use non real time targets with CANape, time synchronisation must be configured to 'Simulation' (Settings / Project Settings / Miscellaneous / Synchronization / Simulation). Then configure the XCP device as time master (Device Configuration / Right click on device / Time master).  
+To use non-real-time targets with CANape, time synchronisation must be configured to 'Simulation' (Settings / Project Settings / Miscellaneous / Synchronization / Simulation). Then configure the XCP device as time master (Device Configuration / Right click on device / Time master).  
 
 
 
@@ -148,7 +148,7 @@ Start the XCP server participant. Default is (XCP on UDP, port 5555):
 ./build/SilKitDemoPublisher
 # fast
 # ./build/SilKitDemoPublisher --sim-step-duration 10000 --fast
-# realtime
+# real time
 # ./build/SilKitDemoPublisher --sim-step-duration 10000 --config silkit_participant_cfg.json
 ```
 
@@ -158,7 +158,7 @@ Start the XCP server participant. Default is (XCP on UDP, port 5555):
 ./build/SilKitDemoSubscriber
 #fast
 # ./build/SilKitDemoSubscriber --sim-step-duration 10000 --fast
-# realtime
+# real time
 # ./build/SilKitDemoSubscriber --sim-step-duration 10000 --config silkit_participant_cfg.json
 ```
 

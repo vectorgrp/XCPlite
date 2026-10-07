@@ -86,7 +86,7 @@ When xcplite detects that it is not the top-level project:
 
 ### Application specific configuration override
 
-The tunables of the library (`OPTION_*` in `src/xcplib_cfg.h`, documented in [xcplib_cfg.md](../../docs/xcplib_cfg.md)) are compile time settings. The shipped configurations (`no_a2l`, `ptp`, ...) are nothing more than override headers `src/xcplib_<name>_cfg.h` which `xcplib_cfg.h` includes at its end when the preprocessor symbol `XCPLIB_CFG_OVERRIDE` names them.
+The tunables of the library (`OPTION_*` in `src/xcplib_cfg.h`, documented in [xcplib_cfg.md](../../docs/xcplib_cfg.md)) are compile-time settings. The shipped configurations (`no_a2l`, `ptp`, ...) are nothing more than override headers `src/xcplib_<name>_cfg.h` which `xcplib_cfg.h` includes at its end when the preprocessor symbol `XCPLIB_CFG_OVERRIDE` names them.
 
 An application can provide such a header itself. This example does so with `config/xcplib_app_cfg.h`:
 

@@ -160,6 +160,17 @@ static_assert(sizeof(bool) == 1, "Error: bool is not 1 byte");
 static_assert(sizeof(atomic_uint_least32_t) == 4, "Error: atomic_uint_least32_t is not 4 bytes");
 static_assert(sizeof(atomic_uint_least16_t) == 2, "Error: atomic_uint_least16_t is not 2 bytes");
 static_assert(sizeof(atomic_uint_least8_t) == 1, "Error: atomic_uint_least8_t is not 1 byte");
+
+// The RCU state is only correct and wait-free if the 8, 16 and 32 bit atomics are genuinely lock-free (docs/CAL_RCU.md chapter 5.7).
+// Otherwise the compiler emits __atomic_* library calls, which may be implemented by disabling interrupts (not multicore safe) or a lock table.
+// uint_least32_t is unsigned int or unsigned long depending on the toolchain (e.g. unsigned long on arm-none-eabi and ESP-IDF >= 5), so both are checked.
+// Value 2 means "always lock-free" and is a compile-time constant, unlike the runtime atomic_is_lock_free().
+#ifndef OPTION_ATOMIC_EMULATION
+static_assert(ATOMIC_CHAR_LOCK_FREE == 2, "8-bit atomics are not unconditionally lock-free on this target, see docs/CAL_RCU.md chapter 5.7");
+static_assert(ATOMIC_SHORT_LOCK_FREE == 2, "16-bit atomics are not unconditionally lock-free on this target, see docs/CAL_RCU.md chapter 5.7");
+static_assert(ATOMIC_INT_LOCK_FREE == 2, "int atomics are not unconditionally lock-free on this target, see docs/CAL_RCU.md chapter 5.7");
+static_assert(ATOMIC_LONG_LOCK_FREE == 2, "long atomics are not unconditionally lock-free on this target, see docs/CAL_RCU.md chapter 5.7");
+#endif
 static_assert(XCP_CALSEG_HEADER_SIZE % XCP_CALPAGE_ALIGNMENT == 0, "Error: XCP_CALSEG_HEADER_SIZE is not a multiple of XCP_CALPAGE_ALIGNMENT");
 static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: size of tXcpCalSegHeader is not equal to XCP_CALSEG_HEADER_SIZE");
 

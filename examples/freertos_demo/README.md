@@ -184,7 +184,7 @@ Each event must be created in one place only. What else to consider and how to c
 [docs/OFFLINE_A2L.md — With section registration: requirements and checks](../../docs/OFFLINE_A2L.md#with-section-registration-requirements-and-checks).
 
 Both sections exist only with `OPTION_SECTION_REGISTRATION`. Without it, xcpclient finds the events and segments by the names of their
-descriptor variables in the DWARF, but not their numbers, and `CalSegDecl`/`CalSegDeclRef` are a compile time error: `xcp_demo.c`
+descriptor variables in the DWARF, but not their numbers, and `CalSegDecl`/`CalSegDeclRef` are a compile-time error: `xcp_demo.c`
 then creates the segment with `CalSegCreate` after `XcpInit()`, see the `#ifdef OPTION_SECTION_REGISTRATION` there.
 
 **DWARF trigger point anchors** — every event trigger macro emits a named static variable (e.g. `trg__AAS__name`, `trg__AASD__name`) whose name encodes the active addressing modes.
@@ -220,7 +220,7 @@ FreeRTOS configuration overrides are in `xcplib_rtos_cfg.h`:
 | Option | Value | Reason |
 |---|---|---|
 | `OPTION_QUEUE_32` | set | Mandatory on Cortex-M4: no 64-bit atomic operations |
-| `OPTION_QUEUE_32_SEGMENT_COUNT` | 16 | Number of statically allocated transmit queue segments; minimum 2 |
+| `OPTION_QUEUE_32_SIZE` | 16 segments | Size of the statically allocated transmit queue, a multiple of `sizeof(tXcpSegmentBuffer)`; minimum 2 segments |
 | `OPTION_CLOCK_TICKS_1US` | set | `xTaskGetTickCount()`-based clock, 1 µs unit |
 | `OPTION_MTU` | 1500 | 1500 − 20-byte IPv4 header − 8-byte UDP header = 1472-byte maximum UDP payload |
 | `OPTION_CAL_MEM_SIZE` | 4 KB | Tune to available SRAM |
@@ -242,11 +242,11 @@ Init transport layer queue (queue32)
   buffer_size=23680, queue_size=16 (23680 Bytes)
 ```
 
-`queue32m.c` uses a fixed, statically allocated transmit queue sized by `OPTION_QUEUE_32_SEGMENT_COUNT`. It does not use the heap.
+`queue32m.c` uses a fixed, statically allocated transmit queue sized by `OPTION_QUEUE_32_SIZE`, the queue size parameter of `XcpEthServerInit` must be 0. It does not use the heap.
 
 With `configSUPPORT_STATIC_ALLOCATION=1`, XCPlite also uses static storage for its FreeRTOS mutexes, internal task control blocks and stacks. Otherwise, it uses the dynamic FreeRTOS creation APIs. This setting does not affect application- or kernel-owned objects.
 
-Each segment holds one UDP payload plus 8 bytes of metadata. With the default MTU of 1500, each segment occupies 1,480 bytes, so 16 segments require 23,680 bytes of static RAM. Adjust `OPTION_QUEUE_32_SEGMENT_COUNT` for DAQ burst capacity and RAM usage.
+Each segment holds one UDP payload plus 8 bytes of metadata. With the default MTU of 1500, each segment occupies 1,480 bytes, so 16 segments require 23,680 bytes of static RAM. Adjust the segment count in `OPTION_QUEUE_32_SIZE` for DAQ burst capacity and RAM usage.
 
 The queue state and buffer are placed in ordinary RAM by default. They may be placed into dedicated sections of the application linker script, for example the queue state into zero wait state DTCM on STM32H7. The section must exist in the linker script, GNU ld places an unknown section somewhere without a diagnostic:
 
@@ -263,7 +263,7 @@ By default the XCP server uses the lwIP netconn API. Every transmitted datagram 
 
 Both need the receive timeout, `LWIP_SO_RCVTIMEO=1`.
 
-lwIP does not block a UDP send when it is out of memory (pbufs, heap or driver transmit buffers, for example on a congested Wi-Fi link), it fails immediately. The XCP server emulates a blocking send instead and retries every millisecond until lwIP accepts the datagram. As on platforms with a blocking `sendto`, the transmit queue then fills up and DAQ events are dropped and counted at queue entry; increase `OPTION_QUEUE_32_SEGMENT_COUNT` to handle longer bursts. A stall of more than one second is reported periodically, and when it ends. While blocked, command responses wait as well, and a stall which never ends, for example a permanently missing link, blocks a graceful server shutdown. The retry interval is at least one FreeRTOS tick, with a slow tick rate (e.g. 100 Hz) it limits the throughput under sustained overload.
+lwIP does not block a UDP send when it is out of memory (pbufs, heap or driver transmit buffers, for example on a congested Wi-Fi link), it fails immediately. The XCP server emulates a blocking send instead and retries every millisecond until lwIP accepts the datagram. As on platforms with a blocking `sendto`, the transmit queue then fills up and DAQ events are dropped and counted at queue entry; increase `OPTION_QUEUE_32_SIZE` to handle longer bursts. A stall of more than one second is reported periodically, and when it ends. While blocked, command responses wait as well, and a stall which never ends, for example a permanently missing link, blocks a graceful server shutdown. The retry interval is at least one FreeRTOS tick, with a slow tick rate (e.g. 100 Hz) it limits the throughput under sustained overload.
 
 The memory size of static `tXcpData` depends on the configuration in `xcplib_cfg.h` and `xcplib_rtos_cfg.h`:
 - OPTION_CAL_SEGMENT_COUNT: Max number of calibration segments or blocks

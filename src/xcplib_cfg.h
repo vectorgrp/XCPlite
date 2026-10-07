@@ -161,7 +161,7 @@
 // Transport layer queue, vectored IO, lockless with fixed queue entry size
 // For maximum performance, but less efficient memory usage with partially filled queue entries
 // Entry size is XCPTL_MAX_DTO_SIZE  + XCPTL_TRANSPORT_LAYER_HEADER_SIZE (4) + 4
-// Optimal overall queue size is required to be a multiple of the cache line size (so XCPTL_MAX_DTO_SIZE in xcptl_cfg.h currently set to 244)
+// Optimal overall queue size is required to be a multiple of the cache line size (so XCPTL_MAX_DTO_SIZE in xcptl_cfg.h currently set to 248)
 // Tune XCPTL_MAX_DTO_SIZE for best compromise between memory efficiency and performance
 // Larger DTO size may not payoff, rely on transport layer message accumulation
 // #define OPTION_QUEUE_64_FIX_SIZE // (queue64f.c)
@@ -203,7 +203,7 @@
 // #define OPTION_SECTION_REGISTRATION // Default is Off
 
 // With section registration off, the macros for event and calibration segment creation still work, but events and segments are created at runtime at the call site, not at compile
-// and link time and in XcpInit This may lead to unstable event and calibration segment numbering across application runs, when OPTION_PERSISTENCE is not enabled. The C macros
+// and link time and in XcpInit This may lead to unstable event and calibration segment numbering across application runs, when OPTION_ENABLE_PERSISTENCE is not enabled. The C macros
 // still create static marker variables to help offline A2L generators
 // DaqCreateEvent and its variants:
 //   static const tXcpEventDescriptor evt__##event_name = <event_descriptor>; // at the call site of DaqCreateEvent
@@ -248,6 +248,6 @@
 //-------------------------------------------------------------------------------
 // Configuration checks
 
-#if defined(OPTION_SECTION_REGISTRATION) && (defined(_MSC_VER) || defined(OPTION_SHM))
+#if defined(OPTION_SECTION_REGISTRATION) && (defined(_MSC_VER) || defined(OPTION_SHM_MODE))
 #error "OPTION_SECTION_REGISTRATION (link time registration of events and calibration segments) is not supported"
 #endif

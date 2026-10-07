@@ -83,7 +83,7 @@ This chapter is the complete list of rules the application has to follow. All gu
 8. Every lock is released exactly once, with the pointer it returned, by the thread which acquired it. Locks are balanced per thread, like the read side of a rwlock. The pointer is the reader's handle to its lock, there is no thread local state in the library.
 9. Locks may be nested (recursive) and may be held by any number of threads at the same time, up to a total of 65535 locks per segment. There is no owner tracking.
 10. A nested lock is not guaranteed to return the same snapshot as the outer lock: every lock returns a pointer to a valid and consistent page, but a nested lock may return the next published page.
-11. Lock and unlock are wait-free and may be called from any thread at any priority, including realtime threads. Critical sections should be short: calibration changes become visible to all readers only when the lock count of the segment returns to zero (see 3.2).
+11. Lock and unlock are wait-free and may be called from any thread at any priority, including real-time threads. Critical sections should be short: calibration changes become visible to all readers only when the lock count of the segment returns to zero (see 3.2).
 12. C++: `CalSegGuard` is not copyable and must be held in a scope. Pass the pointer or the reference down, not the guard.
 
 ### 2.4 Contract violations and their consequences
@@ -281,7 +281,7 @@ In `cal.c` the two algorithms are the functions `CalSegRcuReset`, `CalSegRcuInit
 
 ## 5. Memory ordering
 
-Sections 5.1 to 5.5 describe the lock count algorithm, 5.6 the reference counting algorithm.
+Sections 5.1 to 5.5 describe the lock count algorithm, 5.6 the reference counting algorithm, 5.7 the preconditions on microcontrollers with FreeRTOS SMP.
 
 The lock count algorithm has two independent synchronization relations: between the readers (who is the last reader of a page) and between the writer and the readers (page content and page hand-over). Both need the ordering described here. The cost is one acquire load and the ordered flavour of two atomic read-modify-write operations per lock/unlock pair, there is no barrier instruction in the reader path.
 
@@ -358,16 +358,53 @@ Take a reader R whose validation load returns page P, so R pins P. Either that l
 
 In both cases R holds a complete page which the writer will not touch until R releases it. Acquire/release alone does not order `W.load_refs(P)` against `R.pin` and `R.validate` against `W.store(Q)` in one consistent order, which is what closes the first case.
 
+This is the store buffering (SB) litmus shape: each side writes its own variable and then reads the other's (reader: pin `page_refs[P]`, then load `published_page`; writer: store `published_page`, then load `page_refs[P]`). The forbidden outcome, both loads missing the other side's store, is allowed by acquire/release and by a hardware store buffer, and excluded by `seq_cst` or a full fence. Its classic instance is the entry protocol of Dekker's mutual exclusion algorithm (E. W. Dijkstra, *Cooperating Sequential Processes*, EWD123, 1965), and S. V. Adve, K. Gharachorloo, *Shared Memory Consistency Models: A Tutorial* (WRL Research Report 95/7, 1995) uses it to show how write buffers break sequential consistency. The Linux kernel memory model has it as `tools/memory-model/litmus-tests/SB+fencembonceonces.litmus`. The reader protocol, pin and re-validate with a store-load fence in between, is structurally the hazard pointer protocol, with a reference count per page instead of a hazard pointer per thread (M. M. Michael, *Hazard Pointers: Safe Memory Reclamation for Lock-Free Objects*, IEEE TPDS 15(6), 2004; C++26 `<hazard_pointer>`, proposals P0233 and P2530).
+
 No generation counter is needed in `published_page` to protect against the ABA case (P retired and re-published under the same index while a slow reader validates): that case is the second branch above, the reader simply gets the later generation of P, which is a valid and monotonic snapshot. A generation counter would only make the reader retry and then pin the same page.
 
 Cost on the reader path: a `seq_cst` load is a plain load on x86 and `LDAR` on AArch64, a `seq_cst` read-modify-write is `lock xadd` on x86 (like any atomic read-modify-write) and `LDADDAL` on AArch64 with LSE. There is no barrier instruction. The difference to the acquire/release pairing of 5.1 is the `AL` flavour of the same instruction, which was not measurable in the test of chapter 6. As in 5.4, the cost of both algorithms is dominated by the two atomic read-modify-writes on a shared cache line per lock/unlock pair.
+
+### 5.7 Microcontrollers and FreeRTOS SMP
+
+The orderings of 5.1 to 5.6 are guarantees of the C11 memory model, which the compiler implements for the target. FreeRTOS does not change them, XCPlite uses the compiler's `<stdatomic.h>` on FreeRTOS as on any other platform. The guarantee holds for all cores in one cache coherent shared memory domain, which is the configuration FreeRTOS SMP (`configNUMBER_OF_CORES > 1`) requires.
+
+**Cache coherence, definition.** A memory system is coherent if, for every single memory location:
+
+1. All writes to the location are serialized: there is one total order of these writes (the coherence order) on which all cores agree, consistent with the program order of each core.
+2. Every write eventually becomes visible to all cores (write propagation).
+3. Every read returns a value from that order, and a core never observes an older value of the location after it has observed a newer one.
+
+In hardware terms (single writer, multiple readers invariant): at any time a location is either writable by exactly one core or readable by any number of cores, and a read sees the value of the last write. C11 states the same for each atomic object as its modification order and the four coherence rules (write-write, read-read, read-write, write-read). Coherence is a property per location. It says nothing about the order in which writes to different locations become visible, for example the page content and the published page index. That is the memory consistency model, and what the memory orders of the atomics control.
+
+**Ordering, not coherence.** A release or `seq_cst` store does not flush or clean any cache, neither completely nor by address range. Cache coherence is a hardware property, on SMP microprocessors (x86, Cortex-A) as well as on SMP microcontrollers: on SMP capable microcontrollers there is either no data cache in front of the shared SRAM or the caches are kept coherent by hardware. What remains is the ordering of a core's own accesses, which store buffers, write buffers and the bus may reorder. The compiler handles this with a barrier instruction which waits until the core's outstanding accesses have completed, a few cycles on in-order microcontroller cores, tens of cycles on Cortex-M7 with AXI. A cache clean would be orders of magnitude more expensive.
+
+Typical code generation (GCC/Clang):
+
+| Core | release store | acquire load | `seq_cst` store / load | atomic read-modify-write |
+|---|---|---|---|---|
+| ARMv7-M (Cortex-M3/M4/M7) | `DMB; STR` | `LDR; DMB` | `DMB; STR; DMB` / `LDR; DMB` | `DMB; LDREX/STREX` loop`; DMB`, same for acq_rel and `seq_cst` |
+| ARMv8-M Mainline (Cortex-M33/M55/M85) | `STL` | `LDA` | `STL` / `LDA` | `LDAEX/STLEX` loop |
+| Xtensa LX6/LX7 (ESP32, ESP32-S3) | `MEMW; S32I` | `L32I; MEMW` | same | `MEMW; S32C1I` compare-and-swap loop, 8/16 bit emulated inline on the 32 bit word |
+| RISC-V RVWMO with A extension | `fence rw,w; sw` | `lw; fence r,rw` | adds a leading `fence rw,rw` to the load | `amoadd.w.aqrl` |
+
+The store-load ordering which the reference counting algorithm needs (5.6) is exactly what a store buffer breaks. `seq_cst` emits the full barrier for it (the trailing `DMB`, `MEMW` or `fence rw,rw`), on most microcontroller cores the same instruction as for acquire/release.
+
+**Preconditions.** The build checks the first one, the others are the responsibility of the integration:
+
+1. The 8, 16 and 32 bit atomics must be lock-free. `cal.h` asserts `ATOMIC_CHAR/SHORT/INT/LONG_LOCK_FREE == 2`. Cores without exclusive access instructions, such as Cortex-M0+ (ARMv6-M, RP2040), fall back to `__atomic_*` library calls. The default single core implementation of these disables interrupts, which is not multicore safe. A multicore safe implementation based on hardware spinlocks exists for RP2040 (pico-sdk `pico_atomic`), but it is not wait-free, so the lock count algorithm loses its wait-free guarantee there. Such targets fail to build.
+2. Calibration segments must be located in shared, coherent memory: not in core private memory such as the DTCM of Cortex-M7/R5 if the reader tasks may run on more than one core, and not in external RAM behind a non-coherent cache. Check the vendor documentation for atomic operations on external RAM, for example PSRAM on ESP32.
+3. All reader tasks and the XCP server task run under the same FreeRTOS SMP kernel instance.
+
+**FreeRTOS principles.** FreeRTOS defines no memory model of its own. The SMP kernel assumes identical cores sharing one coherent memory. Its critical sections disable interrupts on the local core and take a spinlock (`portGET_TASK_LOCK`, `portGET_ISR_LOCK`), which the port implements with hardware atomics and barriers, so a critical section is a full barrier. Kernel objects (queues, semaphores, task notifications) are synchronization points because they go through these critical sections. ESP-IDF ships its own SMP variant with explicit spinlock arguments (`taskENTER_CRITICAL(&mux)`), the principle is the same. The FreeRTOS `atomic.h` functions are based on critical sections and depend on the port for multicore safety, XCPlite uses the compiler atomics instead.
+
+**Not supported: asymmetric multicore (AMP).** Parts such as STM32H7 dual core (Cortex-M7 + M4), i.MX RT1170 or Cortex-R5 in split mode run one FreeRTOS instance per core, the cores are not cache coherent with each other, and exclusive accesses across cores need a global exclusive monitor in the interconnect, which is often missing (hence hardware semaphores such as the STM32 HSEM). C11 atomics give no guarantee across such cores and the compiler emits no cache maintenance. FreeRTOS handles AMP with message or stream buffers in shared memory, inter-core interrupts and explicit cache handling (non-cacheable MPU regions or maintenance by address). Calibration segments shared across AMP cores would need the same: the writer cleans the page by address before the publish store, the reader invalidates it before reading, and pages must be cache line aligned and padded, otherwise an invalidate destroys neighbouring dirty data. XCPlite does not implement this. Run XCPlite and all tasks which access its calibration segments within one kernel instance.
 
 
 ## 6. Test results
 
 The test application `test/cal_test` creates multiple reader threads on a shared calibration segment. The writer thread updates the segment with a pattern, mixing single writes and atomic transactions, and the reader threads check every snapshot for consistency and count the changes they observe. The lock duration is measured and shown as a histogram.
 
-Test parameters are compile time constants in `test/cal_test/src/main.cpp`:
+Test parameters are compile-time constants in `test/cal_test/src/main.cpp`:
 
 - `TEST_THREAD_COUNT`: number of reader threads, default 4
 - `TEST_WRITE_COUNT`: number of writes by the writer thread, default 10000
@@ -744,5 +781,6 @@ Contract and API changes:
 9. `XcpDeinit()` asserts in debug builds that no segment is locked (not in SHM mode).
 10. `XcpUnlockCalSeg(index, page)` takes the page pointer returned by the matching lock and returns `void`. `CalSegUnlock(name, ptr)`/`CalBlkUnlock(name, ptr)` accordingly. The C++ guards are unchanged for the user. This is a breaking change for direct C API users, an unlock which does not know its page cannot be implemented for the reference counting algorithm. Only with `OPTION_CAL_RCU_REFCOUNT`, the default lock count algorithm keeps `XcpUnlockCalSeg(index)`.
 11. Per page reference counting added as second RCU algorithm (chapter 4.3), selected with `OPTION_CAL_RCU_REFCOUNT` (not default) in `xcplib_cfg.h` and `XCP_CALSEG_RCU_PAGES` in `xcp_cfg.h`. The RCU specific code in `cal.c` is confined to the `CalSegRcu*` functions, the lock count algorithm remains available.
+12. `cal.h` asserts at compile time that the 8, 16 and 32 bit atomics are lock-free (not with `OPTION_ATOMIC_EMULATION`). Targets which would fall back to `__atomic_*` library calls, such as Cortex-M0+, fail to build (chapter 5.7).
 
 

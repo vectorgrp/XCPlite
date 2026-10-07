@@ -364,12 +364,12 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 #define XCP_ENABLE_DAQ_ADDREXT
 
 // Static allocated memory for DAQ tables
-// Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable) needs 5 bytes, each DAQ list 12 bytes and
+// Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable) needs 6 bytes, each DAQ list 12 bytes and
 // each ODT 8 bytes
 #ifdef OPTION_DAQ_MEM_SIZE
 #define XCP_DAQ_MEM_SIZE OPTION_DAQ_MEM_SIZE
 #else
-#define XCP_DAQ_MEM_SIZE (1024 * 6) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable or memory block) needs 5 bytes
+#define XCP_DAQ_MEM_SIZE (1024 * 6) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable or memory block) needs 6 bytes
 #endif
 
 // Enable DAQ resume mode, requires XCP_ENABLE_DAQ_EVENT_LIST

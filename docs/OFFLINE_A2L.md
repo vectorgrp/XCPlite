@@ -27,7 +27,7 @@ The sections (`xcp_evts`,`xcp_cals`,...) are only emitted with the configuration
 The macro expansions and the naming conventions of the markers are the contract between the library and the generator, they are
 described in [TECHNICAL.md — Instrumentation Markers for Offline A2L Tools](TECHNICAL.md#instrumentation-markers-for-offline-a2l-tools).
 
-The same link time information is used by the library itself: `XcpInit` registers the events and calibration segments from the sections in a deterministic order, so the event ids and segment numbers in the A2L file stay valid independent of the code execution order, without a persistence file. What this requires from the build is described in
+The same link-time information is used by the library itself: `XcpInit` registers the events and calibration segments from the sections in a deterministic order, so the event ids and segment numbers in the A2L file stay valid independent of the code execution order, without a persistence file. What this requires from the build is described in
 [With section registration: requirements and checks](#with-section-registration-requirements-and-checks).
 
 ### With section registration: requirements and checks
@@ -112,7 +112,7 @@ numbers are the order of creation. This order is not in the ELF file, so the A2L
   target, the measurement or calibration then silently uses the wrong event or segment. xcpclient itself checks the numbers of a loaded
   A2L file against the target (warnings `Event id of 'x' differs` and `Calibration segment index of 'x' differs`), a DAQ measurement
   with wrong event ids is rejected by the target (`SetDaqListMode: Parameter out of range`).
-- `CalSegDecl`, `CalBlkDecl` and `CalSegDeclRef` only work with section registration, without it they are a compile time error (the
+- `CalSegDecl`, `CalBlkDecl` and `CalSegDeclRef` only work with section registration, without it they are a compile-time error (the
   segment would never be created). Use `CalSegCreate` after `XcpInit()`. `examples/freertos_demo/xcp_demo.c` shows both variants.
 
 ## Workflow
@@ -256,7 +256,7 @@ a name is looked up in the event list of the ELF file (and of the XCP server whe
   of a static local in a C function (`counter.1`, told apart by size). A symbol whose name only ends with the variable name is never
   used, it belongs to a different object (the function `spiDetachMOSI` is not the variable `MOSI`). For variables inside a function
   only symbols with local binding are considered, a global symbol with the same name belongs to a different variable.
-- A variable with `DW_AT_const_value` and without location is a compile time constant without memory, for example a pin number
+- A variable with `DW_AT_const_value` and without location is a compile-time constant without memory, for example a pin number
   `static const uint8_t MOSI = 11` from a board header. It is skipped (log level 4), unless one of the mangled or local static symbol
   names above exists: GCC describes the metadata markers in a namespace or a function the same way, although they are in memory.
   The plain name is not looked up for a constant, a symbol with this name is a different variable of another compilation unit.

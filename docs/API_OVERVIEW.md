@@ -127,7 +127,7 @@ The macros take the default page variable as an identifier: `name` is the segmen
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `CalSegCreate(name)` / `CalBlkCreate(name)` | macro | Create the segment or block immediately, if it does not exist yet. Can be used inside functions and loops | `OPTION_CAL_SEGMENTS`. With `OPTION_SECTION_REGISTRATION`, `XcpInit` also pre-registers the segment | no_a2l_demo, freertos_demo |
+| `CalSegCreate(name)` / `CalBlkCreate(name)` | macro | Create the segment or block immediately, if it does not exist yet. Can be used inside functions and loops. Before `XcpInit` nothing is created, `CalSegLock` returns the default page until the segment is created (section scan in `XcpInit`, or the next execution after `XcpInit`) | `OPTION_CAL_SEGMENTS`. With `OPTION_SECTION_REGISTRATION`, `XcpInit` also pre-registers the segment | no_a2l_demo, freertos_demo |
 | `CalSegDecl(name)` / `CalBlkDecl(name)` | macro | File scope declaration only. `XcpInit` creates the segment from the `xcp_cals` section | `OPTION_SECTION_REGISTRATION` (compile error without it) | no_a2l_demo, freertos_demo |
 | `CalSegLock(name)` / `CalBlkLock(name)` | macro | Typed lock, returns `const T*`. In passive mode it returns the default page | `OPTION_CAL_SEGMENTS` | no_a2l_demo, freertos_demo |
 | `CalSegUnlock(name)` / `CalBlkUnlock(name)` | macro | Unlock | `!OPTION_CAL_RCU_REFCOUNT` | no_a2l_demo, freertos_demo |
@@ -432,12 +432,12 @@ Namespace `xcp`. In C++, the C calibration segment macros of section 1.5 are rep
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `xcp::CalSeg<T>` | class template | Owning RAII wrapper: the constructor `(name, &default)` creates the segment, `lock()` returns a guard, `getIndex()` the index | `OPTION_CAL_SEGMENTS` | hello_xcp_cpp, cpp_demo, point_cloud_demo, silkit_demo |
+| `xcp::CalSeg<T>` | class template | Owning RAII wrapper: the constructor `(name, &default)` creates the segment (construct after `XcpInit`), `lock()` returns a guard, `getIndex()` the index | `OPTION_CAL_SEGMENTS` | hello_xcp_cpp, cpp_demo, point_cloud_demo, silkit_demo |
 | `xcp::CalBlk<T>` | class template | As above, for a calibration block | `OPTION_CAL_SEGMENTS` | — |
 | `xcp::CalSegRef<T>` | class template | Non-owning typed handle over an index variable, for section registered segments | `OPTION_CAL_SEGMENTS` | no_a2l_demo_cpp, freertos_demo |
 | `CalSeg<T>::CalSegGuard` (also in `CalBlk`, `CalSegRef`) | nested class | Lock guard with `->`, `*` and `get()`. Not copyable (the `CalSegRef` guard is movable). Unlocks in its destructor. In passive mode it reads the default page | — | via `lock()` in the examples above |
 | `CalSeg<T>::CreateA2lTypedefInstance(type, comment)` (also `CalBlk`, `CalSegRef`) | method | Register the A2L instance of the segment | `OPTION_ENABLE_A2L_GENERATOR` | hello_xcp_cpp, cpp_demo, point_cloud_demo, silkit_demo |
-| `CalSegCreate(value)` | macro | Expression: `auto seg = CalSegCreate(params);` returns `xcp::CalSeg<T>` and emits the `xcp_cals` descriptor | `OPTION_CAL_SEGMENTS` | cpp_demo, freertos_demo |
+| `CalSegCreate(value)` | macro | Expression: `auto seg = CalSegCreate(params);` returns `xcp::CalSeg<T>` and emits the `xcp_cals` descriptor. Must run after `XcpInit`, otherwise the object stays passive permanently (not as a namespace-scope global initializer) | `OPTION_CAL_SEGMENTS` | cpp_demo, freertos_demo |
 | `CalBlkCreate(value)` | macro | As above, returns `xcp::CalBlk<T>` | `OPTION_CAL_SEGMENTS` | — |
 | `CalSegDeclRef(value, handle)` | macro | File scope declaration plus a typed handle `xcp::CalSegRef<T> handle`. `XcpInit` creates the segment | `OPTION_SECTION_REGISTRATION` | no_a2l_demo_cpp, freertos_demo |
 | `CalSegDecl(value)` | macro | `CalSegDeclRef(value, value_calseg)` | `OPTION_SECTION_REGISTRATION` | no_a2l_demo_cpp |

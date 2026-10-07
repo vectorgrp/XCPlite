@@ -3,6 +3,7 @@
 // See README.md
 
 #include <assert.h>  // for assert
+#include <errno.h>   // for errno, EBUSY
 #include <fcntl.h>   // for open(), O_RDWR
 #include <getopt.h>  // for getopt_long
 #include <glob.h>    // for glob()

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-XCPlite (`libxcplite`) is a C11/C++17 implementation of the ASAM XCP measurement and calibration protocol, for XCP-on-Ethernet (TCP/UDP), targeting multicore Linux/QNX/macOS microprocessors as well as FreeRTOS microcontrollers. It provides thread-safe, lock-free instrumentation macros/functions so application code can expose stack, heap, thread-local, and global variables as measurement signals and calibration parameters to XCP tools (CANape, CANoe, etc.), with A2L (ASAM description file) generation either at runtime on-target or offline from ELF/DWARF via the Rust `xcpclient` tool.
+XCPlite (`libxcplite`) is a C11/C++17 implementation of the ASAM XCP measurement and calibration protocol, for XCP-on-Ethernet (TCP/UDP), targeting multicore Linux/QNX/macOS microprocessors as well as FreeRTOS microcontrollers. It provides thread-safe, lock-free instrumentation macros/functions so application code can expose stack, heap, thread-local, and global variables as measurement signals and calibration parameters to XCP tools (CANape, CANoe, etc.), with A2L (ASAM description file) generation either at runtime on target or offline from ELF/DWARF via the Rust `xcpclient` tool.
 
 The public C API is `inc/xcplib.h` + `inc/a2l.h`; the C++ API is `inc/xcplib.hpp` + `inc/a2l.hpp` (RAII wrappers over the C core). Core protocol/runtime implementation lives in `src/`.
 

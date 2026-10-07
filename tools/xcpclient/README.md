@@ -256,7 +256,7 @@ xcpclient --udp --elf build/hello_xcp --mea "counter" --verbose 2
 xcpclient --dest-addr=192.168.0.206:5555 --tcp --upload-a2l   
 ```
 
-### Create an A2L file for a target from ELF without on target A2L generation support
+### Create an A2L file for a target from ELF without on-target A2L generation support
 
 Create an A2L file from the ELF file (and optional XCP server information about events and memory segments), then save the A2L file as hello_xcp.a2l:
 ```bash

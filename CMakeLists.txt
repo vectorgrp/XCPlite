@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-project(xcplite VERSION 2.3.1 LANGUAGES C CXX)
+project(xcplite VERSION 2.3.2 LANGUAGES C CXX)
 # keep in sync with src/xcplib_cfg.h version defines (OPTION_VERSION_MAJOR, OPTION_VERSION_MINOR, OPTION_VERSION_PATCH)
 
 

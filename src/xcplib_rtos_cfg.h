@@ -138,7 +138,7 @@
 #undef OPTION_QUEUE_64_VAR_SIZE
 #undef OPTION_QUEUE_64_FIX_SIZE
 #define OPTION_QUEUE_32
-// Fixed 4 KB for the queue buffer, parameter of XcpEthServerInit ignored, must be a multiple of sizeof(tXcpSegmentBuffer)
+// Fixed size of the queue buffer (16 segments, about 23 KB with OPTION_MTU 1500), must be a multiple of sizeof(tXcpSegmentBuffer), the queue size parameter of XcpEthServerInit must be 0
 #define OPTION_QUEUE_32_SIZE (16 * sizeof(tXcpSegmentBuffer))
 // Use a crtical section instead of a mutex, locked sequences are only a few instructions
 #define OPTION_QUEUE32_CRITICAL_SECTION

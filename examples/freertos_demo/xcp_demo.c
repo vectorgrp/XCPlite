@@ -83,7 +83,7 @@
 #define XCP_PROJECT_VERSION "V201"
 #define XCP_USE_TCP false
 #define XCP_SERVER_PORT 5555
-#define XCP_QUEUE_SIZE 0 // The queue size is derived from OPTION_QUEUE_32_SEGMENT_COUNT for the 32-bit FreeRTOS build; this parameter is ignored
+#define XCP_QUEUE_SIZE 0 // The queue size is fixed by OPTION_QUEUE_32_SIZE for the 32-bit FreeRTOS build; this parameter must be 0
 #define XCP_LOG_LEVEL 4  // 3 - Info, 4 - Print XCP commands, 5 - Debug
 
 // @@@@ TODO: Experimental A2L generation without the need for the XCP linker sections
