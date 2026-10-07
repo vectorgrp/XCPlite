@@ -60,9 +60,9 @@ This section describes the configuration parameters in xcplib_cfg.h.
 | Parameter | Description |
 |-----------|-------------|
 | `OPTION_ENABLE_DBG_PRINTS` | Enables debug print statements throughout the library |
-| `OPTION_DEFAULT_DBG_LEVEL` | Sets default logging level: 1=Error, 2=Warning, 3=Info, 4=Trace, 5=Debug (default: 2) |
-| `OPTION_MAX_DBG_LEVEL` | Maximum runtime adjustable debug level, higher level optimized out |
-| `OPTION_FIXED_DBG_LEVEL` | Sets a fixed, not runtime adjustable logging level |
+| `OPTION_DEFAULT_DBG_LEVEL` | Default log level, changed at runtime with `XcpSetLogLevel()`: 0=Off, 1=Error, 2=Warning, 3=Info, 4=Debug and trace of all XCP commands and responses, 5=Trace (default: 3) |
+| `OPTION_MAX_DBG_LEVEL` | Maximum runtime adjustable log level, the prints of higher levels are optimized out (default: 4) |
+| `OPTION_FIXED_DBG_LEVEL` | Fixed log level, not runtime adjustable, `XcpSetLogLevel()` has no effect. Recommended for production builds, together with a low level to save code size and runtime (default: undefined) |
 
 ## 2 · xcptl_cfg.h
 
@@ -157,8 +157,8 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_CAL_MEM_SIZE` | Static memory allocation for calibration segment memory (default: 16 KB) |
 | `XCP_ENABLE_CALSEG_LAZY_WRITE` | Enables lazy write mode for calibration segments with background RCU updates |
 | `XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT` | Timeout for acquiring free calibration segment pages in milliseconds (default: 500) |
-undefined - lock count and page hand-over (wait-free lock, publishing depends on the readers). See `docs/CAL_RCU.md` (default: defined) |
-| `XCP_CALSEG_RCU_PAGES` | Number of RCU pages per calibration segment with `OPTION_CALSEG_RCU_REFCOUNT`, 3 to 6. 3 is the minimum and needs the same memory as the lock count algorithm, each further page tolerates one more reader which never unlocks and improves the publish rate under a bursting writer (default: 3) |
+| `OPTION_CAL_RCU_REFCOUNT` | RCU algorithm for calibration segments, set in `xcplib_cfg.h`. Undefined - lock count and page hand-over (wait-free lock, publishing depends on the readers). Defined - per page reference counting (lock-free lock, publishing independent of reader progress, `XcpUnlockCalSeg`/`CalSegUnlock`/`CalBlkUnlock` take the page pointer returned by the lock), only for special needs such as slow readers of configuration parameters. See `docs/CAL_RCU.md` (default: undefined) |
+| `XCP_CALSEG_RCU_PAGES` | Number of RCU pages per calibration segment with `OPTION_CAL_RCU_REFCOUNT`, 3 to 6. 3 is the minimum and needs the same memory as the lock count algorithm, each further page tolerates one more reader which never unlocks and improves the publish rate under a bursting writer (default: 3) |
 
 ### Clock and Timestamp Configuration
 

@@ -52,6 +52,57 @@ Support for A2L upload via GET_ID is useful, but in most cases the A2L file gene
 
 ## Getting Started
 
+### Minimal application
+
+The public API is `inc/xcplib.h` (C) and `inc/xcplib.hpp` (C++), runtime A2L generation is `inc/a2l.h` and `inc/a2l.hpp`. The headers document every function and macro, [docs/API_OVERVIEW.md](docs/API_OVERVIEW.md) indexes them by category with the configuration options and the examples using them.
+
+The basic sequence of an instrumented C application with runtime A2L generation (default configuration):
+
+```c
+#include <a2l.h>
+#include <xcplib.h>
+
+typedef struct { uint32_t delay_us; float gain; } params_t;
+const params_t params = {.delay_us = 1000, .gain = 0.5f}; // Default values (reference page)
+
+int main(void) {
+    XcpSetLogLevel(3); // Optional, 1 = error ... 4 = XCP command trace
+
+    // Always initialize XCP first, XCP_MODE_DEACTIVATE keeps all instrumentation passive
+    XcpInit("my_project", "V1.0.0" /* EPK */, XCP_MODE_LOCAL);
+    const uint8_t addr[4] = {0, 0, 0, 0}; // Bind to any address
+    XcpEthServerInit(addr, 5555, false /* UDP */, 32 * 1024 /* measurement queue size */);
+    A2lInit(addr, 5555, false, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS);
+
+    // Calibration segment for params
+    tXcpCalSegIndex calseg = XcpCreateCalSeg("params", &params, sizeof(params));
+    A2lSetSegmentAddrMode(calseg, params);
+    A2lCreateParameter(params.gain, "Gain parameter", "", 0.0, 1.0);
+    A2lCreateParameter(params.delay_us, "Mainloop cycle delay", "us", 0.0, 100000.0);
+
+    // Measurement event and a measurement variable on the stack
+    float value = 0.0f;
+    DaqCreateEvent(mainloop);
+    A2lSetStackAddrMode(mainloop);
+    A2lCreateMeasurement(value, "Output value");
+
+    for (;;) {
+        const params_t *p = (const params_t *)XcpLockCalSeg(calseg); // Consistent, wait-free access
+        value += p->gain;
+        uint32_t delay_us = p->delay_us;
+        XcpUnlockCalSeg(calseg);
+
+        DaqTriggerEvent(mainloop); // Timestamp and measure all variables of event mainloop
+        sleepUs(delay_us);
+    }
+
+    XcpEthServerShutdown();
+    return 0;
+}
+```
+
+[hello_xcp](examples/hello_xcp/README.md) is the complete version of this sequence, [hello_xcp_cpp](examples/hello_xcp_cpp/README.md) the C++ version with the RAII calibration segment wrapper `xcp::CalSeg<T>` and the variadic `DaqEventVar`. For targets without on-target A2L generation, see [no_a2l_demo](examples/no_a2l_demo/README.md) and [Offline A2L Generation](docs/OFFLINE_A2L.md).
+
 ### Examples
 
 Multiple examples demonstrating different features are available in the [examples](examples/README.md) folder.
@@ -102,7 +153,7 @@ Details how to build for Linux, QNX, macOS, and Windows are in the [building doc
 
 - **[Changelog](CHANGELOG.md)** - Version history
 
-- **[API Reference](docs/xcplib.md)** - XCP instrumentation API
+- **[API Overview](docs/API_OVERVIEW.md)** - Index of the public C and C++ API, documented in the headers `inc/xcplib.h`, `inc/a2l.h`, `inc/xcplib.hpp` and `inc/a2l.hpp`
 - **[Configuration](docs/xcplib_cfg.md)** - Configuration options
 - **[Examples](examples/README.md)** - Example applications and CANape setup
 - **[Technical Details](docs/TECHNICAL.md)** - Addressing modes, on-target A2L generation, instrumentation costs and markers

@@ -12,7 +12,7 @@ The public C API is `inc/xcplib.h` + `inc/a2l.h`; the C++ API is `inc/xcplib.hpp
 
 ## Build system
 
-CMake-based. **Five mutually exclusive build configurations**, each with its own build directory — never mix configurations in one build dir, since compile definitions differ:
+CMake-based. **Six mutually exclusive build configurations**, each with its own build directory — never mix configurations in one build dir, since compile definitions differ:
 
 | Configuration | Build dir | Config override header | Use case |
 |---|---|---|---|
@@ -21,6 +21,7 @@ CMake-based. **Five mutually exclusive build configurations**, each with its own
 | `ptp` | `build-ptp/` | `src/xcplib_ptp_cfg.h` | Socket hardware timestamps; Linux + PTP-capable NIC |
 | `shm` | `build-shm/` | `src/xcplib_shm_cfg.h` | Shared-memory multi-application mode (`shmtool`, `xcpdaemon`) |
 | `rtos` | `build-rtos/` | `src/xcplib_rtos_cfg.h` | FreeRTOS embedded targets: reduced footprint, no filesystem, 32-bit, no on-target A2L generation, section registration |
+| `raw` | `build-raw/` | `src/xcplib_raw_cfg.h` | Raw Ethernet transport: XCP on UDP/IPv4 implemented inside xcplib on a raw Ethernet HAL (`OPTION_ENABLE_UDP_RAW`, no TCP/IP stack, no TCP), mandatory `OPTION_QUEUE_32`; Linux only (AF_PACKET, needs `CAP_NET_RAW`), template for embedded ports, see `docs/SOCKET_RAW.md` |
 
 Selected via `-DXCPLITE_CONFIGURATION=<name>` (default: `default`). Within a configuration, `XCPLITE_BUILD_EXAMPLES`, `XCPLITE_BUILD_TESTS`, `XCPLITE_BUILD_TOOLS` (all default `OFF`) control which targets get built — which targets exist depends on the active configuration (see table in `docs/BUILDING.md`). `XCPLITE_BUILD_RUST_TOOLS` builds `xcpclient`/`bintool` via cargo (any configuration). `XCPLITE_BUILD_BPF_DEMO` builds `bpf_demo` (default config, Linux only, requires libbpf).
 
@@ -28,7 +29,7 @@ Selected via `-DXCPLITE_CONFIGURATION=<name>` (default: `default`). Within a con
 
 ### Common commands
 
-`build.sh` wraps CMake: `./build.sh [build_type] [configuration] [target] [options]` (any order; `build_type` = `debug`|`release`|`relwithdebinfo`, default `debug`; `configuration` = `default`|`no_a2l`|`ptp`|`shm`|`rtos`; `target` = `lib`|`examples`|`tests`|`tools`|`rust_tools`|`all`, default `examples`; `options` = `clean` `cleanall` `install` `install=<path>` `cargo_install` `tidy` `run`).
+`build.sh` wraps CMake: `./build.sh [build_type] [configuration] [target] [options]` (any order; `build_type` = `debug`|`release`|`relwithdebinfo`, default `debug`; `configuration` = `default`|`no_a2l`|`ptp`|`shm`|`rtos`|`raw`; `target` = `lib`|`examples`|`tests`|`tools`|`rust_tools`|`all`, default `examples`; `options` = `clean` `cleanall` `install` `install=<path>` `cargo_install` `tidy` `run`).
 
 ```bash
 ./build.sh                          # library + examples, default config, debug
@@ -37,6 +38,7 @@ Selected via `-DXCPLITE_CONFIGURATION=<name>` (default: `default`). Within a con
 ./build.sh ptp tools                # ptptool (Linux only)
 ./build.sh no_a2l examples          # no_a2l_demo(_cpp)
 ./build.sh rtos examples            # freertos_emu_demo (Linux/macOS host simulator)
+./build.sh raw examples             # udp_raw_demo (Linux only, needs CAP_NET_RAW)
 ./build.sh lib tidy                 # build lib + run clang-tidy
 ./build.sh clean examples           # clean rebuild
 ./build.sh cleanall                 # wipe all build-* dirs
@@ -56,7 +58,7 @@ Switching compilers requires a fresh build directory (CMake caches the compiler 
 
 ### Running tests
 
-Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `daq_config_test`, `clock_test`, `queue_test`, `xcp_test`, `passive_test_c`, `passive_test_cpp`, `type_detection_test_*`; `ptp` config: `clock_test` only). Build then run directly, e.g.:
+Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `daq_config_test`, `clock_test`, `queue_test`, `xcp_test`, `passive_test_c`, `passive_test_cpp`, `type_detection_test_*`; `ptp` config: `clock_test` only; `raw` config: `socket_raw_test`, end-to-end test `test/test_socket_raw.sh`). Build then run directly, e.g.:
 
 ```bash
 ./build.sh tests           # build the test suite
@@ -120,11 +122,11 @@ The 64-bit lock-free queue needs `atomic_uint_least64_t`; some ARM/Clang combina
 
 ### Calibration segments (RCU, see `docs/CAL_RCU.md`)
 
-Calibration parameters live in **calibration segments**: a struct wrapped so the single XCP writer thread and multiple lock-free/wait-free reader threads (`XcpLockCalSeg`/`XcpUnlockCalSeg`, or `CalSeg<T>::lock()` in C++) stay consistent without blocking. Two RCU algorithms are implemented in `src/cal.c` behind a small set of `CalSegRcu*` primitives, selected with `OPTION_CALSEG_RCU_REFCOUNT` in `src/xcplib_cfg.h` (not `src/xcp_cfg.h`): per page reference counting (default, publishing independent of reader progress, `XCP_CALSEG_RCU_PAGES` pages) and the older lock count / page hand-over scheme (`ecu_page`/`xcp_page`/`free_page`). Precondition for both is exactly one writer thread; `XcpUnlockCalSeg` takes the page pointer returned by the matching lock. Read `docs/CAL_RCU.md` before touching `src/cal.c`; the user contract, compromises and memory ordering documented there are load-bearing, not incidental.
+Calibration parameters live in **calibration segments**: a struct wrapped so the single XCP writer thread and multiple lock-free/wait-free reader threads (`XcpLockCalSeg`/`XcpUnlockCalSeg`, or `CalSeg<T>::lock()` in C++) stay consistent without blocking. Two RCU algorithms are implemented in `src/cal.c` behind a small set of `CalSegRcu*` primitives, selected with `OPTION_CAL_RCU_REFCOUNT` in `src/xcplib_cfg.h` (not `src/xcp_cfg.h`): the lock count / page hand-over scheme (default, `OPTION_CAL_RCU_REFCOUNT` undefined: wait-free lock, publishing depends on the lock count returning to zero, `ecu_page`/`xcp_page`/`free_page`) and per page reference counting (`OPTION_CAL_RCU_REFCOUNT` defined, not default and only enabled for special needs such as slow readers of configuration parameters: publishing independent of reader progress, lock-free instead of wait-free, `XCP_CALSEG_RCU_PAGES` pages). Precondition for both is exactly one writer thread. With `OPTION_CAL_RCU_REFCOUNT`, `XcpUnlockCalSeg`/`CalSegUnlock`/`CalBlkUnlock` take the page pointer returned by the matching lock as an additional parameter; the C++ guards hide the difference. Read `docs/CAL_RCU.md` before touching `src/cal.c`; the user contract, compromises and memory ordering documented there are load-bearing, not incidental.
 
 ### Addressing modes (see `docs/TECHNICAL.md`)
 
-XCPlite encodes *where* a measured/calibrated variable lives (global, stack, heap, calibration-segment-relative) in the XCP address extension byte, since it uses relative addressing rather than plain absolute addresses. This is central to how instrumentation macros (`A2lSetAbsoluteAddrMode`, `A2lSetStackAddrMode`, `A2lSetRelativeAddrMode`, `A2lSetSegmentAddrMode`) and event triggers (`DaqTriggerEvent`, `DaqTriggerEventExt`, `DaqEventVar`/`DaqEventExtVar`) work together — an XCP client must respect fixed event definitions and address extensions to avoid corrupting acquisition. `CASDD` vs `ACSDD` (governed by `OPTION_CAL_SEGMENTS_ABS`) is a project-wide convention affecting whether address extension 0 means "absolute" or "calibration-segment-relative" — check which is active before reasoning about address extension values.
+XCPlite encodes *where* a measured/calibrated variable lives (global, stack, heap, calibration-segment-relative) in the XCP address extension byte, since it uses relative addressing rather than plain absolute addresses. This is central to how instrumentation macros (`A2lSetAbsoluteAddrMode`, `A2lSetStackAddrMode`, `A2lSetRelativeAddrMode`, `A2lSetSegmentAddrMode`) and event triggers (`DaqTriggerEvent`, `DaqTriggerEventExt`, `DaqEventVar`) work together — an XCP client must respect fixed event definitions and address extensions to avoid corrupting acquisition. `CASDD` vs `ACSDD` (governed by `OPTION_CAL_SEGMENTS_ABS`) is a project-wide convention affecting whether address extension 0 means "absolute" or "calibration-segment-relative" — check which is active before reasoning about address extension values.
 
 ### Offline A2L generation (`xcpclient`, no-A2L builds)
 

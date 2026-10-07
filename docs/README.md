@@ -9,7 +9,7 @@ This directory contains detailed documentation for XCPlite.
 - **[Examples](../examples/README.md)** - Example applications and tutorials
 
 ### API Reference
-- **[xcplib.md](xcplib.md)** - XCP instrumentation API reference
+- **[API Overview](API_OVERVIEW.md)** - Index of the public C and C++ API with configuration options and examples, the API is documented in the headers in `inc/`
 - **[xcplib_cfg.md](xcplib_cfg.md)** - Configuration options
 
 ### Advanced Topics

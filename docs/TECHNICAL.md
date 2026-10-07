@@ -276,6 +276,18 @@ static tXcpEventId trg__AASDD__calc = XCP_UNDEFINED_EVENT_ID;
 ```
 
 
+## DAQ Events
+
+A DAQ event is a measurement trigger point in the code. It has a globally unique name and a 16 bit id (`tXcpEventId`), and it is created once (`DaqCreateEvent`, `XcpCreateEvent`, or registered at link time with section registration). The XCP tool associates measurement variables with events, each trigger timestamps and transfers the current values of the associated variables consistently.
+
+An event is triggered by a function (`XcpEvent`, `XcpEventExt`, ...) or a macro (`DaqTriggerEvent`, `DaqTriggerEventExt`, ...) at a particular code location, and the event is associated with this code location: it is triggered every time the code is executed, independent of the call stack or thread context. The measurement variables of the event must be valid and accessible at the trigger location, local variables of the triggering function are addressed relative to its stack frame, heap objects relative to a base address passed to the trigger (see Addressing Modes below).
+
+Triggering the same event at multiple code locations is possible, but it is the user's responsibility to make sure that all measurement variables associated with the event are valid at each location. This is not recommended, it also makes the measurement data hard to interpret.
+
+To filter events depending on their execution context, events can be enabled and disabled at runtime (`XcpEventEnable`, `DaqEventEnable`/`DaqEventDisable`). Context dependent events, for example one event instance per thread (`DaqCreateEventInstance`, `XcpCreateEventInstance`) or per class instance, are supported but need more complex instrumentation, see `multi_thread_demo` and `cpp_demo`.
+
+The event id is the creation order (default configuration, made stable across restarts by the binary persistence file) or the position of the event descriptor in the `xcp_evts` section (section registration). The XCP tool must respect the fixed event definitions, see Tool Compatibility in the README.
+
 ## Addressing Modes
 
 XCPlite makes intensive use of relative addressing.

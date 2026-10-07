@@ -8,7 +8,7 @@ Terminology: a *calibration segment* is a calibration parameter block which repr
 
 Chapter 2 is the complete user contract. Chapters 4 and 5 are the technical background and are not required to use the API.
 
-XCPlite has two RCU algorithms for calibration segments, selected at compile time with `XCP_ENABLE_CALSEG_RCU_REFCOUNT` in `xcp_cfg.h` (default: defined). The reader API and the user contract are identical for both, chapter 3 lists where they differ.
+XCPlite has two RCU algorithms for calibration segments, selected at compile time with `OPTION_CAL_RCU_REFCOUNT` in `xcplib_cfg.h` (default: undefined, lock count algorithm; per page reference counting is only enabled for special needs). The reader API and the user contract are identical for both, chapter 3 lists where they differ.
 
 Contents:
 1. Functional overview
@@ -34,8 +34,8 @@ Contents:
 C API (`xcplib.h`):
 
 - `XcpLockCalSeg(index)` returns a pointer to the active page of the segment (working page or reference page, as selected by the XCP tool). The pointer is valid until the matching unlock.
-- `XcpUnlockCalSeg(index, page)` releases the lock, `page` is the pointer returned by the matching lock.
-- The macros `CalSegLock(name)`/`CalSegUnlock(name, ptr)` and `CalBlkLock(name)`/`CalBlkUnlock(name, ptr)` are typed wrappers, which also handle passive mode (see 2.1).
+- `XcpUnlockCalSeg(index)` releases the lock. With `OPTION_CAL_RCU_REFCOUNT` the signature is `XcpUnlockCalSeg(index, page)`, `page` is the pointer returned by the matching lock.
+- The macros `CalSegLock(name)`/`CalSegUnlock(name)` and `CalBlkLock(name)`/`CalBlkUnlock(name)` (`CalSegUnlock(name, ptr)`/`CalBlkUnlock(name, ptr)` with `OPTION_CAL_RCU_REFCOUNT`) are typed wrappers, which also handle passive mode (see 2.1).
 
 C++ API (`xcplib.hpp`): `xcp::CalSeg<T>`, `xcp::CalBlk<T>` and `xcp::CalSegRef<T>` provide `lock()`, which returns a RAII guard `CalSegGuard` with pointer semantics. The guard releases the lock in its destructor and is not copyable.
 
@@ -105,8 +105,8 @@ There is no runtime detection of leaked locks or unbalanced releases in release 
 
 The two RCU algorithms:
 
-- **Per page reference counting** (`XCP_ENABLE_CALSEG_RCU_REFCOUNT` defined, default): each RCU page has a reference count. A reader pins the published page for the duration of its lock, the writer publishes into any page which is neither the published page nor pinned. Publishing is independent of reader progress. `XCP_CALSEG_RCU_PAGES` pages, 3 to 6.
-- **Lock count and page hand-over** (undefined): one lock count per segment. The reader which takes the first lock takes a published page over and hands the old page back to the writer, the next first lock confirms it as unused. Publishing depends on the lock count returning to zero. 3 pages.
+- **Per page reference counting** (`OPTION_CAL_RCU_REFCOUNT` defined, not default, for special needs): each RCU page has a reference count. A reader pins the published page for the duration of its lock, the writer publishes into any page which is neither the published page nor pinned. Publishing is independent of reader progress. `XCP_CALSEG_RCU_PAGES` pages, 3 to 6.
+- **Lock count and page hand-over** (`OPTION_CAL_RCU_REFCOUNT` undefined, default): one lock count per segment. The reader which takes the first lock takes a published page over and hands the old page back to the writer, the next first lock confirms it as unused. Publishing depends on the lock count returning to zero. 3 pages.
 
 Both were derived from the same requirements, the second one is the original XCPlite implementation. The reader API and the user contract are identical, chapter 4 describes both algorithms.
 
@@ -437,7 +437,7 @@ Lock time histogram (94123 events):
 
 ### 6.2 V2.3, per page reference counting, MacBook Pro M2, default parameters
 
-Same machine and build type (Debug) as 6.1, `XCP_ENABLE_CALSEG_RCU_REFCOUNT` with 3 pages. In a Release build the average lock time is 0.06 us for both algorithms.
+Same machine and build type (Debug) as 6.1, `OPTION_CAL_RCU_REFCOUNT` with 3 pages. In a Release build the average lock time is 0.06 us for both algorithms.
 
 ```
 Final Statistics:
@@ -604,7 +604,7 @@ Replace the single free page by per page reference counting with a list of pages
 
 Replace the single free page by per page reference counting with a list of pages, so that publishing is driven by the writer and not by reader progress. This would remove the second lock visibility delay, the starvation of never locked segments and the coupling between readers. An analysis and a design in the style of this document is in [rcu_improvements/CAL_RCU_IMPROVEMENT.md](rcu_improvements/CAL_RCU_IMPROVEMENT.md).
 
-Status: implemented in V2.3 as the per page reference counting algorithm (`XCP_ENABLE_CALSEG_RCU_REFCOUNT`, chapter 4.3), without thread local state. Differences to the analysis document: the reader's handle is the page pointer it received, so there is no per thread nesting depth and nested locks pin independently (contract rule 10, the coherence of nested locks was not adopted); the publication stamp has no generation counter (5.6); the page count is `XCP_CALSEG_RCU_PAGES`, default 3. With three pages the memory is the same as for the lock count algorithm and the header is smaller. Pages beyond three are a tuning option: each one tolerates one more reader which never releases and improves the publish rate under a bursting writer, which shifts the probability of a stall by a leaked lock but does not establish a contract. The outermost lock is lock-free instead of wait-free (3.1). Thread local storage was not taken because of the concerns below.
+Status: implemented in V2.3 as the per page reference counting algorithm (`OPTION_CAL_RCU_REFCOUNT`, chapter 4.3), without thread local state. Differences to the analysis document: the reader's handle is the page pointer it received, so there is no per thread nesting depth and nested locks pin independently (contract rule 10, the coherence of nested locks was not adopted); the publication stamp has no generation counter (5.6); the page count is `XCP_CALSEG_RCU_PAGES`, default 3. With three pages the memory is the same as for the lock count algorithm and the header is smaller. Pages beyond three are a tuning option: each one tolerates one more reader which never releases and improves the publish rate under a bursting writer, which shifts the probability of a stall by a leaked lock but does not establish a contract. The outermost lock is lock-free instead of wait-free (3.1). Thread local storage was not taken because of the concerns below.
 
 The all `seq_cst` memory ordering of that design is not a cost argument against it: on x86 a `seq_cst` load is a plain load and every atomic read-modify-write is a full barrier anyway, on AArch64 the difference to acquire/release is the `LDADDAL` flavour of the same instruction. The reader cost of both designs is dominated by the two atomic read-modify-writes on a shared cache line, which are identical. The generation counter in the publication stamp of the analysis document is not needed either, the re-validation of the published page index after the pin is sufficient, and the implementation in `rcu.h` dropped it.
 
@@ -742,7 +742,7 @@ Contract and API changes:
 7. Passive mode (`XCP_MODE_DEACTIVATE`) is handled in the `CalSegLock`/`CalBlkLock` macros and in the C++ wrappers, they return the default page without calling the library. Before, the C macros called `XcpLockCalSeg` with `XCP_UNDEFINED_CALSEG` in passive mode, which asserted and returned NULL.
 8. The C++ `CalSegGuard` classes are not copyable. A copy released the lock twice.
 9. `XcpDeinit()` asserts in debug builds that no segment is locked (not in SHM mode).
-10. `XcpUnlockCalSeg(index, page)` takes the page pointer returned by the matching lock and returns `void`. `CalSegUnlock(name, ptr)`/`CalBlkUnlock(name, ptr)` accordingly. The C++ guards are unchanged for the user. This is a breaking change for direct C API users, an unlock which does not know its page cannot be implemented for the reference counting algorithm.
-11. Per page reference counting added as second RCU algorithm (chapter 4.3), selected with `XCP_ENABLE_CALSEG_RCU_REFCOUNT` (default) and `XCP_CALSEG_RCU_PAGES` in `xcp_cfg.h`. The RCU specific code in `cal.c` is confined to the `CalSegRcu*` functions, the lock count algorithm remains available.
+10. `XcpUnlockCalSeg(index, page)` takes the page pointer returned by the matching lock and returns `void`. `CalSegUnlock(name, ptr)`/`CalBlkUnlock(name, ptr)` accordingly. The C++ guards are unchanged for the user. This is a breaking change for direct C API users, an unlock which does not know its page cannot be implemented for the reference counting algorithm. Only with `OPTION_CAL_RCU_REFCOUNT`, the default lock count algorithm keeps `XcpUnlockCalSeg(index)`.
+11. Per page reference counting added as second RCU algorithm (chapter 4.3), selected with `OPTION_CAL_RCU_REFCOUNT` (not default) in `xcplib_cfg.h` and `XCP_CALSEG_RCU_PAGES` in `xcp_cfg.h`. The RCU specific code in `cal.c` is confined to the `CalSegRcu*` functions, the lock count algorithm remains available.
 
 

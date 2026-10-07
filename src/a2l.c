@@ -886,6 +886,22 @@ static const char *A2lGetInputQuantity_x(void) { return gA2lInputQuantity_x ? gA
 static const char *A2lGetInputQuantity_y(void) { return gA2lInputQuantity_y ? gA2lInputQuantity_y : "NO_INPUT_QUANTITY"; }
 
 //----------------------------------------------------------------------------------
+// Symbol prefix
+
+// Same as A2L_MODE_SYMBOL_PREFIX in A2lInit, applies to the symbols created after the call
+void A2lSetSymbolPrefix(bool enable) {
+    if (enable) {
+        gA2lMode |= A2L_MODE_SYMBOL_PREFIX;
+    } else {
+#ifdef OPTION_SHM_MODE // prefix is mandatory in SHM mode to avoid conflicts between applications
+        DBG_PRINT_WARNING("A2lSetSymbolPrefix(false) ignored, symbol prefix is mandatory in SHM mode!\n");
+#else
+        gA2lMode &= (uint8_t)~A2L_MODE_SYMBOL_PREFIX;
+#endif
+    }
+}
+
+//----------------------------------------------------------------------------------
 // Conversions
 
 static void printPhysUnit(FILE *file, const char *unit_or_conversion) {

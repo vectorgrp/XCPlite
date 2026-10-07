@@ -343,7 +343,6 @@ namespace xcp {
 // For XCP DAQ event creation, measurement registration and triggering
 // =============================================================================
 
-// @@@@ TODO: Support link time event registration
 #ifdef OPTION_DAQ_EVENT_LIST
 
 /// Trigger an event with variadic base address list
@@ -366,16 +365,31 @@ template <typename... Bases> XCPLIB_ALWAYS_INLINE void DaqTriggerVarTemplate(con
 #ifdef OPTION_ENABLE_A2L_GENERATOR
 
 // Helper macros for creating measurement or instance info objects, variable name stringification and address capture
+// Arguments of DaqEventVar/DaqEventAtVar, each measurement gets its own relative addressing mode (address extension), so globals, locals,
+// member variables and heap instances can be mixed in one event
+// @param var variable identifier, used as A2L name
+// @param comment free-text description
+// @param unit physical unit string, or a "conv.<name>" reference to a conversion
+// @param min, max physical value limits
+
+/// Scalar measurement of a basic type
 #define A2L_MEAS(var, comment) xcp::MeasurementInfo(#var, &(var), var, comment)
+/// Scalar measurement with a physical unit or conversion and limits
 #define A2L_MEAS_PHYS(var, comment, unit, min, max) xcp::MeasurementInfo(#var, &(var), var, comment, unit, min, max)
 
+/// 1D array measurement, dimension detected from the type
 #define A2L_MEAS_ARRAY(var, comment) xcp::MeasurementInfo(#var, &(var[0]), var[0], (uint16_t)(sizeof(var) / sizeof((var)[0])), comment)
+/// 1D array measurement with a physical unit or conversion and limits
 #define A2L_MEAS_ARRAY_PHYS(var, comment, unit, min, max) xcp::MeasurementInfo(#var, &(var[0]), var[0], (uint16_t)(sizeof(var) / sizeof((var)[0])), comment, unit, min, max)
 
+/// Instance of a typedef, type_name is the type name string given to A2lCreateTypedef (or A2lTypedefBegin)
 #define A2L_MEAS_INST(var, type_name, comment) xcp::InstanceInfo(#var, &(var), type_name, comment)
+/// Array of typedef instances, dimension detected from the type
 #define A2L_MEAS_INST_ARRAY(var, type_name, comment) xcp::InstanceInfo(#var, &(var), type_name, (uint16_t)(sizeof(var) / sizeof((var)[0])), comment)
 
+/// Instance of a typedef reached through a pointer (e.g. heap object), var gives the A2L name, ptr the address of the instance
 #define A2L_MEAS_INST_PTR(var, ptr, type_name, comment) xcp::InstanceInfo(#var, ptr, type_name, comment)
+/// Array of typedef instances reached through a pointer, the dimension is taken from sizeof(var)
 #define A2L_MEAS_INST_ARRAY_PTR(var, ptr, type_name, comment) xcp::InstanceInfo(#var, ptr, type_name, (uint16_t)(sizeof(var) / sizeof((var)[0])), comment)
 
 // Helper struct to hold measurement information
@@ -422,59 +436,6 @@ template <typename T> struct InstanceInfo {
 };
 
 // =============================================================================
-
-// @@@@ TODO: Activate both variants, solve the name conflict with DaqEventVar
-#ifdef USE_AUTO_ADDRESSING_MODE // not used
-
-// Helper to register a single measurement
-template <typename T> XCPLIB_ALWAYS_INLINE void registerMeasurement(const MeasurementInfo<T> &info) {
-    A2lCreateMeasurement_(nullptr, info.name, xcp::a2l::GetTypeIdFromExpr(info.value), info.dim, (const void *)info.addr, info.unit, info.min_value, info.max_value, info.comment);
-}
-
-// Main template function for once event creation and registration with automatic addressing mode, and event triggering with base address
-template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventExtTemplate(const char *event_name, const void *base, Measurements &&...measurements) {
-    if (XcpIsActivated()) {
-        static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
-        static std::once_flag once_flag;
-        const uint8_t *frame_addr = (const uint8_t *)xcp_get_frame_addr(); // Capture caller's frame address before lambda
-        std::call_once(once_flag, [&]() {
-            event_id = XcpCreateEvent(event_name, 0, 0);
-            A2lLock();
-            A2lSetAutoAddrMode__i(event_id, frame_addr, (const uint8_t *)base);
-            (registerMeasurement(measurements), ...);
-            A2lUnlock();
-        });
-        XcpEventExt_Var(event_id, 2, frame_addr, (const uint8_t *)base);
-        XCP_NO_TAIL_CALL();
-    }
-}
-
-// @@@@ TODO: Support link time event registration
-
-// Main template function for once event creation and registration with automatic addressing mode, and event triggering
-template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(const char *event_name, Measurements &&...measurements) {
-    if (XcpIsActivated()) {
-        static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
-        static std::once_flag once_flag;
-        const uint8_t *frame_addr = (const uint8_t *)xcp_get_frame_addr(); // Capture caller's frame address before lambda
-        std::call_once(once_flag, [&]() {
-            event_id = XcpCreateEvent(event_name, 0, 0);
-            A2lLock();
-            A2lSetAutoAddrMode__i(event_id, frame_addr, NULL);
-            (registerMeasurement(measurements), ...);
-            A2lUnlock();
-        });
-        XcpEventExt_Var(event_id, 1, frame_addr);
-        XCP_NO_TAIL_CALL();
-    }
-}
-
-// Trigger an event, create the event and register measurement variables once
-// Auto detect absolute, stack and relative addressing mode (DaqEventExtVar with base for relative mode))
-#define DaqEventExtVar(event_name, base, ...) xcp::DaqEventExtTemplate(#event_name, base, __VA_ARGS__)
-#define DaqEventVar(event_name, ...) xcp::DaqEventTemplate(#event_name, __VA_ARGS__)
-
-#else
 
 // Helper template to register a single measurement with relative addressing mode XCP_ADDR_EXT_DYN + index
 template <typename T> XCPLIB_ALWAYS_INLINE void registerDynMeasurement(uint8_t index, tXcpEventId event_id, const MeasurementInfo<T> &info) {
@@ -530,8 +491,6 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
         (void)trg__AASDD__##event_name;                                                                                                                                            \
         xcp::DaqEventVarTemplate(evt_id_##event_name, clock, __VA_ARGS__);                                                                                                         \
     }
-
-#endif
 
 } // namespace xcp
 

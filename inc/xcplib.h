@@ -36,16 +36,20 @@ extern "C" {
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // XCP on Ethernet server
 
-/// Initialize the XCP on Ethernet server singleton.
+/// Initialize and start the XCP on Ethernet server singleton.
+/// There is only one server instance, a second call fails while the server is running.
+/// In passive mode (XcpInit with XCP_MODE_DEACTIVATE) the server is not started and true is returned.
 /// @pre User has called XcpInit.
-/// @param address Address to bind to.
+/// @param address IPv4 address to bind to, 4 bytes, {0,0,0,0} binds to any address.
 /// @param port Port to bind to.
-/// @param use_tcp Use TCP if true, otherwise UDP.
+/// @param use_tcp Use TCP if true, otherwise UDP (requires OPTION_ENABLE_TCP or OPTION_ENABLE_UDP).
 /// @param measurement_queue_size Measurement queue size in bytes. Includes the bytes occupied by the queue header and some space needed for alignment.
+/// Should hold at least 10ms of the expected measurement data rate.
 /// @return true on success, otherwise false.
 bool XcpEthServerInit(const uint8_t *address, uint16_t port, bool use_tcp, uint32_t measurement_queue_size);
 
-/// Shutdown the XCP on Ethernet server.
+/// Shutdown the XCP on Ethernet server and free its resources.
+/// @return true on success, false if the server is not running or XCP is not activated.
 bool XcpEthServerShutdown(void);
 
 /// Get the XCP on Ethernet server instance status.
@@ -53,9 +57,9 @@ bool XcpEthServerShutdown(void);
 bool XcpEthServerStatus(void);
 
 /// Get the XCP protocol layer status
-bool XcpIsStarted(void);
-bool XcpIsConnected(void);
-bool XcpIsDaqRunning(void);
+bool XcpIsStarted(void);    ///< The protocol layer is started
+bool XcpIsConnected(void);  ///< A XCP client is connected
+bool XcpIsDaqRunning(void); ///< DAQ measurement is running
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segments
@@ -279,6 +283,13 @@ static_assert(sizeof(((tXcpCalSegDescriptor *)0)->res) > 0, "tXcpCalSegDescripto
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Dynamic DAQ event creation
 
+// A DAQ event has a unique name and a 16 bit id (tXcpEventId). It is created once and triggered by a function (XcpEventXxx) or a macro
+// (DaqTriggerEventXxx) at a particular code location, the trigger timestamps and transfers the data the XCP tool associated with the event.
+// The measurement variables of an event must be valid and accessible at the trigger location. Triggering the same event at multiple code
+// locations is possible, but not recommended, the measurement variables must be valid at all locations and the data is hard to interpret.
+// To filter events depending on their execution context (e.g. thread), use XcpEventEnable or DaqEventEnable/DaqEventDisable.
+// See docs/TECHNICAL.md for details.
+
 /// Undefined event id
 #define XCP_UNDEFINED_EVENT_ID 0xFFFF
 /// DAQ event id as handle
@@ -450,9 +461,9 @@ extern const tXcpEventDescriptor __stop_xcp_evts[] __asm("section$end$__DATA$xcp
     XCP_EVENT_SECTION_SET_ID(evt__##event_name, evt_id_##event_name);
 
 /// Create an event with given expected cycle time and priority
-/// @param name Name given as identifier
-/// @param cycle_time Cycle time in microseconds (0 = sporadic)
-/// @param priority Priority of the event (0 = normal, >=1 = realtime)
+/// @param event_name Name given as identifier
+/// @param cycle Cycle time in microseconds (0 = sporadic)
+/// @param prio Priority of the event (0 = normal, >=1 = realtime)
 #define DaqCreateEventExt(event_name, cycle, prio)                                                                                                                                 \
     static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = XCP_EVENT_DESCRIPTOR_INIT(#event_name, (cycle) * 1000U, (prio));                                   \
     XCP_MAYBE_UNUSED static tXcpEventId evt_id_##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                \
@@ -470,9 +481,9 @@ extern const tXcpEventDescriptor __stop_xcp_evts[] __asm("section$end$__DATA$xcp
 #define DaqDeclareEvent(event_name) static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = XCP_EVENT_DESCRIPTOR_INIT(#event_name, 0, 0)
 
 /// Declare an event at file scope with given expected cycle time and priority
-/// @param name Name given as identifier
-/// @param cycle_time Cycle time in microseconds (0 = sporadic)
-/// @param priority Priority of the event (0 = normal, >=1 = realtime)
+/// @param event_name Name given as identifier
+/// @param cycle Cycle time in microseconds (0 = sporadic)
+/// @param prio Priority of the event (0 = normal, >=1 = realtime)
 #define DaqDeclareEventExt(event_name, cycle, prio)                                                                                                                                \
     static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = XCP_EVENT_DESCRIPTOR_INIT(#event_name, (cycle) * 1000U, (prio))
 
@@ -515,29 +526,35 @@ extern const tXcpEventDescriptor __stop_xcp_evts[] __asm("section$end$__DATA$xcp
 // DAQ event trigger measurement instrumentation point
 
 /// Trigger timestamped measurement events and transfer XCP tool configured associated data
-/// Function are thread safe and look-free, depending on the transmit queue configuration and platform. See technical reference for details.
+/// Functions are thread safe and lock-free, depending on the transmit queue configuration and platform. See docs/TECHNICAL.md for details.
+/// Triggers do nothing in passive mode or before the server is started, and when DAQ is not running. An invalid event id is ignored.
 
 /// Trigger the XCP event 'event' for absolute addressing mode (XCP_ADDR_EXT_ABS)
 /// @param event Event id.
 void XcpEvent(tXcpEventId event);
 
 /// Trigger the XCP event 'event' for absolute or dyn addressing mode with explicitly given base address (address extension = 2)
-/// @param event
-/// @param base address pointer
+/// @param event Event id.
+/// @param base2 Base address for address extension 2, usually xcp_get_frame_addr() for stack relative addressing (add XCP_NO_TAIL_CALL() after the call)
 void XcpEventExt(tXcpEventId event, const uint8_t *base2);
 
 /// Trigger the XCP event 'event' for absolute or relative addressing mode with explicitly given base addresses for multiple relative addressing modes (address extensions = [2..])
-/// @param event
+/// @param event Event id.
 /// @param count Number of base address pointers passed
+/// @param ... count base addresses (const uint8_t *) for address extensions 2, 3, ...
 void XcpEventExt_Var(tXcpEventId event, int count, ...);
 
-// At timestamp variants (clock==0 -> same as non timestamped versions)
+/// Variants of the trigger functions above with an explicitly given timestamp
+/// @param clock Timestamp in the units of ApplXcpGetClock64() (CLOCK_TICKS_PER_S), 0 = take the current time, same as the variants without timestamp
 void XcpEventAt(tXcpEventId event, uint64_t clock);
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
-void XcpEventExtAt_(tXcpEventId event, int count, const uint8_t **bases, uint64_t clock); // Used by variadic C++ macro/template
+void XcpEventExtAt_(tXcpEventId event, int count, const uint8_t **bases, uint64_t clock); ///< Base addresses as array, used by the variadic C++ templates
 void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, int count, ...);
 
-// Enable or disable a XCP DAQ event
+/// Enable or disable a XCP DAQ event, a disabled event ignores its triggers
+/// Requires OPTION_DAQ_EVENT_LIST
+/// @param event Event id.
+/// @param enable true to enable, false to disable
 void XcpEventEnable(tXcpEventId event, bool enable);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -644,6 +661,8 @@ extern const uint8_t *gXcpBaseAddr;
         XcpEventExt_Var(trg__AAS__##event_name, 1, xcp_get_frame_addr());                                                                                                          \
         XCP_NO_TAIL_CALL();                                                                                                                                                        \
     }
+/// Variant of DaqTriggerEvent with an explicitly given timestamp
+/// @param clock Timestamp in the units of ApplXcpGetClock64()
 #define DaqTriggerEventAt(event_name, clock)                                                                                                                                       \
     {                                                                                                                                                                              \
         static tXcpEventId trg__AAS__##event_name = XCP_EVENT_SECTION_GET_LINKTIME_ID(evt__##event_name);                                                                          \
@@ -827,7 +846,8 @@ extern const uint8_t *gXcpBaseAddr;
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Enable/disable events
 
-/// Enable the XCP event 'name'
+/// Enable the XCP event 'name', requires OPTION_DAQ_EVENT_LIST
+/// The event lookup by name is cached in thread local storage
 #define DaqEventEnable(name)                                                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
@@ -837,7 +857,7 @@ extern const uint8_t *gXcpBaseAddr;
         XcpEventEnable(ena__##name, true);                                                                                                                                         \
     }
 
-/// Disable the XCP event 'name'
+/// Disable the XCP event 'name', triggers of a disabled event are ignored, requires OPTION_DAQ_EVENT_LIST
 #define DaqEventDisable(name)                                                                                                                                                      \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
@@ -863,9 +883,16 @@ extern const uint8_t *gXcpBaseAddr;
 #endif
 #endif
 
+// Metadata for the offline A2L generator (xcpclient), stored in the xcp_meta section, see docs/OFFLINE_A2L.md
+// Use at file or function scope next to the variable or calibration segment field, name is the variable or field name as identifier
+
+/// A2L comment (description) for the measurement or parameter 'name'
 #define XCP_COMMENT(name, comment) static const char XCP_METADATA_SECTION_ATTR xcp_meta__comment__##name[] = comment;
+/// Mark the measurement 'name' as writable (READ_WRITE) in the A2L file
 #define XCP_READ_WRITE(name) static const bool XCP_METADATA_SECTION_ATTR xcp_meta__read_write__##name = true;
+/// A2L physical unit of the measurement or parameter 'name'
 #define XCP_UNIT(name, unit) static const char XCP_METADATA_SECTION_ATTR xcp_meta__unit__##name[] = unit;
+/// A2L physical limits of the measurement or parameter 'name'
 #define XCP_LIMITS(name, min, max)                                                                                                                                                 \
     static const double XCP_METADATA_SECTION_ATTR xcp_meta__min__##name = min;                                                                                                     \
     static const double XCP_METADATA_SECTION_ATTR xcp_meta__max__##name = max;
@@ -987,10 +1014,16 @@ void XcpSetLogLevel(uint8_t level);
 #define XCP_MODE_SHM_AUTO 0x04    ///< Set this flag to automatically choose leader as XCP server
 #define XCP_MODE_SHM_SERVER 0x08  ///< Set this flag, to make this application the XCP server, regardless which application is started first
 
-/// Initialize the XCP driver singleton, must be called before starting the server
-/// @param name Project name, used as A2L file name and to identify the XCP server
-/// @param epk EPK version string, used for compatibility check of A2L and BIN file
-/// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO or XCP_MODE_SHM_SERVER (libxcplite build with in SHM mode)
+/// Initialize the XCP driver singleton, must be called once before any other API function and before starting the server
+/// Only XcpSetLogLevel() may be called before. Calling other API functions without prior initialization is undefined behavior.
+/// XCP must always be initialized, but it may be initialized passive (XCP_MODE_DEACTIVATE): then the server does not start,
+/// all XCP and A2L instrumentation stays passive with minimal runtime overhead, the calibration segment macros and C++ wrappers return the default pages.
+/// Calling XcpInit again after activation is ignored.
+/// @param name Project name (mandatory), used as A2L and BIN file name and to identify the XCP server, max 31 characters (XCP_PROJECT_NAME_MAX_LENGTH)
+/// @param epk EPK version string (mandatory), used for compatibility check of A2L and BIN file, max 31 characters (XCP_EPK_MAX_LENGTH), space, tab and colon are replaced by '_'
+/// @param mode XCP_MODE_DEACTIVATE, or a combination of XCP_MODE_LOCAL or XCP_MODE_SHM, XCP_MODE_SHM_AUTO, XCP_MODE_SHM_SERVER (libxcplite built in SHM mode)
+/// and XCP_MODE_PERSISTENCE (OPTION_ENABLE_PERSISTENCE)
+/// @return true on success, also in passive mode, otherwise false
 bool XcpInit(const char *name, const char *epk, uint8_t mode);
 void XcpDeinit(void); // Internal function for Rust build.rs
 
@@ -1001,26 +1034,25 @@ bool XcpIsActivated(void);
 /// @return XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO, or XCP_MODE_SHM_SERVER
 uint8_t XcpGetInitMode(void);
 
-/// Check if XCP is connected
-bool XcpIsConnected(void);
-
 /// Check if XCP library is compiled in shared memory mode
 bool XcpIsInShmMode(void);
 
-// Project name
+/// Get the project name given to XcpInit()
 const char *XcpGetProjectName(void);
 
-// EPK software version identifier
-const char *XcpGetEcuEpk(void); // Only in SHM mode different to XcpGetLocalEpk(), which is for the application, while XcpGetEcuEpk() is for the overall ECU
+/// Get the EPK software version identifier
+/// XcpGetLocalEpk() is the EPK of the application given to XcpInit(), XcpGetEcuEpk() is the EPK of the overall ECU, they differ only in SHM mode
+const char *XcpGetEcuEpk(void);
 const char *XcpGetLocalEpk(void);
 
-// A2L file name
-// Notify XCPlite there is a valid A2L with this name to be provided for upload via XCP command GET_ID
+/// Set or get the A2L file name
+/// Notify XCPlite there is a valid A2L file with this name to be provided for upload via XCP command GET_ID (OPTION_ENABLE_A2L_UPLOAD)
+/// Called by A2lInit()/A2lFinalize() with runtime A2L generation
 void XcpSetA2lName(const char *name);
 const char *XcpGetA2lName(void);
 
-// ELF file name
-// Notify XCPlite there is a valid ELF with this pathname to be provided for upload via XCP command GET_ID
+/// Set or get the ELF file name
+/// Notify XCPlite there is a valid ELF file with this pathname to be provided for upload via XCP command GET_ID (OPTION_ENABLE_ELF_UPLOAD)
 void XcpSetElfName(const char *name);
 const char *XcpGetElfName(void);
 
@@ -1155,7 +1187,6 @@ void sleepUs(uint32_t us);
 void sleepMs(uint32_t ms);
 
 // Debug metrics
-void XcpEthTlPrintStatistics(void);
 void XcpEthServerDebugInfo(size_t *rxStackSize, size_t *txStackSize);
 void clockGetPrintStatistic(void);
 
@@ -1164,12 +1195,15 @@ void clockGetPrintStatistic(void);
 #endif
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Variadic C event trigger convinience macros DaqEventVar and DaqEventExtVar
+// Variadic C event trigger convinience macro DaqEventVar
 // Option to create event, register measurements and trigger event in one call
 
 #ifdef OPTION_ENABLE_A2L_GENERATOR
 #ifndef __cplusplus
 
+/// Markers in front of the measurement tuples of the C DaqEventVar, they expand to nothing:
+/// A2L_MEAS(var, comment) and A2L_MEAS_PHYS(var, comment, unit_or_conversion, min, max)
+/// In C++, the macros of the same name in xcplib.hpp create measurement info objects
 #define A2L_MEAS_PHYS
 #define A2L_MEAS
 
