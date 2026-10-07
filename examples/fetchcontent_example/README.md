@@ -56,7 +56,7 @@ include(FetchContent)
 
 FetchContent_Declare(xcplite
     GIT_REPOSITORY https://github.com/vectorgrp/XCPlite.git
-    GIT_TAG        V2.2.2
+    GIT_TAG        V2.3.2
     GIT_SHALLOW    TRUE
 )
 
@@ -123,7 +123,7 @@ cmake -B build -S . -DFETCHCONTENT_SOURCE_DIR_XCPLITE=/path/to/XCPlite
 The repository and tag can also be changed on the command line without editing the file:
 
 ```bash
-cmake -B build -S . -DXCPLITE_GIT_REPOSITORY=https://github.com/<fork>/XCPlite.git -DXCPLITE_GIT_TAG=V2.2.2
+cmake -B build -S . -DXCPLITE_GIT_REPOSITORY=https://github.com/<fork>/XCPlite.git -DXCPLITE_GIT_TAG=V2.3.2
 ```
 
 ## See Also

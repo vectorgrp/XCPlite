@@ -75,6 +75,12 @@ bool ApplXcpConnect(uint8_t mode) {
 #ifdef XCP_ENABLE_USER_COMMAND
     __write_delayed = false;
 #endif
+#ifdef OPTION_ENABLE_A2L_GENERATOR
+    // Finalize the A2L file on connect (A2L_MODE_FINALIZE_ON_CONNECT) or refuse the connect while it is not finalized
+    // Called before the application callback, which stays available for the application
+    if (!A2lCheckFinalizeOnConnect(mode))
+        return false;
+#endif
     if (__callback_connect != NULL)
         return __callback_connect(mode);
     return true;

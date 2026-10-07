@@ -1531,7 +1531,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     gA2lUseTCP = useTCP;
 
     // Check mode
-    if ((gA2lMode & A2L_MODE_WRITE_ONCE) && (XcpGetInitMode() & XCP_MODE_PERSISTENCE) == 0) {
+    if ((mode & A2L_MODE_WRITE_ONCE) && (XcpGetInitMode() & XCP_MODE_PERSISTENCE) == 0) {
         mode |= A2L_MODE_WRITE_ALWAYS;
         mode &= ~(A2L_MODE_WRITE_ONCE);
         DBG_PRINT_WARNING("Persistence mode not enabled, mode A2L_MODE_WRITE_ONCE ignored!\n");
@@ -1544,9 +1544,6 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     A2lRstAddrMode();
     gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
     mutexInit(&gA2lMutex, false, 0);
-
-    // Register a callback called on XCP connect
-    ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
 
     DBG_PRINTF3(ANSI_COLOR_GREEN "Init A2L generation: mode=(%s%s%s%s%s%s)\n" ANSI_COLOR_RESET, (mode & A2L_MODE_WRITE_ALWAYS) ? "WRITE_ALWAYS " : "",
                 (mode & A2L_MODE_WRITE_ONCE) ? "WRITE_ONCE " : "", (mode & A2L_MODE_FINALIZE_ON_CONNECT) ? "FINALIZE_ON_CONNECT " : "",

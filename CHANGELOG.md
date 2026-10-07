@@ -39,11 +39,6 @@ All notable changes to XCPlite are documented in this file.
     - Bugfix: in online mode with absolute addressing, a calibration segment which the target reported was not used to find the calibration variables in it.
     - Bugfix: `--list-cal` and `--cal` with `--elf` panicked on a calibration segment struct. The registry created from the ELF file is now flattened like a loaded A2L file, the A2L file keeps the typedef structure.
 
-- Documentation
-    - What section registration requires from the build (linker script, `KEEP`, boundary symbols, each event created in one place, one A2L file per build) and how to check that it works, see docs/OFFLINE_A2L.md.
-    - Without section registration a pure offline A2L file is not possible, the event ids and segment numbers are the runtime creation order. The A2L file has to be generated or corrected (`--fix-a2l`) once with the running target, see docs/OFFLINE_A2L.md.
-    - Variables without `DW_AT_location` are resolved from the ELF symbol table by exact symbol names only. A symbol whose name only ended with the variable name was accepted before. Compile time constants (`DW_AT_const_value` without location) are skipped, unless their exact mangled or local static symbol exists (GCC metadata markers in a namespace or function).
-
 
 
 ## [V2.2.3]

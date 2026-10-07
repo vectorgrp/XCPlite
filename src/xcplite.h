@@ -589,6 +589,12 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen);
 bool ApplXcpReadFile(uint8_t size, uint32_t offset, uint8_t *data);
 #endif
 
+#ifdef OPTION_ENABLE_A2L_GENERATOR
+// A2L generator hook called by ApplXcpConnect (a2l.c)
+// Finalizes the A2L file with A2L_MODE_FINALIZE_ON_CONNECT, returns false to refuse the connect while the A2L file is not finalized
+bool A2lCheckFinalizeOnConnect(uint8_t connect_mode);
+#endif
+
 // Set/get the ELF and A2L file name (for GET_ID)
 void XcpSetA2lName(const char *name);
 const char *XcpGetA2lName(void);
