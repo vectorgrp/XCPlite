@@ -54,7 +54,7 @@ The AML file for XCP 1.4 is not embedded in the A2L file, to keep the A2l file s
 
 ## Getting Started
 
-### Minimal application
+### Minimal application with runtime A2L generation
 
 The public API is `inc/xcplib.h` (C) and `inc/xcplib.hpp` (C++), runtime A2L generation is `inc/a2l.h` and `inc/a2l.hpp`. The headers document every function and macro, [docs/API_OVERVIEW.md](docs/API_OVERVIEW.md) indexes them by category with the configuration options and the examples using them.
 
@@ -106,7 +106,71 @@ int main() {
 }
 ```
 
-[hello_xcp_cpp](examples/hello_xcp_cpp/README.md) is the complete version of this sequence, [hello_xcp](examples/hello_xcp/README.md) the C version with `XcpCreateCalSeg`/`XcpLockCalSeg` and `DaqCreateEvent`/`DaqTriggerEvent`. For targets without on-target A2L generation, see [no_a2l_demo](examples/no_a2l_demo/README.md) and [Offline A2L Generation](docs/OFFLINE_A2L.md).
+[hello_xcp_cpp](examples/hello_xcp_cpp/README.md) is the complete version of this sequence, [hello_xcp](examples/hello_xcp/README.md) the C version with `XcpCreateCalSeg`/`XcpLockCalSeg` and `DaqCreateEvent`/`DaqTriggerEvent`.
+
+
+### Minimal application without runtime A2L generation
+
+In the `no_a2l` configuration, the library has no A2L generator and no file system dependency. The instrumentation macros put the events, calibration segments, EPK and metadata into ELF sections, `XcpInit` registers them from there, so the event ids and segment numbers are fixed at link time. The A2L file is generated offline from the ELF file and its DWARF debug information with the xcpclient tool.
+
+The same application in the `no_a2l` configuration:
+
+```cpp
+#include <xcplib.hpp>
+
+struct ParamsT {
+    uint32_t delay_us;
+    float gain;
+};
+const ParamsT params = {.delay_us = 1000, .gain = 0.5f}; // Default values (reference page), the variable name is the segment name
+CalSegDecl(params); // Calibration segment params with the typed handle params_calseg, created by XcpInit
+
+// Metadata for the A2L generator, '__' separates the struct fields
+XCP_COMMENT(params__gain, "Gain parameter");
+XCP_LIMITS(params__gain, 0.0, 1.0);
+XCP_COMMENT(params__delay_us, "Mainloop cycle delay");
+XCP_UNIT(params__delay_us, "us");
+XCP_LIMITS(params__delay_us, 0.0, 100000.0);
+
+int main() {
+    XcpSetLogLevel(3); // Optional, 1 = error ... 4 = XCP command trace
+
+    // Always initialize XCP first, XcpInit registers the events and calibration segments from the ELF sections
+    XcpCreateEpk("V1.0.0"); // EPK version string for the A2L generator, same as in XcpInit
+    XcpInit("my_project" /* project name */, "V1.0.0" /* EPK version */, XCP_MODE_LOCAL);
+    const uint8_t addr[4] = {0, 0, 0, 0}; // Bind to any address
+    XcpEthServerInit(addr, 5555 /* port */, false /* UDP */, 32 * 1024 /* measurement queue size */);
+
+    DaqCreateEvent(mainloop); // Measurement event, the event id is known at link time
+
+    XCP_COMMENT(value, "Output value");
+    float value = 0.0f; // Measurement variable
+
+    for (;;) {
+        uint32_t delay_us;
+        {
+            auto p = params_calseg.lock(); // RAII guard, consistent, wait-free access until end of scope
+            value += p->gain;
+            delay_us = p->delay_us;
+        }
+
+        // Copy value into a capture struct on the stack, timestamp and measure it, works with optimized builds
+        DaqTriggerEventCapture(mainloop, value);
+        sleepUs(delay_us);
+    }
+
+    XcpEthServerShutdown();
+    return 0;
+}
+```
+
+Build it with debug information (`-g`) and generate the A2L file from the executable. `--dest-addr` is the target address written into the A2L file, `--elf-unit-filter main` restricts the variables to the compilation unit `main.cpp`:
+
+```bash
+xcpclient --offline --udp --dest-addr 192.168.0.206 --elf my_project --elf-unit-filter main --create-a2l --a2l my_project.a2l
+```
+
+[no_a2l_demo_cpp](examples/no_a2l_demo_cpp/README.md) is the complete version of this sequence, [no_a2l_demo](examples/no_a2l_demo/README.md) the C version. Workflow, naming rules and metadata macros are described in [Offline A2L Generation](docs/OFFLINE_A2L.md).
 
 ### Examples
 
@@ -115,10 +179,10 @@ Multiple examples demonstrating different features are available in the [example
 **Start here:**
 - [hello_xcp](examples/hello_xcp/README.md) - Basic XCP server setup and instrumentation in C
 - [hello_xcp_cpp](examples/hello_xcp_cpp/README.md) - Basic XCP server setup and instrumentation in C++
-
-**Advanced examples:**
 - [no_a2l_demo](examples/no_a2l_demo/README.md) - Linux workflow without runtime A2L generation (offline A2L generation from ELF file by using the included xcpclient tool)
 - [no_a2l_demo_cpp](examples/no_a2l_demo_cpp/README.md) - C++ workflow with offline A2L generation
+
+**Advanced examples:**
 - [freertos_demo](examples/freertos_demo/README.md) - FreeRTOS/lwip demo applications for STM32, ESP32 and the FreeRTOS POSIX simulator (Linux)
 - [silkit_demo](examples/silkit_demo/README.md) - SIL-Kit multi-participant measurement and calibration (via shared memory (SHM mode))
 - [ptp4l_demo](examples/ptp4l_demo/README.md) - Using a PTP synchronized clock as XCP timestamp source
