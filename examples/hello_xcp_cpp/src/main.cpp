@@ -243,7 +243,7 @@ int main(int argc, char *argv[]) {
                 counter++;
                 if (counter > params->counter_max) { // Get the counter_max calibration value and reset counter
                     counter = 0;
-                    printf("Counter reset to 0 at %u\n", params->counter_max);
+                    // printf("Counter reset to 0 at %u\n", params->counter_max);
                 }
             }
         }

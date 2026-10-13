@@ -136,6 +136,7 @@ pub struct XcpClient {
     task_control: XcpTaskControl,
     daq_decoder: Option<Arc<Mutex<dyn XcpDaqDecoder>>>,
     ctr: u16,
+    cmd_send_time: Option<tokio::time::Instant>, // Local time directly before the last command was sent
 
     calibration_object_list: Vec<XcpClientCalibrationObject>,
     measurement_object_list: Vec<XcpClientMeasurementObject>,
@@ -162,6 +163,7 @@ impl XcpClient {
             task_control: XcpTaskControl::new(),
             daq_decoder: None,
             ctr: 0,
+            cmd_send_time: None,
             resources: 0,
             comm_mode_basic: 0,
             comm_mode_optional: 0,
@@ -189,6 +191,12 @@ impl XcpClient {
 
     pub fn set_registry(&mut self, registry: xcp_registry::Registry) {
         self.registry = Some(registry);
+    }
+
+    /// Local time taken directly before the last command was sent to the socket
+    /// Used to pair a GET_DAQ_CLOCK response with the local time of transmission
+    pub fn last_command_send_time(&self) -> Option<tokio::time::Instant> {
+        self.cmd_send_time
     }
 
     //------------------------------------------------------------------------

@@ -224,7 +224,9 @@ impl XcpClient {
         //
         // Send command
         let socket = self.socket.as_ref().unwrap();
+        let send_time = tokio::time::Instant::now();
         socket.send_to(cmd_bytes, self.dest_addr).await?;
+        self.cmd_send_time = Some(send_time);
 
         debug!("xcp_command: sent command = {:?}", cmd_bytes);
 

@@ -67,7 +67,7 @@ Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config
 ./build/cal_test           # hermetic self-check by default; pass --server for interactive CANape/xcpclient use
 ```
 
-The self-verifying tests are registered with CTest and can be run unattended (interactive server tests `daq_test`/`clock_test`, the client probe `xcp_test` and the `queue_test` benchmark are excluded and run by hand):
+The self-verifying tests are registered with CTest and can be run unattended (interactive server tests `daq_test`/`clock_test` and the `queue_test` benchmark are excluded and run by hand; `xcp_test` runs against an in-process server with label `integration`, `--server <ip>` probes an external one):
 
 ```bash
 ctest --test-dir build --output-on-failure   # run all registered tests (same as: ./build.sh tests run)

@@ -20,6 +20,8 @@ All notable changes to XCPlite are documented in this file.
 
 - freertos_demo: `xcp_demo.c` supports builds with and without `OPTION_SECTION_REGISTRATION`, to show the consequences of doing so. The linker section method is still the strongly recommended way for rtos targets. Without it, the events and the calibration segment `parameters` are created in a fixed order in `startXcpServer()` after `XcpInit()`, before the tasks start, so the event ids and segment numbers are the same after each restart. The event creation macros in the tasks find the events by name.
 
+- silkit_demo: FetchContent support
+
 - `XcpCreateEpk`: the EPK string variable is renamed from `gXcpEpkString` to `xcp_epk__`. Its address is stored in a volatile pointer, so the string is no longer removed by the compiler in optimized builds, or by the linker with `--gc-sections`, when there is no `xcp_epk` section (no `OPTION_SECTION_REGISTRATION`).
 
 - xcpclient changes (xcpclient V4.0.1):
@@ -38,6 +40,7 @@ All notable changes to XCPlite are documented in this file.
     - The `epk` calibration segment has the size of the target segment (32 bytes) in an offline A2L file, not the length of the EPK string. In online mode, the different address of the `epk` segment of the target is no longer reported as a mismatch.
     - Bugfix: in online mode with absolute addressing, a calibration segment which the target reported was not used to find the calibration variables in it.
     - Bugfix: `--list-cal` and `--cal` with `--elf` panicked on a calibration segment struct. The registry created from the ELF file is now flattened like a loaded A2L file, the A2L file keeps the typedef structure.
+    - `--test` collects GET_DAQ_CLOCK latency statistics
 
 
 

@@ -22,10 +22,10 @@
 constexpr const char *OPTION_PROJECT_NAME = "cpp_demo";
 constexpr const char OPTION_PROJECT_VERSION[] = "V2.3";
 constexpr bool OPTION_USE_TCP = false;
+constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
 constexpr size_t OPTION_QUEUE_SIZE = (1024 * 64);
 constexpr int OPTION_LOG_LEVEL = 4;
-constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters

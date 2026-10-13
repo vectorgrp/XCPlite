@@ -349,13 +349,6 @@ impl ToLogLevelFilter for u8 {
     }
 }
 
-//-----------------------------------------------------------------------------
-// Test (--test) settings
-
-const TEST_CAL: xcp_test_executor::TestModeCal = xcp_test_executor::TestModeCal::Cal; // Execute calibration tests: Cal or None
-const TEST_DAQ: xcp_test_executor::TestModeDaq = xcp_test_executor::TestModeDaq::Daq; // Execute measurement tests: Daq or None
-const TEST_DURATION_MS: u64 = 5000;
-
 //------------------------------------------------------------------------
 // Handle incoming DAQ data
 // Prints the decoded data to the console
@@ -1525,7 +1518,9 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
     // Run the test executor if --test is specified
     if args.test {
-        if !test_executor(protocol, dest_addr, local_addr, TEST_CAL, TEST_DAQ, TEST_DURATION_MS).await {
+        const TEST_CAL: xcp_test_executor::TestModeCal = xcp_test_executor::TestModeCal::Cal; // Execute calibration tests: Cal or None
+        const TEST_DAQ: xcp_test_executor::TestModeDaq = xcp_test_executor::TestModeDaq::DaqCmd; // Execute measurement tests: DaqCmd, Daq or None
+        if !test_executor(protocol, dest_addr, local_addr, TEST_CAL, TEST_DAQ).await {
             return Err("XCP test failed".into());
         }
     }

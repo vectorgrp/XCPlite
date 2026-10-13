@@ -26,16 +26,18 @@ the active `XCPLITE_CONFIGURATION` (see [docs/BUILDING.md](../docs/BUILDING.md))
 # Run the self-verifying tests unattended via CTest directly
 ctest --test-dir build --output-on-failure   # all registered tests (same as: ./build.sh tests run)
 ctest --test-dir build -L unit               # only the fast unit tests
+ctest --test-dir build -L integration        # only the integration tests (xcp_test)
 
 # Or run an individual test binary directly
 ./build/daq_config_test
 ./build/passive_test_c
 ./build/cal_test            # hermetic self-check; add --server for interactive CANape/xcpclient use
+./build/xcp_test            # hermetic self-check; add --server <ip> to probe an external XCP server
 ```
 
 `./build.sh tests` only builds the test binaries; `./build.sh tests run` builds and then runs them via
 `ctest`. You can also run `ctest` yourself or run a binary directly.
-The interactive server tests (`daq_test`, `clock_test`), the client probe (`xcp_test`) and the
+The interactive server tests (`daq_test`, `clock_test`) and the
 `queue_test` benchmark are **not** registered with CTest — run them by hand (see below).  
 
 Other configurations expose different tests:
@@ -56,7 +58,8 @@ Legend for **Type**:
   registered with CTest only when the tool is found.
 - **interactive** — starts an XCP server and **runs until you connect a tool** (CANape or
   `xcpclient`) and observe the result manually; not registered with CTest.
-- **client** — connects to an already-running XCP server; used to probe connectivity by hand.
+- **integration** — self-checking like **unit**, but exercises a complete client/server path over loopback sockets,
+  including timing limits. Registered with CTest (label `integration`).
 - **hardware** — needs a real NIC / PTP grandmaster / remote target / root.
 - **benchmark** — long-running throughput/stress run that prints statistics.
 
@@ -74,7 +77,7 @@ Legend for **Type**:
 | `queue_test` | C | default | benchmark | no | — | Lock-free transmit-queue correctness & throughput (multi-thread/process) ([queue_test/](queue_test/)) |
 | `daq_test` | C | default | interactive | no | CANape or `xcpclient` | Multi-thread DAQ measurement server; loops until Ctrl+C ([daq_test/](daq_test/)) |
 | `clock_test` | C++ | default, ptp | interactive / hardware | no | CANape/`xcpclient`; PTP config also needs `ptp4l` + a PTP NIC | Clock/time-sync behavior; loops until Ctrl+C ([clock_test/](clock_test/)) |
-| `xcp_test` | C++ | default | client | no | a running XCP server (e.g. `hello_xcp`) | Sends a raw CONNECT and prints the response; connectivity probe ([xcp_test/](xcp_test/)) |
+| `xcp_test` | C++ | default | integration (+opt. client) | yes (`integration`) | loopback sockets; `--server <ip>` probes an external XCP server | XCP on UDP command sequence, framing and counter checks, GET_STATUS round trip latency with a median limit ([xcp_test/](xcp_test/)) |
 | `socket_raw_test` | C | raw | unit | yes (`unit`) | Linux | Raw-Ethernet transport: checksums, framing, ARP/ICMP (fake HAL, no network) ([socket_raw_test/](socket_raw_test/)) |
 
 

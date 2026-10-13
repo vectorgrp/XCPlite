@@ -449,8 +449,7 @@ if(XCPLITE_BUILD_TESTS)
     #   Run all:              ctest --test-dir build --output-on-failure
     #   Only fast unit tests: ctest --test-dir build -L unit
     # Only hermetic, self-terminating tests are registered here. Interactive server tests
-    # (daq_test, clock_test), the client probe (xcp_test) and the throughput benchmark
-    # (queue_test) are run by hand - see test/README.md.
+    # (daq_test, clock_test) and the throughput benchmark (queue_test) are run by hand - see test/README.md.
     enable_testing()
 
     if(XCPLITE_CONFIGURATION STREQUAL "default")
@@ -487,6 +486,7 @@ if(XCPLITE_BUILD_TESTS)
         target_link_libraries(queue_test PRIVATE xcplite)
 
         add_executable(xcp_test test/xcp_test/src/main.cpp)
+        target_link_libraries(xcp_test PRIVATE xcplite)
         if(WIN32)
             target_link_libraries(xcp_test PRIVATE ws2_32)
         endif()
@@ -519,6 +519,10 @@ if(XCPLITE_BUILD_TESTS)
         else()
             message(STATUS "a2l_test: not registered with CTest (a2ltool not found on PATH)")
         endif()
+
+        # xcp_test validates against an in-process server
+        add_test(NAME xcp_test COMMAND xcp_test)
+        set_tests_properties(xcp_test PROPERTIES LABELS "integration" TIMEOUT 60)
 
     elseif(XCPLITE_CONFIGURATION STREQUAL "ptp")
 
