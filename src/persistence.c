@@ -309,9 +309,11 @@ bool XcpBinWrite(const char *epk) {
 
     DBG_PRINTF3(ANSI_COLOR_GREEN "Persistence data written to BIN file '%s'\n" ANSI_COLOR_RESET, XcpBinGetFilename());
 #ifdef OPTION_SHM_MODE // debug print application list
+#ifdef OPTION_ENABLE_DBG_PRINTS
     if (DBG_LEVEL >= 4) {
         XcpShmDebugPrint();
     }
+#endif
 #endif
 
     return true;
@@ -353,7 +355,11 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
             printCalsegPage(ecu_page, seg->h.size);
 #endif
         n = fwrite(ecu_page, seg->h.size, 1, file);
+#ifdef OPTION_CAL_RCU_REFCOUNT
+        XcpUnlockCalSeg(calseg, ecu_page);
+#else
         XcpUnlockCalSeg(calseg);
+#endif
     }
     fclose(file);
     if (n != 1) {
@@ -475,7 +481,11 @@ static bool load(const char *filename, const char *epk) {
             if (DBG_LEVEL >= 5) {
                 const uint8_t *page = (uint8_t *)XcpLockCalSeg(calseg_index);
                 printCalsegPage(page, desc.size);
+#ifdef OPTION_CAL_RCU_REFCOUNT
+                XcpUnlockCalSeg(calseg_index, page);
+#else
                 XcpUnlockCalSeg(calseg_index);
+#endif
             }
         }
 #endif

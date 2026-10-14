@@ -29,7 +29,7 @@
 
 #define THREAD_COUNT 8            // Number of threads to create
 #define THREAD_DELAY_US 500       // Default delay in microseconds for the thread loops, calibration parameter
-#define THREAD_DELAY_OFFSET_US 50 // Default offset  added to the delay (* task index) for each thread instance, to create different sampling rates
+#define THREAD_DELAY_OFFSET_US 50 // Default offset added to the delay (* task index) for each thread instance, to create different sampling rates
 #define THREAD_TIME_SHIFT_US                                                                                                                                                       \
     (500000 / THREAD_COUNT) // Default time shift in microseconds (* task index) for each thread instance, to disturb the sequential time ordering of events
 
@@ -257,7 +257,11 @@ THREAD_FUNC_RETURN task(void *p) {
             // Stop
             run = params->run;
 
+#ifdef OPTION_CAL_RCU_REFCOUNT
+            XcpUnlockCalSeg(calseg, params);
+#else
             XcpUnlockCalSeg(calseg);
+#endif
         }
 
         uint64_t clock = ApplXcpGetClock64();
@@ -367,7 +371,11 @@ int main(void) {
             printf("Inconsistent %u:  %d -  %d\n", counter, params->test_byte1, params->test_byte2);
         }
 
+#ifdef OPTION_CAL_RCU_REFCOUNT
+        XcpUnlockCalSeg(calseg, params);
+#else
         XcpUnlockCalSeg(calseg);
+#endif
 
         // Print DAQ lists via ApplXcpRegisterCheckCallback
         if (XcpIsDaqRunning() && print_daq_events) {
@@ -381,7 +389,7 @@ int main(void) {
         }
 
         DaqTriggerEvent(mainloop);
-        sleepUs(1000); // 1000us
+        sleepUs(500);
     }
 
     // Wait for all threads to finish
@@ -390,9 +398,13 @@ int main(void) {
             join_thread(t[i]);
     }
 
-#ifdef TEST_ENABLE_DBG_METRICS
-    XcpEthTlPrintStatistics();
+#ifdef TEST_ENABLE_TL_METRICS
+    printf("  Total TX packets:    %u\n", gXcpTxPacketCount);
+    printf("  Total TX messages:   %u\n", gXcpTxMessageCount);
+    printf("  Total TX iovecs:     %u\n", gXcpTxIoVectorCount);
+    printf("  Total RX packets:    %u\n", gXcpRxPacketCount);
 #endif
+
 #ifdef TEST_DAQ_EVENT_TIMING
     timing_sample_test_print_results();
 #endif

@@ -4,7 +4,7 @@
 
 XCP is a measurement and parameter tuning (calibration) protocol commonly used in the automotive industry. It is an ASAM standard.
 
-It provides real time signal oriented data acquisition (measurement, logging) and tuning of parameter constants (calibration) in a target micro controller system (ECU), to help observing and optimizing cyber physical control algorithms in real time.
+It provides real-time signal oriented data acquisition (measurement, logging) and tuning of parameter constants (calibration) in a target micro controller system (ECU), to help observing and optimizing cyber physical control algorithms in real time.
 
 ## How XCP Works
 

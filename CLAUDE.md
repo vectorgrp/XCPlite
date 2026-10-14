@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-XCPlite (`libxcplite`) is a C11/C++17 implementation of the ASAM XCP measurement and calibration protocol, for XCP-on-Ethernet (TCP/UDP), targeting multicore Linux/QNX/macOS microprocessors as well as FreeRTOS microcontrollers. It provides thread-safe, lock-free instrumentation macros/functions so application code can expose stack, heap, thread-local, and global variables as measurement signals and calibration parameters to XCP tools (CANape, CANoe, etc.), with A2L (ASAM description file) generation either at runtime on-target or offline from ELF/DWARF via the Rust `xcpclient` tool.
+XCPlite (`libxcplite`) is a C11/C++17 implementation of the ASAM XCP measurement and calibration protocol, for XCP-on-Ethernet (TCP/UDP), targeting multicore Linux/QNX/macOS microprocessors as well as FreeRTOS microcontrollers. It provides thread-safe, lock-free instrumentation macros/functions so application code can expose stack, heap, thread-local, and global variables as measurement signals and calibration parameters to XCP tools (CANape, CANoe, etc.), with A2L (ASAM description file) generation either at runtime on target or offline from ELF/DWARF via the Rust `xcpclient` tool.
 
 The public C API is `inc/xcplib.h` + `inc/a2l.h`; the C++ API is `inc/xcplib.hpp` + `inc/a2l.hpp` (RAII wrappers over the C core). Core protocol/runtime implementation lives in `src/`.
 
@@ -12,23 +12,24 @@ The public C API is `inc/xcplib.h` + `inc/a2l.h`; the C++ API is `inc/xcplib.hpp
 
 ## Build system
 
-CMake-based. **Five mutually exclusive build configurations**, each with its own build directory — never mix configurations in one build dir, since compile definitions differ:
+CMake-based. **Six mutually exclusive build configurations**, each with its own build directory — never mix configurations in one build dir, since compile definitions differ:
 
 | Configuration | Build dir | Config override header | Use case |
 |---|---|---|---|
 | `default` | `build/` | *(none, uses `src/xcplib_cfg.h`)* | 64-bit, on-target A2L generation, filesystem, Ethernet UDP/TCP |
-| `no_a2l` | `build-no_a2l/` | `src/xcplib_no_a2l_cfg.h` | No on-target A2L; generated externally from ELF via `xcpclient` |
+| `no_a2l` | `build-no_a2l/` | `src/xcplib_no_a2l_cfg.h` | No on-target A2L; generated externally from ELF via `xcpclient`; section registration (`OPTION_SECTION_REGISTRATION`) |
 | `ptp` | `build-ptp/` | `src/xcplib_ptp_cfg.h` | Socket hardware timestamps; Linux + PTP-capable NIC |
 | `shm` | `build-shm/` | `src/xcplib_shm_cfg.h` | Shared-memory multi-application mode (`shmtool`, `xcpdaemon`) |
-| `rtos` | `build-rtos/` | `src/xcplib_rtos_cfg.h` | FreeRTOS embedded targets: reduced footprint, no filesystem, 32-bit, no on-target A2L generation |
+| `rtos` | `build-rtos/` | `src/xcplib_rtos_cfg.h` | FreeRTOS embedded targets: reduced footprint, no filesystem, 32-bit, no on-target A2L generation, section registration |
+| `raw` | `build-raw/` | `src/xcplib_raw_cfg.h` | Raw Ethernet transport: XCP on UDP/IPv4 implemented inside xcplib on a raw Ethernet HAL (`OPTION_ENABLE_UDP_RAW`, no TCP/IP stack, no TCP), mandatory `OPTION_QUEUE_32`; Linux only (AF_PACKET, needs `CAP_NET_RAW`), template for embedded ports, see `docs/SOCKET_RAW.md` |
 
 Selected via `-DXCPLITE_CONFIGURATION=<name>` (default: `default`). Within a configuration, `XCPLITE_BUILD_EXAMPLES`, `XCPLITE_BUILD_TESTS`, `XCPLITE_BUILD_TOOLS` (all default `OFF`) control which targets get built — which targets exist depends on the active configuration (see table in `docs/BUILDING.md`). `XCPLITE_BUILD_RUST_TOOLS` builds `xcpclient`/`bintool` via cargo (any configuration). `XCPLITE_BUILD_BPF_DEMO` builds `bpf_demo` (default config, Linux only, requires libbpf).
 
-`examples/silkit_demo`, `examples/external_example` and `examples/fetchcontent_example` are standalone projects with their own `CMakeLists.txt` — they are not built from the root project. The first two consume an installed xcplite via `find_package(xcplite)`; `fetchcontent_example` builds xcplite from source via `FetchContent` (`./build.sh local` builds against the working tree). Both paths provide the target `xcplite::xcplite`. When consumed as a subproject, the root `CMakeLists.txt` leaves the consumer's install prefix and `CMAKE_<LANG>_FLAGS_<CONFIG>` untouched and defaults `XCPLITE_INSTALL` to `OFF`.
+`examples/silkit_demo`, `examples/external_example` and `examples/fetchcontent_example` are standalone projects with their own `CMakeLists.txt` — they are not built from the root project. `external_example` consumes an installed xcplite via `find_package(xcplite)`; `fetchcontent_example` and `silkit_demo` build xcplite from source via `FetchContent` (`./build.sh local` builds against the working tree), `silkit_demo` also fetches and builds SIL Kit (shm configuration, `shmtool` in its `build/`). Both paths provide the target `xcplite::xcplite`. When consumed as a subproject, the root `CMakeLists.txt` leaves the consumer's install prefix and `CMAKE_<LANG>_FLAGS_<CONFIG>` untouched and defaults `XCPLITE_INSTALL` to `OFF`.
 
 ### Common commands
 
-`build.sh` wraps CMake: `./build.sh [build_type] [configuration] [target] [options]` (any order; `build_type` = `debug`|`release`|`relwithdebinfo`, default `debug`; `configuration` = `default`|`no_a2l`|`ptp`|`shm`|`rtos`; `target` = `lib`|`examples`|`tests`|`tools`|`rust_tools`|`all`, default `examples`; `options` = `clean` `cleanall` `install` `install=<path>` `cargo_install` `tidy` `run`).
+`build.sh` wraps CMake: `./build.sh [build_type] [configuration] [target] [options]` (any order; `build_type` = `debug`|`release`|`relwithdebinfo`, default `debug`; `configuration` = `default`|`no_a2l`|`ptp`|`shm`|`rtos`|`raw`; `target` = `lib`|`examples`|`tests`|`tools`|`rust_tools`|`all`, default `examples`; `options` = `clean` `cleanall` `install` `install=<path>` `cargo_install` `tidy` `run`).
 
 ```bash
 ./build.sh                          # library + examples, default config, debug
@@ -37,6 +38,7 @@ Selected via `-DXCPLITE_CONFIGURATION=<name>` (default: `default`). Within a con
 ./build.sh ptp tools                # ptptool (Linux only)
 ./build.sh no_a2l examples          # no_a2l_demo(_cpp)
 ./build.sh rtos examples            # freertos_emu_demo (Linux/macOS host simulator)
+./build.sh raw examples             # udp_raw_demo (Linux only, needs CAP_NET_RAW)
 ./build.sh lib tidy                 # build lib + run clang-tidy
 ./build.sh clean examples           # clean rebuild
 ./build.sh cleanall                 # wipe all build-* dirs
@@ -56,7 +58,7 @@ Switching compilers requires a fresh build directory (CMake caches the compiler 
 
 ### Running tests
 
-Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `daq_config_test`, `clock_test`, `queue_test`, `xcp_test`, `passive_test_c`, `passive_test_cpp`, `type_detection_test_*`; `ptp` config: `clock_test` only). Build then run directly, e.g.:
+Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `daq_config_test`, `clock_test`, `queue_test`, `xcp_test`, `passive_test_c`, `passive_test_cpp`, `type_detection_test_*`; `ptp` config: `clock_test` only; `raw` config: `socket_raw_test`, end-to-end test `test/test_socket_raw.sh`). Build then run directly, e.g.:
 
 ```bash
 ./build.sh tests           # build the test suite
@@ -65,7 +67,7 @@ Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config
 ./build/cal_test           # hermetic self-check by default; pass --server for interactive CANape/xcpclient use
 ```
 
-The self-verifying tests are registered with CTest and can be run unattended (interactive server tests `daq_test`/`clock_test`, the client probe `xcp_test` and the `queue_test` benchmark are excluded and run by hand):
+The self-verifying tests are registered with CTest and can be run unattended (interactive server tests `daq_test`/`clock_test` and the `queue_test` benchmark are excluded and run by hand; `xcp_test` runs against an in-process server with label `integration`, `--server <ip>` probes an external one):
 
 ```bash
 ctest --test-dir build --output-on-failure   # run all registered tests (same as: ./build.sh tests run)
@@ -74,7 +76,7 @@ ctest --test-dir build -L unit               # only the fast unit tests
 
 See [test/README.md](test/README.md) for the full taxonomy, conventions for new tests, and how to drive the interactive ones.
 
-`test/test.sh [clean] [example_name]` runs the example integration tests against `build/` (not the unit test binaries above): builds each example, exercises it, and diffs generated `.a2l` files against `test/fixtures/`. Omit `example_name` to run all examples; `clean` first deletes generated `.a2l`/`.bin`/`.hex` files from the workspace root.
+`test/test_examples.sh [clean] [example_name]` runs the example integration tests against `build/` (not the unit test binaries above): builds each example, exercises it, and diffs generated `.a2l` files against `test/fixtures/`. Omit `example_name` to run all examples; `clean` first deletes generated `.a2l`/`.bin`/`.hex` files from the workspace root.
 
 ### Windows / QNX
 
@@ -120,21 +122,27 @@ The 64-bit lock-free queue needs `atomic_uint_least64_t`; some ARM/Clang combina
 
 ### Calibration segments (RCU, see `docs/CAL_RCU.md`)
 
-Calibration parameters live in **calibration segments**: a struct wrapped so the single XCP writer thread and multiple lock-free/wait-free reader threads (`XcpLockCalSeg`/`XcpUnlockCalSeg`, or `CalSeg<T>::lock()` in C++) stay consistent without blocking. Implementation uses a 3-page RCU scheme (`ecu_page`/`xcp_page`/`free_page`) — precondition is exactly one writer thread. Read `docs/CAL_RCU.md` before touching `src/cal.c`; the compromises/invariants documented there (e.g. visibility delay is "second lock after write", starvation is possible under heavy read contention) are load-bearing, not incidental.
+Calibration parameters live in **calibration segments**: a struct wrapped so the single XCP writer thread and multiple lock-free/wait-free reader threads (`XcpLockCalSeg`/`XcpUnlockCalSeg`, or `CalSeg<T>::lock()` in C++) stay consistent without blocking. Two RCU algorithms are implemented in `src/cal.c` behind a small set of `CalSegRcu*` primitives, selected with `OPTION_CAL_RCU_REFCOUNT` in `src/xcplib_cfg.h` (not `src/xcp_cfg.h`): the lock count / page hand-over scheme (default, `OPTION_CAL_RCU_REFCOUNT` undefined: wait-free lock, publishing depends on the lock count returning to zero, `ecu_page`/`xcp_page`/`free_page`) and per page reference counting (`OPTION_CAL_RCU_REFCOUNT` defined, not default and only enabled for special needs such as slow readers of configuration parameters: publishing independent of reader progress, lock-free instead of wait-free, `XCP_CALSEG_RCU_PAGES` pages). Precondition for both is exactly one writer thread. With `OPTION_CAL_RCU_REFCOUNT`, `XcpUnlockCalSeg`/`CalSegUnlock`/`CalBlkUnlock` take the page pointer returned by the matching lock as an additional parameter; the C++ guards hide the difference. Read `docs/CAL_RCU.md` before touching `src/cal.c`; the user contract, compromises and memory ordering documented there are load-bearing, not incidental.
 
 ### Addressing modes (see `docs/TECHNICAL.md`)
 
-XCPlite encodes *where* a measured/calibrated variable lives (global, stack, heap, calibration-segment-relative) in the XCP address extension byte, since it uses relative addressing rather than plain absolute addresses. This is central to how instrumentation macros (`A2lSetAbsoluteAddrMode`, `A2lSetStackAddrMode`, `A2lSetRelativeAddrMode`, `A2lSetSegmentAddrMode`) and event triggers (`DaqTriggerEvent`, `DaqTriggerEventExt`, `DaqEventVar`/`DaqEventExtVar`) work together — an XCP client must respect fixed event definitions and address extensions to avoid corrupting acquisition. `CASDD` vs `ACSDD` (governed by `OPTION_CAL_SEGMENTS_ABS`) is a project-wide convention affecting whether address extension 0 means "absolute" or "calibration-segment-relative" — check which is active before reasoning about address extension values.
+XCPlite encodes *where* a measured/calibrated variable lives (global, stack, heap, calibration-segment-relative) in the XCP address extension byte, since it uses relative addressing rather than plain absolute addresses. This is central to how instrumentation macros (`A2lSetAbsoluteAddrMode`, `A2lSetStackAddrMode`, `A2lSetRelativeAddrMode`, `A2lSetSegmentAddrMode`) and event triggers (`DaqTriggerEvent`, `DaqTriggerEventExt`, `DaqEventVar`) work together — an XCP client must respect fixed event definitions and address extensions to avoid corrupting acquisition. `CASDD` vs `ACSDD` (governed by `OPTION_CAL_SEGMENTS_ABS`) is a project-wide convention affecting whether address extension 0 means "absolute" or "calibration-segment-relative" — check which is active before reasoning about address extension values.
 
 ### Offline A2L generation (`xcpclient`, no-A2L builds)
 
+Pure offline generation needs `#define OPTION_SECTION_REGISTRATION`: only then are event ids and calibration segment numbers known at link time. Without it (experimental, see the commented-out test block at the end of `src/xcplib_rtos_cfg.h`), they are the runtime creation order, so the A2L file must be generated online (`xcpclient --elf ...` connected to the running target, `create_a2l.sh online` in `freertos_esp32_demo`) or corrected with `--fix-a2l`. In that mode `CalSegDecl`/`CalSegDeclRef` are compile errors (use `CalSegCreate` after `XcpInit`), the `XCP_UNIT`/`XCP_LIMITS`/`XCP_COMMENT` metadata macros are unavailable, and `XcpCreateEpk` still works (xcpclient finds `xcp_epk__` by name in the DWARF). `examples/freertos_demo/xcp_demo.c` shows both variants.
+
+EPK: the target keeps its own copy of the string given to `XcpInit` (`local.epk`, truncated to `XCP_EPK_MAX_LENGTH` = 31 characters, space/tab/colon replaced by `_`). That copy is the default page of the `epk` calibration segment (index 0) and is what `GET_ID` and EPK uploads return; `xcp_epk__` from `XcpCreateEpk` is only read by xcpclient for the string. `ADDR_EPK` in generated A2L files is therefore `XCP_ADDR_EPK` (`0xFFFFFF00` in ACSDD, `0x80000000` in CASDD), never the address of `xcp_epk__`, and in absolute addressing mode the target's `epk` segment address differs from `xcp_epk__` by design.
+
+xcpclient builds its registry unflattened (the A2L file keeps typedefs/structs) and flattens it after writing the A2L, because the measurement/calibration code (`--mea`, `--cal`, `--list-cal`) handles basic-type instances only; struct members are addressed as `parameters.counter_max`, `foo.test_struct.a`.
+
 `no_a2l` and `rtos` are the two configurations that do not use on-target runtime A2L generation. Build-time A2L generation instead relies on information embedded in ELF file sections and DWARF markers to locate events and calibration parameter segments in the code: the Rust `xcpclient` tool (`tools/xcpclient/`) parses the built ELF's DWARF debug info and two marker sections:
-- `xcp_evts` section — `tXcpEventDescriptor` constants emitted by `DaqCreateEvent`/`DaqCreateAndTriggerEvent`
-- `xcp_cals` section — `tXcpCalSegDescriptor` constants emitted by `CalSegDecl`+`CalSegCreate`
+- `xcp_evts` section — `tXcpEventDescriptor` constants emitted by `DaqCreateEvent`/`DaqCreateAndTriggerEvent` the `default` configuration creates events at runtime and the trigger macros look them up by name)
+- `xcp_cals` section — `tXcpCalSegDescriptor` constants emitted by `CalSegDecl`+`CalSegCreate` and DWARF scope anchors named `trg__<mode-letters>__<event-name>` (e.g. `trg__AAS__foo`, letter position = address-extension value [0..]: `A`=absolute, `C`=cal-segment-relative, `S`=stack-relative, `D`=dynamic/heap) emitted by the trigger macros, to reconstruct addressing without any runtime A2L calls. The marker contract (sections, marker names, trigger anchor naming) is in `docs/TECHNICAL.md`, the tool side (workflow, naming rules, symbol resolution, supported types) in `docs/OFFLINE_A2L.md`.
 
-and DWARF scope anchors named `trg__<mode-letters>__<event-name>` (e.g. `trg__AAS__foo`, letter position = address-extension value [0..]: `A`=absolute, `C`=cal-segment-relative, `S`=stack-relative, `D`=dynamic/heap) emitted by the trigger macros, to reconstruct addressing without any runtime A2L calls. The marker contract (sections, marker names, trigger anchor naming) is in `docs/TECHNICAL.md`, the tool side (workflow, naming rules, symbol resolution, supported types) in `docs/OFFLINE_A2L.md`.
+Not supported on Windows.
 
-The generator reads ELF files only. Executables built on macOS are Mach-O and carry no DWARF (the linker leaves it in the `.o` files / `.dSYM`), so `xcpclient` rejects them with an explicit "macOS is not supported" error and exit status 1 — A2L files for `no_a2l`/`rtos` builds must be generated from a Linux build, which is what the examples' `create_a2l.sh` scripts do via a remote build on a Linux target.
+The generator reads ELF files only. Executables built on macOS are Mach-O and carry no DWARF (the linker leaves it in the `.o` files / `.dSYM`), so `xcpclient` rejects them with an explicit "macOS is not supported" error and exit status 1 — A2L files for native `no_a2l`/`rtos` builds (`no_a2l_demo*`, `freertos_emu_demo`) must be generated from a Linux build, which is what those examples' `create_a2l.sh` scripts do via a remote build on a Linux target. Cross-compiled embedded firmware is ELF regardless of the host, so `freertos_esp32_demo/create_a2l.sh` runs locally on macOS against the PlatformIO `firmware.elf`.
 
 ### Shared-memory (SHM) multi-application mode (`docs/SHM.md`)
 

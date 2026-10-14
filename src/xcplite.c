@@ -4,7 +4,7 @@
 |
 |  Description:
 |    Implementation of the ASAM XCP Protocol Layer V1.4
-|    Version V2.2.x
+|    Version V2.3.x
 |       - Optimized for 64 bit POSIX based platforms (Linux, QNX or MacOS)
 |       - Compatible with 32 bit platforms
 |       - Tested on x86 strong and ARM weak memory model
@@ -329,20 +329,6 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
     }
 
 /****************************************************************************/
-// Metrics
-/****************************************************************************/
-
-#ifdef TEST_ENABLE_DBG_METRICS
-uint32_t gXcpWritePendingCount = 0;
-uint32_t gXcpCalSegPublishAllCount = 0;
-uint32_t gXcpDaqEventCount = 0;
-uint32_t gXcpTxPacketCount = 0;
-uint32_t gXcpTxMessageCount = 0;
-uint32_t gXcpTxIoVectorCount = 0;
-uint32_t gXcpRxPacketCount = 0;
-#endif
-
-/****************************************************************************/
 // Logging
 /****************************************************************************/
 
@@ -627,7 +613,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
     if (local.mta_ext == XCP_ADDR_EXT_EPK && local.mta_addr == XCP_ADDR_EPK) {
         local_mut.mta_ptr = (uint8_t *)XcpGetEcuEpk();
         local_mut.mta_ext = XCP_ADDR_EXT_PTR;
-        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_PTR p=%p\n", local_mut.mta_ptr);
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_PTR p=%p\n", (void *)local_mut.mta_ptr);
         return CRC_CMD_OK;
     }
 #endif
@@ -699,7 +685,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
             local_mut.mta_addr = XcpAddrEncodeSegIndex(calseg_index, local.mta_ptr - c->h.default_page_ptr); // Convert to segment relative address
             DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_ABS -> XCP_ADDR_EXT_SEG, addr=%08X\n", local_mut.mta_addr);
         } else {
-            DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_ABS, a=%08X, p=%p\n", local_mut.mta_addr, local_mut.mta_ptr);
+            DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_ABS, a=%08X, p=%p\n", local_mut.mta_addr, (void *)local_mut.mta_ptr);
         }
 #endif
 
@@ -970,6 +956,8 @@ tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns, uint8_t pri
     return id;
 }
 
+#ifdef OPTION_SECTION_REGISTRATION
+
 // Pre-register all tXcpEventDescriptor variables placed in the xcp_evts section by DaqCreateEvent().
 // Must be called after SS_ACTIVATED is set (XcpCreateEvent requires isActivated()).
 // If a persistence file was loaded before this call, events are matched by name and keep their saved id.
@@ -983,6 +971,18 @@ static uint16_t XcpRegisterSectionEvents(void) {
     const tXcpEventDescriptor *end = __stop_xcp_evts;
     if (begin != NULL && end != NULL && begin < end) {
         for (const tXcpEventDescriptor *e = begin; e < end; e++) {
+
+            // Detect an event which is created at more than one place (a descriptor with the same name earlier in the section)
+            // The event is created only once, but the trigger macros use the position of their descriptor in the section as event id,
+            // so the triggers of all following events would use wrong event ids
+            // A match by name with an event loaded from a persistence file is not a duplicate, so the section itself is searched here
+            for (const tXcpEventDescriptor *d = begin; d < e; d++) {
+                if (strcmp(d->name, e->name) == 0) {
+                    DBG_PRINTF_ERROR("Event '%s' is created at more than one place !!!\n", e->name);
+                    break;
+                }
+            }
+
             tXcpEventId id = XcpFindEvent(e->name);
             if (id == XCP_UNDEFINED_EVENT_ID) {
                 id = XcpCreateEvent(e->name, e->cycle_time_ns, e->priority);
@@ -1003,6 +1003,8 @@ static uint16_t XcpRegisterSectionEvents(void) {
 #endif
     return count;
 }
+
+#endif // OPTION_SECTION_REGISTRATION
 
 #else // XCP_ENABLE_DAQ_EVENT_LIST
 
@@ -1649,11 +1651,11 @@ static void XcpTriggerDaqList_(tQueueHandle queue_handle, uint16_t daq, const ui
 #endif
             while (e <= el) {
                 uint8_t n = *size_ptr++;
-#ifdef XCP_ENABLE_TEST_CHECKS
+#if defined(XCP_ENABLE_TEST_CHECKS) && !defined(NDEBUG)
                 assert(n != 0);
 #endif
 #ifdef XCP_ENABLE_DAQ_ADDREXT
-#ifdef XCP_ENABLE_TEST_CHECKS
+#if defined(XCP_ENABLE_TEST_CHECKS) && !defined(NDEBUG)
                 assert(*addr_ext_ptr < count && (bases[*addr_ext_ptr] != NULL || XcpAddrIsAbs(*addr_ext_ptr)));
 #else
                 (void)count;
@@ -1676,10 +1678,6 @@ static void XcpTriggerDaqList_(tQueueHandle queue_handle, uint16_t daq, const ui
 // Trigger DAQ event
 // DAQ lists must be valid and DAQ must be running
 static void XcpTriggerDaqEvent_(tQueueHandle queue_handle, tXcpEventId event_id, int count, const uint8_t **bases, uint64_t clock) {
-
-#ifdef TEST_ENABLE_DBG_METRICS
-    atomic_fetch_add_explicit(&gXcpDaqEventCount, 1, memory_order_relaxed);
-#endif
 
     // Take event timestamp if not already done
     if (clock == 0) {
@@ -3256,23 +3254,25 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     static tXcpCalSegIndex calseg_id_epk = XCP_UNDEFINED_CALSEG;
     static const tXcpCalSegDescriptor calseg__epk XCP_CAL_SECTION_ATTR = {
         .name = XCP_EPK_CALSEG_NAME, .addr = &calseg_id_epk, .indexp = (tXcpCalSegIndex *)&calseg_id_epk, .size = XCP_EPK_MAX_LENGTH + 1, .type = XCP_CALSEG_TYPE_SEGMENT};
+    (void)calseg__epk; // Without section registration, the descriptor is only the calseg__epk marker for offline A2L tools
     DBG_PRINTF3("XcpInit: Create EPK calibration segment '%s'\n", XCP_EPK_CALSEG_NAME);
-    // @@@@ TODO: Are we sure, that this works in absolute addressing mode, since the reference page is not copied anymore: what is writen to the A2L file
-    // Note that this, this might not be the final EPK yet
-    // In SHM mode, it is too early to initialize the EPK segment, since the EPK is a hash of the applications EPKs
-    // XcpGetEcuEpk() will return the EPK a static lifetime empty string in this case, with XCP_EPK_MAX_LENGTH + 1 zero initialized bytes
+    // In SHM mode, the EPK is a hash of the applications EPKs
+    // Note that this might not be the final EPK yet
+    // XcpGetEcuEpk() will return the EPK as a static lifetime empty string, in this case with XCP_EPK_MAX_LENGTH + 1 zero initialized bytes
     calseg_id_epk = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, XcpGetEcuEpk(), XCP_EPK_MAX_LENGTH + 1);
     assert(calseg_id_epk == 0);
 #endif
 
-    // Pre-register all segments whose tXcpCalSegDescriptor lives in the xcp_cals binary section.
-    // This optionally replaces the lazy creation at all CalSegCreate(), CalBlkCreate() macro call sites
-    // This is done after loading the persistence file, to ensure that all segments from the persistence file are already in the segment list, in particular segments from other
-    // applications in SHM mode
+// Pre-register all segments whose tXcpCalSegDescriptor lives in the xcp_cals binary section.
+// This optionally replaces the lazy creation at all CalSegCreate(), CalBlkCreate() macro call sites
+// This is done after loading the persistence file, to ensure that all segments from the persistence file are already in the segment list, in particular segments from other
+// applications in SHM mode
+#ifdef OPTION_SECTION_REGISTRATION
     XcpRegisterSectionCalSegs();
 #endif
+#endif
 
-#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+#if defined(OPTION_SECTION_REGISTRATION) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
     // Pre-register all events whose tXcpEventDescriptor lives in the xcp_evts binary section.
     // This optionally replaces the lazy creation at all DaqCreateEvent(), DaqCreateEventExt macro call sites
     // This is done after loading the persistence file, to ensure that all events from the persistence file are already in the event list, in particular events from other
@@ -3281,10 +3281,12 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 #endif
 
 #ifdef OPTION_SHM_MODE // XcpInit print inital SHM state
+#ifdef OPTION_ENABLE_DBG_PRINTS
     if (DBG_LEVEL >= 3) {
         DBG_PRINT3(ANSI_COLOR_BLUE "XCP shared memory initialized by leader\n" ANSI_COLOR_RESET);
         XcpShmDebugPrint();
     }
+#endif
 #endif
 
     return true;

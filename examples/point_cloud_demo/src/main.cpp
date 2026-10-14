@@ -320,13 +320,9 @@ template <uint16_t N> class PointCloud {
         // XCP: Create the A2L instance for the calibration parameters
         params_.CreateA2lTypedefInstance("ParametersT", "Point cloud simulation parameters");
 
-        // Create a cyclic event for the simulation step measurement
-        // Specify cycle_time_us in microseconds to enable time downscaling in CANape using the cyclic mode
-        DaqCreateEventExt(step, kParameters.cycle_time_us, 0);
+        real_time_ = simulation_time_ = ApplXcpGetClock64();
 
         std::cout << "PointCloud<" << (unsigned int)N << "> instance created" << std::endl;
-
-        real_time_ = simulation_time_ = ApplXcpGetClock64();
     }
 
     // Destructor

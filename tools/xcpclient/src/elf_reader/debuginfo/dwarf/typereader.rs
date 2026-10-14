@@ -591,8 +591,8 @@ impl DebugDataReader<'_> {
         typereader_data: &mut TypeReaderData,
     ) -> Result<(String, TypeInfo, u64), String> {
         let (unit, _) = &self.units[current_unit];
-        let data_location =
-            get_data_member_location_attribute(self, child_entry, unit.encoding(), current_unit, "<inherited class>").ok_or_else(|| "missing byte offset for inherited class".to_string())?;
+        let data_location = get_data_member_location_attribute(self, child_entry, unit.encoding(), current_unit, "<inherited class>")
+            .ok_or_else(|| "missing byte offset for inherited class".to_string())?;
 
         let Some((new_cur_unit, new_dbginfo_offset)) = get_type_attribute(child_entry, &self.units, current_unit)? else {
             // a base class whose type is "nothing"?

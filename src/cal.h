@@ -83,12 +83,52 @@ typedef uint16_t tXcpCalSegIndex;
 #define XCP_CALPAGE_ALIGNMENT 8   // Page alignment in bytes
 #define XCP_CALSEG_HEADER_SIZE 64 // Must be & XCP_CALPAGE_ALIGNMENT
 
+#ifdef OPTION_CAL_RCU_REFCOUNT
+#ifndef XCP_CALSEG_RCU_PAGES
+#error "XCP_CALSEG_RCU_PAGES must be defined with OPTION_CAL_RCU_REFCOUNT"
+#endif
+#if XCP_CALSEG_RCU_PAGES < 3
+#error "XCP_CALSEG_RCU_PAGES must be at least 3 (writer page, published page, one reclamation candidate)"
+#endif
+#if XCP_CALSEG_RCU_PAGES > 6
+#error "XCP_CALSEG_RCU_PAGES must be at most 6, the page reference counts have to fit into the 64 byte calibration segment header"
+#endif
+// The RCU state of the two algorithms occupies the same 16 bytes of the header, the reference counts are padded up to it
+#define XCP_CALSEG_RCU_PAD (12 - 2 * XCP_CALSEG_RCU_PAGES)
+#endif
+
 typedef struct {
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
     uint8_t *default_page_ptr; // Pointer to static lifetime default page
 #else
     uint8_t *res1; // Default, there is no pointer to the default page
 #endif
+#ifdef OPTION_CAL_RCU_REFCOUNT
+    // RCU state for per page reference counting, see docs/CAL_RCU.md
+    atomic_uint_least32_t published_page; // index of the published (ECU) page in [1..XCP_CALSEG_RCU_PAGES-1], written by the writer thread only
+    uint32_t xcp_page;                    // offset into c->b[] of the writer page (RCU page 0, fixed), or XCP_CALSEG_NO_PAGE
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
+    uint32_t file_pos; // position of the calibration segment in the persistence file
+#else
+    uint32_t res2;
+#endif
+    atomic_uint_least16_t page_refs[XCP_CALSEG_RCU_PAGES]; // number of readers pinning each RCU page, page 0 (writer page) is never pinned
+    uint16_t size;
+    atomic_uint_least8_t ecu_access; // page number for ECU access
+    uint8_t xcp_access;              // page number for XCP access
+    bool write_pending;              // write pending because write delay
+    tXcpCalSegNumber calseg_number;  // segment number, XCP_UNDEFINED_CALSEG_NUM if a calibration block, but not a MEMORY_SEGMENT
+    uint8_t app_id;                  // Application id for SHM_MODE
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
+    uint8_t mode; // for freeze and preload flags
+#else
+    uint8_t res3;
+#endif
+#if XCP_CALSEG_RCU_PAD > 0
+    uint8_t res4[XCP_CALSEG_RCU_PAD]; // Padding to XCP_CALSEG_HEADER_SIZE
+#endif
+#else
+    // RCU state for lock count and page hand-over, see docs/CAL_RCU.md
     atomic_uint_least32_t ecu_page_next; // offset into c->b[]
     atomic_uint_least32_t free_page;     // offset into c->b[]
     atomic_uint_least32_t ecu_page;      // offset into c->b[], or XCP_CALSEG_NO_PAGE, written by the reader thread which acquires the first lock
@@ -112,6 +152,7 @@ typedef struct {
     uint8_t res3;
 #endif
     uint8_t res4; // Padding, to keep the name length odd
+#endif
     char name[XCP_MAX_CALSEG_NAME + 1];
 } tXcpCalSegHeader;
 
@@ -119,42 +160,73 @@ static_assert(sizeof(bool) == 1, "Error: bool is not 1 byte");
 static_assert(sizeof(atomic_uint_least32_t) == 4, "Error: atomic_uint_least32_t is not 4 bytes");
 static_assert(sizeof(atomic_uint_least16_t) == 2, "Error: atomic_uint_least16_t is not 2 bytes");
 static_assert(sizeof(atomic_uint_least8_t) == 1, "Error: atomic_uint_least8_t is not 1 byte");
+
+// The RCU state is only correct and wait-free if the 8, 16 and 32 bit atomics are genuinely lock-free (docs/CAL_RCU.md chapter 5.7).
+// Otherwise the compiler emits __atomic_* library calls, which may be implemented by disabling interrupts (not multicore safe) or a lock table.
+// uint_least32_t is unsigned int or unsigned long depending on the toolchain (e.g. unsigned long on arm-none-eabi and ESP-IDF >= 5), so both are checked.
+// Value 2 means "always lock-free" and is a compile-time constant, unlike the runtime atomic_is_lock_free().
+#ifndef OPTION_ATOMIC_EMULATION
+static_assert(ATOMIC_CHAR_LOCK_FREE == 2, "8-bit atomics are not unconditionally lock-free on this target, see docs/CAL_RCU.md chapter 5.7");
+static_assert(ATOMIC_SHORT_LOCK_FREE == 2, "16-bit atomics are not unconditionally lock-free on this target, see docs/CAL_RCU.md chapter 5.7");
+static_assert(ATOMIC_INT_LOCK_FREE == 2, "int atomics are not unconditionally lock-free on this target, see docs/CAL_RCU.md chapter 5.7");
+static_assert(ATOMIC_LONG_LOCK_FREE == 2, "long atomics are not unconditionally lock-free on this target, see docs/CAL_RCU.md chapter 5.7");
+#endif
 static_assert(XCP_CALSEG_HEADER_SIZE % XCP_CALPAGE_ALIGNMENT == 0, "Error: XCP_CALSEG_HEADER_SIZE is not a multiple of XCP_CALPAGE_ALIGNMENT");
 static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: size of tXcpCalSegHeader is not equal to XCP_CALSEG_HEADER_SIZE");
 
 // Accessor helpers: resolve a page offset to a pointer within c->b[]
 // Returns NULL when offset is XCP_CALSEG_NO_PAGE
+// Page size rounded up to XCP_CALPAGE_ALIGNMENT
+#define CalSegAlignedPageSize(c) ((uint32_t)(((uint32_t)(c)->h.size + XCP_CALPAGE_ALIGNMENT - 1) & ~(uint32_t)(XCP_CALPAGE_ALIGNMENT - 1)))
+
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
 
 // In absolute addressing mode
 // Save the memory for the default page copy in absolute addressing mode, default page has static lifetime
-#define CALSEG_PAGE_COUNT 3                                           // default page, ECU page and XCP page
-#define XCP_PAGE_OFFSET(aligned_page_size) (0)                        // Initial offset of the XCP working page in the allocated memory buffer
-#define ECU_PAGE_OFFSET(aligned_page_size) (aligned_page_size)        // Initial of the ECU working page in the allocated memory buffer
-#define FREE_PAGE_OFFSET(aligned_page_size) (2 * (aligned_page_size)) // Initial of the free swap page in the allocated memory buffer
+#define CALSEG_DEFAULT_PAGE_COUNT 0                 // No copy of the default page
+#define CALSEG_RCU_PAGE_BASE(aligned_page_size) (0) // Offset of the first RCU page in the allocated memory buffer
 #define CalSegDefaultPage(c) (const uint8_t *)(c)->h.default_page_ptr
-#define CalSegEcuPage(c) (&(c)->b[atomic_load_explicit(&(c)->h.ecu_page, memory_order_acquire)])
-#define CalSegXcpPage(c) &(c)->b[(c)->h.xcp_page]
 
 #else
 
 // In segment relative addressing mode
 // Maintain a copy of the default page, mandatory for SHM mode, using shared memory
-#define CALSEG_PAGE_COUNT 4                                           // default page, ECU page, XCP page and free swap page
-#define DEFAULT_PAGE_OFFSET (0)                                       // Constant offset of the default page in the allocated memory buffer
-#define XCP_PAGE_OFFSET(aligned_page_size) (aligned_page_size)        // Initial offset of the XCP working page in the allocated memory buffer
-#define ECU_PAGE_OFFSET(aligned_page_size) (2 * (aligned_page_size))  // Initial of the ECU working page in the allocated memory buffer
-#define FREE_PAGE_OFFSET(aligned_page_size) (3 * (aligned_page_size)) // Initial of the free swap page in the allocated memory buffer
+#define CALSEG_DEFAULT_PAGE_COUNT 1                                 // Copy of the default page
+#define DEFAULT_PAGE_OFFSET (0)                                     // Constant offset of the default page in the allocated memory buffer
+#define CALSEG_RCU_PAGE_BASE(aligned_page_size) (aligned_page_size) // Offset of the first RCU page in the allocated memory buffer
 #define CalSegDefaultPage(c) &(c)->b[DEFAULT_PAGE_OFFSET]
-#define CalSegEcuPage(c) (&(c)->b[atomic_load_explicit(&(c)->h.ecu_page, memory_order_acquire)])
-#define CalSegXcpPage(c) &(c)->b[(c)->h.xcp_page]
 
+#endif
+
+// RCU pages
+#ifdef OPTION_CAL_RCU_REFCOUNT
+#define CALSEG_RCU_PAGE_COUNT XCP_CALSEG_RCU_PAGES // Writer page (0), published page and reclamation candidates
+#else
+#define CALSEG_RCU_PAGE_COUNT 3 // XCP page, ECU page and free swap page
+#endif
+#define CALSEG_PAGE_COUNT (CALSEG_DEFAULT_PAGE_COUNT + CALSEG_RCU_PAGE_COUNT) // Total number of pages in the allocated memory buffer
+
+// Offset of RCU page idx in the allocated memory buffer
+#define CALSEG_RCU_PAGE_OFFSET(aligned_page_size, idx) (CALSEG_RCU_PAGE_BASE(aligned_page_size) + (uint32_t)(idx) * (uint32_t)(aligned_page_size))
+#define CalSegRcuPage(c, idx) (&(c)->b[CALSEG_RCU_PAGE_OFFSET(CalSegAlignedPageSize(c), (idx))])
+
+// Writer page
+#define CalSegXcpPage(c) (&(c)->b[(c)->h.xcp_page])
+
+// Published (ECU) page, for use by the writer thread (which never writes into it) or by a reader holding a lock
+#ifdef OPTION_CAL_RCU_REFCOUNT
+#define CalSegEcuPage(c) CalSegRcuPage(c, atomic_load_explicit(&(c)->h.published_page, memory_order_acquire))
+#else
+#define XCP_PAGE_OFFSET(aligned_page_size) CALSEG_RCU_PAGE_OFFSET(aligned_page_size, 0)  // Initial offset of the XCP working page
+#define ECU_PAGE_OFFSET(aligned_page_size) CALSEG_RCU_PAGE_OFFSET(aligned_page_size, 1)  // Initial offset of the ECU working page
+#define FREE_PAGE_OFFSET(aligned_page_size) CALSEG_RCU_PAGE_OFFSET(aligned_page_size, 2) // Initial offset of the free swap page
+#define CalSegEcuPage(c) (&(c)->b[atomic_load_explicit(&(c)->h.ecu_page, memory_order_acquire)])
 #endif
 
 // Calibration segment
 typedef struct {
     tXcpCalSegHeader h; // 64 byte header, must be first for CalSegPtr() to work
-    // variable size data block for the pages, actual size is page_size * CALSEG_PAGE_COUNT, for [default_page], working page, free page and xcp page
+    // variable size data block for the pages, actual size is aligned page size * CALSEG_PAGE_COUNT, for [default page] and the RCU pages
     uint8_t b[];
 } tXcpCalSeg;
 
@@ -198,9 +270,12 @@ tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint
 const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
 
 // Unlock a calibration segment
-// Single threaded, must be used in the thread it was created
-// Returns the lock count before the unlock
-uint16_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+// Thread safe, page is the pointer returned by the matching XcpLockCalSeg
+#ifdef OPTION_CAL_RCU_REFCOUNT
+void XcpUnlockCalSeg(tXcpCalSegIndex calseg, const void *page);
+#else
+void XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+#endif
 
 // Update the EKP segment with the current EPK value
 #ifdef XCP_ENABLE_EPK_CALSEG
@@ -233,13 +308,18 @@ static_assert(sizeof(((tXcpCalSegDescriptor *)0)->res) > 0, "tXcpCalSegDescripto
 // Platform section attribute for tXcpCalSegDescriptor static variables created by CalSegCreate() and CalBlkCreate().
 // Placing all descriptors in a named ELF/Mach-O section lets XcpInit() iterate them and
 // pre-register every calibration segment or block before the first use, without requiring the call site of the creation to execute first.
+#ifdef OPTION_SECTION_REGISTRATION
 #if defined(__ELF__)
 #define XCP_CAL_SECTION_ATTR __attribute__((section("xcp_cals"), used))
 #elif defined(__APPLE__)
 #define XCP_CAL_SECTION_ATTR __attribute__((section("__DATA,xcp_cals"), used))
 #else
-#define XCP_CAL_SECTION_ATTR /* section-based registration not supported on this platform */
+#define XCP_CAL_SECTION_ATTR
+#error "section-based registration not supported on this platform"
 #endif
+#else
+#define XCP_CAL_SECTION_ATTR
+#endif // OPTION_SECTION_REGISTRATION
 
 #endif // __XCPLIB_H__
 
@@ -248,8 +328,9 @@ void XcpInitCalSegList(void);
 void XcpDeinitCalSegList(void);
 
 // Register all calibration segments from the xcp_cals section, returns the number of registered segments
+#ifdef OPTION_SECTION_REGISTRATION
 uint16_t XcpRegisterSectionCalSegs(void);
-
+#endif
 // Get the number of calibration segments
 uint16_t XcpGetCalSegCount(void);
 

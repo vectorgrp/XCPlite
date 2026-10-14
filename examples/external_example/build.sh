@@ -36,7 +36,7 @@ fi
 echo -e "${GREEN}Step 1: Building xcplite ...${NC}"
 echo "----------------------------------------"
 cd "${REPO_ROOT}"
-./build.sh release library install
+./build.sh release lib install
 
 
 # Step 2: Build the external example

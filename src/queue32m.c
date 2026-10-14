@@ -98,56 +98,31 @@ typedef struct Queue {
 } tQueue;
 
 /*
-STM32H7 memory placement — DTCM vs AXI SRAM vs non-cacheable
-The STM32H7 has distinct memory regions with very different characteristics:
+Memory placement of the queue state (sXcpQueue) and the segment buffers (sXcpQueueBuf)
 
-Region	            Access	            Cache	    DMA
-DTCM (128KB)	    0-wait-state CPU	No	        No (MDMA only)
-AXI SRAM (512KB)	~3 cycles	        D-Cache	    Yes (all DMAs)
-Non-cacheable SRAM	varies	            No	        Yes
+Both default to ordinary RAM (no attribute). They may be placed into a dedicated linker section with
+OPTION_QUEUE_32_ATTRIBUTE and OPTION_QUEUE_32_BUFFER_ATTRIBUTE. The section must exist in the
+application linker script: GNU ld places an unknown (orphan) section somewhere without any diagnostic.
 
-Place the tQueue header struct (hot: queue_rp, queue_len, msg_ptr) in DTCM via __attribute__((section(".dtcm"))) — zero-wait-state, no cache needed.
-Place the queue->queue segment buffer array in a non-cacheable AXI SRAM region — avoids the need for SCB_CleanDCacheByAddr before DMA Ethernet TX and SCB_InvalidateDCacheByAddr
-after RX
+Example STM32H7, the hot queue state in zero wait state DTCM:
+  #define OPTION_QUEUE_32_ATTRIBUTE __attribute__((section(".dtcm")))
 
-Without non-cacheable placement, the D-Cache creates correctness hazards: the CPU writes data into the queue buffer, the cache line is dirty, but the Ethernet DMA reads stale data
-from AXI SRAM. You need explicit SCB_CleanDCacheByAddr before queueRelease hands the buffer to the network stack.
+The segment buffers are transmitted with socketSendTo. With the default lwIP netconn API they are copied
+into a lwIP pbuf and never read by the Ethernet DMA, so they may stay in cached RAM. With
+OPTION_FREERTOS_LWIP_SOCKET_API and LWIP_NETIF_TX_SINGLE_PBUF=0 the Ethernet DMA reads them directly.
+Then, unless the Ethernet driver does the cache maintenance, they need a non-cacheable section:
+  #define OPTION_QUEUE_32_BUFFER_ATTRIBUTE __attribute__((section(".noncacheable")))
 */
 
-// STM32
-// Place the queue in DTCM for better performance on Cortex-M targets (zero-wait-state, no cache needed)
 #ifndef OPTION_QUEUE_32_ATTRIBUTE
-#if !defined(FREE_RTOS_POSIX_SIM) && !defined(ESP_PLATFORM)
-#define OPTION_QUEUE_32_ATTRIBUTE __attribute__((section(".dtcm")))
-#else
 #define OPTION_QUEUE_32_ATTRIBUTE
 #endif
-#endif
-
 #ifndef OPTION_QUEUE_32_BUFFER_ATTRIBUTE
-#if !defined(FREE_RTOS_POSIX_SIM) && !defined(ESP_PLATFORM)
-#define OPTION_QUEUE_32_BUFFER_ATTRIBUTE __attribute__((section(".noncacheable")))
-#else
 #define OPTION_QUEUE_32_BUFFER_ATTRIBUTE
-#endif
 #endif
 
 static tQueue OPTION_QUEUE_32_ATTRIBUTE sXcpQueue;
 static tXcpSegmentBuffer OPTION_QUEUE_32_BUFFER_ATTRIBUTE sXcpQueueBuf[OPTION_QUEUE_32_SIZE / sizeof(tXcpSegmentBuffer)];
-
-/*
-
-Place the sXcpQueue.queue segment buffer array in a non-cacheable AXI SRAM region —
-avoids the need for SCB_CleanDCacheByAddr before DMA Ethernet TX and SCB_InvalidateDCacheByAddr after RX.
-
-Without non-cacheable placement, the D-Cache creates correctness hazards:
-the CPU writes data into the queue buffer, the cache line is dirty,
-but the Ethernet DMA reads stale data from AXI SRAM. You need explicit SCB_CleanDCacheByAddr before queueRelease hands the buffer to the network stack
-
-static tQueue          s_queue       __attribute__((section(".dtcm")));
-static tXcpSegmentBuffer s_queue_buf[N] __attribute__((section(".noncacheable")));
-
-*/
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Locking

@@ -265,7 +265,6 @@ void tskFctDefault(void *argument)
    
     // Metric printout every 5 seconds
     {
-      // XcpEthTlPrintStatistics();
       // clockGetPrintStatistic();
       /*
       size_t rxStackSize, txStackSize;

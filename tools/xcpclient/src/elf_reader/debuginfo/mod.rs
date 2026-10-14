@@ -19,6 +19,7 @@ use std::fmt::Display;
 
 mod dwarf;
 
+use crate::elf_reader::ElfFilter;
 use crate::elf_reader::is_a2l_variable;
 
 // What the DWARF locations of the local variables of a function are relative to (DW_AT_frame_base of the function), and
@@ -145,10 +146,26 @@ pub(crate) struct DebugData {
     pub(crate) producers: Vec<Option<String>>,               // the DW_AT_producer of each unit by unit index: compiler, version and command line options
     pub(crate) sections: HashMap<String, (u64, u64)>,        // ELF section name -> (start address, end address), only sections with an address
     pub(crate) symbol_addresses: HashMap<String, u64>,       // ELF symbol name -> address, the symbol table (.symtab), C++ names are mangled
-    pub(crate) epk_string: Option<String>,                   // EPK string read from xcp_epk ELF section
-    pub(crate) epk_addr: u64,                                // Address of the xcp_epk ELF section (0 if not found)
+    pub(crate) epk_string: Option<String>,                   // EPK string read from xcp_epk ELF section or xcp_epk__ variable
+    pub(crate) epk_addr: u64,                                // Address of the xcp_epk ELF section or xcp_epk__ variable (0 if not found)
     pub(crate) xcp_meta_data: Option<(u64, Vec<u8>)>,        // (section_base_addr, raw_bytes) of xcp_meta section
     pub(crate) is_little_endian: bool,                       // ELF endianness
+    pub(crate) filter: ElfFilter, // the compilation unit and variable name selection from the command line (--elf-unit-limit, --elf-unit-filter, --elf-var-filter)
+}
+
+/// Convert a full compilation unit name, which might include a path, into a simple unit name (main_c for src/main.c).
+/// This is the name the compilation unit filter (--elf-unit-filter) is matched against, in the DWARF reader as well as
+/// in ElfReader::register_variables, so both use this one conversion
+pub(crate) fn make_simple_unit_name_from(full_name: &str) -> String {
+    let file_name = if let Some(pos) = full_name.rfind('\\') {
+        &full_name[(pos + 1)..]
+    } else if let Some(pos) = full_name.rfind('/') {
+        &full_name[(pos + 1)..]
+    } else {
+        full_name
+    };
+
+    file_name.replace('.', "_")
 }
 
 // load_dwarf - loads and parses the DWARF debug information from an ELF file
@@ -157,22 +174,21 @@ pub(crate) struct DebugData {
 // print_debug_stats - prints a summary of the debug information
 impl DebugData {
     /// load the debug info from an elf file
-    pub(crate) fn load_dwarf(filename: &OsStr, verbose: usize, unit_idx_limit: (usize, usize)) -> Result<Self, String> {
-        dwarf::load_elf_dwarf(filename, verbose, unit_idx_limit)
+    /// filter is the compilation unit and variable name selection from the command line, the DWARF reader uses it to limit the
+    /// units it reads and to decide whether a problem with a variable is worth a warning, and it stays in the DebugData for
+    /// ElfReader::register_variables
+    pub(crate) fn load_dwarf(filename: &OsStr, verbose: usize, filter: ElfFilter) -> Result<Self, String> {
+        dwarf::load_elf_dwarf(filename, verbose, filter)
+    }
+
+    /// Can a variable of this compilation unit become an A2L object? ElfFilter::unit_is_selected with the unit name resolved
+    pub(crate) fn unit_is_selected(&self, unit_idx: usize) -> bool {
+        self.filter.unit_is_selected(unit_idx, self.unit_names.get(unit_idx).and_then(Option::as_deref))
     }
 
     /// convert a full unit name, which might include a path, into a simple unit name
     pub(crate) fn make_simple_unit_name(&self, unit_idx: usize) -> Option<String> {
-        let full_name = self.unit_names.get(unit_idx)?.as_deref()?;
-        let file_name = if let Some(pos) = full_name.rfind('\\') {
-            &full_name[(pos + 1)..]
-        } else if let Some(pos) = full_name.rfind('/') {
-            &full_name[(pos + 1)..]
-        } else {
-            full_name
-        };
-
-        Some(file_name.replace('.', "_"))
+        Some(make_simple_unit_name_from(self.unit_names.get(unit_idx)?.as_deref()?))
     }
 
     /// Name of a struct/class type for its A2L typedef: the DWARF type name, qualified with the scope of the type
@@ -249,7 +265,7 @@ impl DebugData {
     // level >= 3 print demangled names
     // level >= 4 print type names
     // level >= 5 print types
-    pub(crate) fn print_debug_info(&self, level: usize, unit_idx_limit: (usize, usize)) {
+    pub(crate) fn print_debug_info(&self, level: usize) {
         //
         self.print_debug_stats();
 
@@ -352,7 +368,7 @@ impl DebugData {
 
             for (var_name, var_info) in &self.variables {
                 // Count all variable in unit_idx
-                let count = var_info.iter().filter(|v| v.unit_idx >= unit_idx_limit.0 && v.unit_idx <= unit_idx_limit.1).count();
+                let count = var_info.iter().filter(|v| self.filter.unit_in_range(v.unit_idx)).count();
 
                 // Skip standard library variables and system/compiler internals (__<name>)s
                 // Skip global XCP variables (gXCP.. and gA2L..)
@@ -361,7 +377,7 @@ impl DebugData {
                 }
 
                 // print only variables from compilation unit
-                if count == 1 && (var_info[0].unit_idx < unit_idx_limit.0 || var_info[0].unit_idx > unit_idx_limit.1) {
+                if count == 1 && !self.filter.unit_in_range(var_info[0].unit_idx) {
                     continue;
                 }
 
@@ -374,8 +390,8 @@ impl DebugData {
                     }
                     for var in var_info {
                         // print only variables from compilation unit 0..=unit_idx
-                        if var.unit_idx < unit_idx_limit.0 || var.unit_idx > unit_idx_limit.1 {
-                            continue; // print only variables from compilation unit 0..=unit_idx
+                        if !self.filter.unit_in_range(var.unit_idx) {
+                            continue; // print only variables inside the compilation unit limit
                         }
                         if count <= 1 {
                             print!("{} : ", var_name);

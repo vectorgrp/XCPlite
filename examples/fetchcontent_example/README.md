@@ -56,7 +56,7 @@ include(FetchContent)
 
 FetchContent_Declare(xcplite
     GIT_REPOSITORY https://github.com/vectorgrp/XCPlite.git
-    GIT_TAG        V2.2.2
+    GIT_TAG        V2.3.2
     GIT_SHALLOW    TRUE
 )
 
@@ -86,7 +86,7 @@ When xcplite detects that it is not the top-level project:
 
 ### Application specific configuration override
 
-The tunables of the library (`OPTION_*` in `src/xcplib_cfg.h`, documented in [xcplib_cfg.md](../../docs/xcplib_cfg.md)) are compile time settings. The shipped configurations (`no_a2l`, `ptp`, ...) are nothing more than override headers `src/xcplib_<name>_cfg.h` which `xcplib_cfg.h` includes at its end when the preprocessor symbol `XCPLIB_CFG_OVERRIDE` names them.
+The tunables of the library (`OPTION_*` in `src/xcplib_cfg.h`, documented in [xcplib_cfg.md](../../docs/xcplib_cfg.md)) are compile-time settings. The shipped configurations (`no_a2l`, `ptp`, ...) are nothing more than override headers `src/xcplib_<name>_cfg.h` which `xcplib_cfg.h` includes at its end when the preprocessor symbol `XCPLIB_CFG_OVERRIDE` names them.
 
 An application can provide such a header itself. This example does so with `config/xcplib_app_cfg.h`:
 
@@ -123,7 +123,7 @@ cmake -B build -S . -DFETCHCONTENT_SOURCE_DIR_XCPLITE=/path/to/XCPlite
 The repository and tag can also be changed on the command line without editing the file:
 
 ```bash
-cmake -B build -S . -DXCPLITE_GIT_REPOSITORY=https://github.com/<fork>/XCPlite.git -DXCPLITE_GIT_TAG=V2.2.2
+cmake -B build -S . -DXCPLITE_GIT_REPOSITORY=https://github.com/<fork>/XCPlite.git -DXCPLITE_GIT_TAG=V2.3.2
 ```
 
 ## See Also

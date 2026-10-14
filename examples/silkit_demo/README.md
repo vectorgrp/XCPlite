@@ -9,7 +9,7 @@ There are some tunable parameters to demonstrate thread-safe calibration and par
 
 Compared to other XCP integration examples, this demo focuses on 2 special aspects:
 
-- Simulation time vs. real time: The demo can be configured to use either the virtual simulation time (which advances non-realtime in fixed steps) or real wall-clock time for XCP event timestamps. 
+- Simulation time vs. real time: The demo can be configured to use either the virtual simulation time (which advances in fixed steps, not in real time) or real wall-clock time for XCP event timestamps. 
 - Multi application support: The demo can be run with either separate XCP servers for participants, or a single XCP server in multi-application shared memory mode used for both participants (default).
 
 The XCP server can be realized as a separate participant (in `XcpServer.cpp`) or integrated into the participants.  
@@ -52,67 +52,51 @@ See the documentation of XCPlite SHM mode (in docs/SHM.md) for more details on t
 
 ## Simulated Time
 
-The XCP events can be timestamped with either the virtual simulation time (which advances non real-time in fixed steps) or real wall-clock time.  
+The XCP events can be timestamped with either the virtual simulation time (which advances in fixed steps, not in real time) or real wall-clock time.  
 
-To use non real time targets with CANape, time synchronisation must be configured to 'Simulation' (Settings / Project Settings / Miscellaneous / Synchronization / Simulation). Then configure the XCP device as time master (Device Configuration / Right click on device / Time master).  
+To use non-real-time targets with CANape, time synchronisation must be configured to 'Simulation' (Settings / Project Settings / Miscellaneous / Synchronization / Simulation). Then configure the XCP device as time master (Device Configuration / Right click on device / Time master).  
 
 
 
 
 ## Building
 
-Build or download a SIL Kit release package from https://github.com/vectorgrp/sil-kit/releases.  
-The build tree of the git repository also works.
-
-### Build XCPlite
-
-Build and install the XCPlite library configured for shared memory mode:
-
-```bash
-cd /path/to/XCPlite
-
-./build.sh shm install
-# Installs to build/install/ by default
-
-#or 
-
-cmake -B build -DXCPLITE_CONFIGURATION=shm
-cmake --build build
-cmake --install build --prefix build/install
-
-# build the shm tool for testing
-./build.sh shm tools
-
-```
-
----
-
-## Build sil-kit and the demo
+The demo is a standalone CMake project. SIL Kit and XCPlite are both fetched and built from source via CMake `FetchContent` (see `CMakeLists.txt`), there is nothing to install upfront.  
+Requires CMake >= 3.14, git and network access on the first configure. The first build clones and compiles SIL Kit, which takes a few minutes.
 
 ```bash
 cd examples/silkit_demo
-cmake -B build \
-      -DSilKit_DIR=/path/to/sil-kit/_install/debug/lib/cmake/SilKit \
-      -DCMAKE_PREFIX_PATH=/path/to/XCPlite/build/install
-cmake --build build
+./build.sh            # [debug|release|relwithdebinfo] [local] [clean]
+
+# or
+
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel 4   # limit the jobs, SIL Kit is large
 ```
 
-`SilKit_DIR` must point to the directory containing `SilKitConfig.cmake`.  
-When building from the git repo, install SilKit first:
+What gets built:
+
+| Directory | Binaries |
+|---|---|
+| `build/` | `SilKitDemoPublisher`, `SilKitDemoSubscriber`, `SilKitXcpServer`, XCPlite tool `shmtool` |
+| `build/<CONFIG>/` (e.g. `build/Debug/`) | SIL Kit library, `sil-kit-registry`, `sil-kit-system-controller`, `sil-kit-monitor` |
+
+- **SIL Kit** is cloned from https://github.com/vectorgrp/sil-kit at the tag `SILKIT_GIT_TAG` with the submodules asio, fmt and spdlog. Only the library and the utilities are built (`SILKIT_BUILD_DEMOS`, `SILKIT_BUILD_TESTS`, `SILKIT_BUILD_DOCS`, `SILKIT_BUILD_DASHBOARD` are `OFF`). The SIL Kit build tree provides the same target `SilKit::SilKit` as an installed SIL Kit package.
+- **XCPlite** is built with `XCPLITE_CONFIGURATION=shm`. Multi application mode requires the XCP library compiled in shared memory mode (`OPTION_SHM_MODE`). `XCPLITE_BUILD_TOOLS=ON` adds `shmtool`, which is used by the scripts `status.sh`, `finalize.sh` and `clean.sh`.
+
+To build against local source trees instead of cloning:
+
 ```bash
-cmake --install /path/to/sil-kit/_build/debug --prefix /path/to/sil-kit/_install/debug
-```
-Then `SilKit_DIR` = `_install/debug/lib/cmake/SilKit`.
+./build.sh local      # XCPlite from this repository's working tree
 
-Or using `CMAKE_PREFIX_PATH` for both (if SilKit is installed to a standard prefix):
-
-```bash
-cmake -B build \
-      -DCMAKE_PREFIX_PATH="/path/to/sil-kit/_install/debug;/path/to/XCPlite/build/install"
-cmake --build build
+cmake -B build -S . -DFETCHCONTENT_SOURCE_DIR_XCPLITE=../.. \
+                    -DFETCHCONTENT_SOURCE_DIR_SILKIT=/path/to/sil-kit
 ```
 
-There is a build script `build.sh` that does the above with some default paths — edit it if needed.
+A local sil-kit checkout needs its submodules (`git submodule update --init --recursive`).  
+Other versions are selected with `-DSILKIT_GIT_TAG=<tag>` and `-DXCPLITE_GIT_REPOSITORY=<url>` `-DXCPLITE_GIT_TAG=<tag>`.  
+The demo needs an XCPlite version later than V2.2.2 (it creates and triggers events in different scopes), the default is the `dev-2.2.3` branch.
+
 ---
 
 ## Running
@@ -129,8 +113,7 @@ Open separate terminals. All commands are relative to the silkit_demo directory.
 **Terminal 0 — SIL Kit Registry:**
 
 ```bash
-/path/to/sil-kit/_build/debug/Debug/sil-kit-registry
-# Example: ../../sil-kit/_build/debug/Debug/sil-kit-registry
+./build/Debug/sil-kit-registry
 ```
 
 **Terminal 1 — XCP Server participant** 
@@ -148,7 +131,7 @@ Start the XCP server participant. Default is (XCP on UDP, port 5555):
 ./build/SilKitDemoPublisher
 # fast
 # ./build/SilKitDemoPublisher --sim-step-duration 10000 --fast
-# realtime
+# real time
 # ./build/SilKitDemoPublisher --sim-step-duration 10000 --config silkit_participant_cfg.json
 ```
 
@@ -158,7 +141,7 @@ Start the XCP server participant. Default is (XCP on UDP, port 5555):
 ./build/SilKitDemoSubscriber
 #fast
 # ./build/SilKitDemoSubscriber --sim-step-duration 10000 --fast
-# realtime
+# real time
 # ./build/SilKitDemoSubscriber --sim-step-duration 10000 --config silkit_participant_cfg.json
 ```
 
@@ -167,8 +150,7 @@ Start the XCP server participant. Default is (XCP on UDP, port 5555):
 Starts synchronized simulation:  
 
 ```bash
-/path/to/sil-kit/_build/debug/Debug/sil-kit-system-controller XcpServer Publisher Subscriber
-# Example: ../../sil-kit/_build/debug/Debug/sil-kit-system-controller XcpServer Publisher Subscriber
+./build/Debug/sil-kit-system-controller XcpServer Publisher Subscriber
 ```
 
 The `--sim-step-duration <us>` and `--fast` flags can be passed directly to both participant binaries when starting manually.
@@ -179,7 +161,7 @@ The `--sim-step-duration <us>` and `--fast` flags can be passed directly to both
 Check status of the XCP server:
 
 ```bash
-../../build-shm/shmtool status -v
+./build/shmtool status -v
 
 /xcpdata mmap found, size = 32768 bytes
 ================================================================================
@@ -389,7 +371,7 @@ DoWorkSync(now)                        [arrival callback fires]
 
 ```
 silkit_demo/
-├── CMakeLists.txt          # Independent build configuration
+├── CMakeLists.txt          # Standalone project, fetches SIL Kit and XCPlite via FetchContent
 ├── README.md               # This file
 ├── include/
 │   ├── ApplicationBase.hpp    # SIL Kit demo lifecycle helper (bundled)

@@ -6,12 +6,14 @@
 #include <cstring>  // for memset
 #include <iostream> // for std::cout
 #include <memory>   // for std::unique_ptr
+#include <random>   // for std::minstd_rand (task delay jitter)
 #include <thread>   // for std::thread
 #include <vector>
 
 // Public XCPlite/libxcplite API
 #include "a2l.hpp"    // for A2l generation application programming interface
 #include "xcplib.hpp" // for application programming interface
+#include "xcplite.h"
 
 // Internal libxcplite includes
 // Note: Take care for include order, when using internal libxcplite headers !!
@@ -34,14 +36,15 @@
 #define OPTION_LOG_LEVEL 3               // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // #define TEST_CALBLK                 // Use CalBlk instead of CalSeg
-#define TEST_THREAD_COUNT 4         // Number of threads
-#define TEST_WRITE_COUNT 10000      // Test writes
-#define TEST_ATOMIC_CAL 10          // Test with atomic begin/end calibration segment access, every N writes
-#define TEST_TASK_LOOP_DELAY_US 50  // Task loop delay in us
-#define TEST_TASK_LOCK_DELAY_US 0   // Task lock delay in us
-#define TEST_MAIN_LOOP_DELAY_US 100 // Write loop delay in us
-#define TEST_DATA_SIZE 8            // Default test data size
-#define TEST_LOCK_TIMING            // Create a histogram for the duration of XcpLockCalSeg
+#define TEST_THREAD_COUNT 8          // Number of threads
+#define TEST_WRITE_COUNT 20000       // Test writes
+#define TEST_ATOMIC_CAL 0            // Test with atomic begin/end calibration segment access, every N writes
+#define TEST_TASK_LOOP_DELAY_US 50   // Task loop delay in us
+#define TEST_TASK_LOOP_JITTER_PCT 25 // Random +/- jitter applied to the task loop delay, in percent (0 = none)
+#define TEST_TASK_LOCK_DELAY_US 0    // Task lock delay in us
+#define TEST_MAIN_LOOP_DELAY_US 250  // Write loop delay in us
+#define TEST_DATA_SIZE 8             // Default test data size
+#define TEST_LOCK_TIMING             // Create a histogram for the duration of XcpLockCalSeg
 
 bool verbose = false;
 
@@ -63,12 +66,13 @@ uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
 typedef struct {
     bool run;
     uint32_t check;
+    uint64_t write_time_ns; // Monotonic ns timestamp set by the writer; contiguous with data so both publish in one atomic write
     uint8_t data[TEST_DATA_SIZE];
 
 } ParametersT;
 
 // Default parameters - make this global/static so the address is stable
-static ParametersT kParameters = {.run = true, .check = 0, .data = {0}};
+static ParametersT kParameters = {.run = true, .check = 0, .write_time_ns = 0, .data = {0}};
 
 // Global calibration segment handle
 #ifdef TEST_CALBLK
@@ -78,99 +82,163 @@ static xcp::CalSeg<ParametersT> *calseg = nullptr; // Pointer to the calibration
 #endif
 
 //-----------------------------------------------------------------------------------------------------
-// Test statistics
+// Histogram for lock timing
 
 #ifdef TEST_LOCK_TIMING
 
-static MUTEX lock_mutex = MUTEX_INTIALIZER;
-static uint64_t lock_time_max = 0;
-static uint64_t lock_time_sum = 0;
-static uint64_t lock_count = 0;
-static uint64_t lock_calibration = 0; // Calibration value for the overhead of the timing measurement itself, to get more accurate results for short lock times
-
-// Variable-width lock timing histogram
+// Variable-width timing histogram
 // Fine granularity for short latencies, coarser for long-tail latencies
 // Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
-#define LOCK_TIME_HISTOGRAM_SIZE 26
-static const uint64_t LOCK_TIME_HISTOGRAM_EDGES[LOCK_TIME_HISTOGRAM_SIZE - 1] = {
+// scale multiplies the base edges, to stretch the same bin shape over a larger range (e.g. slow readers)
+// unit ("ns"/"us"/"ms"/"s") only controls how ranges/stats are displayed; samples are always in ns
+// linear_bin_width_ns > 0 switches to equal-width bins of that width (ignores scale/EDGES); better when the
+// distribution depends on reader cycle time and count and the log-style bins are misleading
+// Instantiate one per delay/latency measurement (thread-safe add_sample()).
+class TimeHistogram {
+  public:
+    explicit TimeHistogram(const char *name, uint64_t scale = 1, const char *unit = "ns", uint64_t linear_bin_width_ns = 0)
+        : name_(name), scale_(scale ? scale : 1), unit_(unit), unit_div_(ns_per_unit(unit)), linear_width_(linear_bin_width_ns) {
+        init();
+    }
+
+    // (Re)initialize counters and measure the timing overhead calibration value
+    void init() {
+        mutexInit(&mutex_, false, 0);
+        memset(histogram_, 0, sizeof(histogram_));
+        time_max_ = 0;
+        time_sum_ = 0;
+        count_ = 0;
+
+        // Calibrate
+        uint64_t sum = 0;
+        for (int i = 0; i < 10000; i++) {
+            volatile uint64_t time = clockGetMonotonicNs();
+            sum += clockGetMonotonicNs() - time;
+        }
+        calibration_ = sum / 10000;
+    }
+
+    void add_sample(uint64_t d) {
+        if (d >= calibration_) // Subtract calibration value to get more accurate results for short lock times
+            d -= calibration_;
+        else
+            d = 0;
+        mutexLock(&mutex_);
+        if (d > time_max_)
+            time_max_ = d;
+        int i;
+        if (linear_width_) {
+            i = (int)(d / linear_width_);
+            if (i >= SIZE)
+                i = SIZE - 1;
+        } else {
+            i = 0;
+            while (i < SIZE - 1 && d >= EDGES[i] * scale_)
+                i++;
+        }
+        histogram_[i]++;
+        time_sum_ += d;
+        count_++;
+        mutexUnlock(&mutex_);
+    }
+
+    void print_results() const {
+        printf("\n%s time statistics:\n", name_);
+        printf("  count=%" PRIu64 "  max=%g%s  avg=%g%s (cal=%" PRIu64 "ns)\n", count_, (double)time_max_ / (double)unit_div_, unit_,
+               count_ ? (double)(time_sum_ / count_) / (double)unit_div_ : 0.0, unit_, calibration_);
+
+        uint64_t histogram_sum = 0;
+        for (int i = 0; i < SIZE; i++)
+            histogram_sum += histogram_[i];
+        uint64_t histogram_max = 0;
+        for (int i = 0; i < SIZE; i++)
+            if (histogram_[i] > histogram_max)
+                histogram_max = histogram_[i];
+
+        printf("\n%s histogram (%" PRIu64 " events):\n", name_, histogram_sum);
+        printf("  %-20s  %10s  %7s  %s\n", "Range", "Count", "%", "Bar");
+        printf("  %-20s  %10s  %7s  %s\n", "--------------------", "----------", "-------", "------------------------------");
+
+        for (int i = 0; i < SIZE; i++) {
+            if (!histogram_[i])
+                continue;
+            double pct = (double)histogram_[i] * 100.0 / (double)histogram_sum;
+
+            char range_str[32];
+            double lo = (i == 0) ? 0.0 : (double)edge_ns(i - 1) / (double)unit_div_;
+            if (i == SIZE - 1) {
+                snprintf(range_str, sizeof(range_str), ">%g%s", lo, unit_);
+            } else {
+                snprintf(range_str, sizeof(range_str), "%g-%g%s", lo, (double)edge_ns(i) / (double)unit_div_, unit_);
+            }
+
+            char bar[31];
+            int bar_len = (histogram_max > 0) ? (int)((double)histogram_[i] * 30.0 / (double)histogram_max) : 0;
+            if (bar_len > 30)
+                bar_len = 30;
+            for (int j = 0; j < bar_len; j++)
+                bar[j] = '#';
+            bar[bar_len] = '\0';
+
+            printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, histogram_[i], pct, bar);
+        }
+        printf("\n");
+    }
+
+    // Delete copy and move (holds a MUTEX)
+    TimeHistogram(const TimeHistogram &) = delete;
+    TimeHistogram &operator=(const TimeHistogram &) = delete;
+
+  private:
+    static constexpr int SIZE = 26;
+    static const uint64_t EDGES[SIZE - 1];
+
+    // Upper edge of bin i in ns (i in [0, SIZE-2]); linear or variable-width depending on mode
+    uint64_t edge_ns(int i) const { return linear_width_ ? (uint64_t)(i + 1) * linear_width_ : EDGES[i] * scale_; }
+
+    // Nanoseconds per display unit
+    static uint64_t ns_per_unit(const char *u) {
+        if (strcmp(u, "us") == 0)
+            return 1000;
+        if (strcmp(u, "ms") == 0)
+            return 1000000;
+        if (strcmp(u, "s") == 0)
+            return 1000000000;
+        return 1; // "ns"
+    }
+
+    const char *name_;
+    uint64_t scale_; // Multiplier applied to the base edges
+    const char *unit_;
+    uint64_t unit_div_;     // Nanoseconds per display unit
+    uint64_t linear_width_; // Equal bin width in ns, or 0 for variable-width bins
+    MUTEX mutex_;
+    uint64_t time_max_ = 0;
+    uint64_t time_sum_ = 0;
+    uint64_t count_ = 0;
+    uint64_t calibration_ = 0; // Overhead of the timing measurement itself, subtracted from each sample
+    uint64_t histogram_[SIZE] = {0};
+};
+
+const uint64_t TimeHistogram::EDGES[TimeHistogram::SIZE - 1] = {
     10, 20, 40, 80, 120, 160, 200, 300, 400, 500, 600, 800, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000, 20000, 40000, 80000, 160000, 320000,
 };
-static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {0};
 
-static void lock_test_init(void) {
-    memset(lock_time_histogram, 0, sizeof(lock_time_histogram));
-    lock_time_max = 0;
-    lock_time_sum = 0;
-    lock_count = 0;
+//-----------------------------------------------------------------------------------------------------
+// Test statistics
 
-    // Calibrate
-    uint64_t sum = 0;
-    for (int i = 0; i < 10000; i++) {
-        volatile uint64_t time = clockGetMonotonicNs();
-        sum += clockGetMonotonicNs() - time;
-    }
-    lock_calibration = sum / 10000;
-}
+// Histogram for the duration of the calibration segment lock acquisition
+static TimeHistogram lock_time_histogram("Reader acquire lock");
 
-static void lock_test_add_sample(uint64_t d) {
-    if (d >= lock_calibration) // Subtract calibration value to get more accurate results for short lock times
-        d -= lock_calibration;
-    else
-        d = 0;
-    mutexLock(&lock_mutex);
-    ; // Subtract calibration value to get more accurate results for short lock times
-    if (d > lock_time_max)
-        lock_time_max = d;
-    int i = 0;
-    while (i < LOCK_TIME_HISTOGRAM_SIZE - 1 && d >= LOCK_TIME_HISTOGRAM_EDGES[i])
-        i++;
-    lock_time_histogram[i]++;
-    lock_time_sum += d;
-    lock_count++;
-    mutexUnlock(&lock_mutex);
-}
+// Histogram for the duration of the calibration write
+static TimeHistogram write_time_histogram("Writer write");
 
-static void lock_test_print_results(void) {
-    printf("\nProducer acquire lock time statistics:\n");
-    printf("  count=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns (cal=%" PRIu64 "ns)\n", lock_count, lock_time_max, lock_time_sum / lock_count, lock_calibration);
+// Histogram for the latency from a write until the first reader thread observes it
+// Linear bins (100us each) since the distribution depends on reader cycle time/count; shown in us
+static TimeHistogram visibility_time_histogram("Write to first-observe latency", 1, "us", 100000);
 
-    uint64_t histogram_sum = 0;
-    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
-        histogram_sum += lock_time_histogram[i];
-    uint64_t histogram_max = 0;
-    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
-        if (lock_time_histogram[i] > histogram_max)
-            histogram_max = lock_time_histogram[i];
-
-    printf("\nLock time histogram (%" PRIu64 " events):\n", histogram_sum);
-    printf("  %-20s  %10s  %7s  %s\n", "Range", "Count", "%", "Bar");
-    printf("  %-20s  %10s  %7s  %s\n", "--------------------", "----------", "-------", "------------------------------");
-
-    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++) {
-        if (!lock_time_histogram[i])
-            continue;
-        double pct = (double)lock_time_histogram[i] * 100.0 / (double)histogram_sum;
-
-        char range_str[32];
-        uint64_t lo = (i == 0) ? 0 : LOCK_TIME_HISTOGRAM_EDGES[i - 1];
-        if (i == LOCK_TIME_HISTOGRAM_SIZE - 1) {
-            snprintf(range_str, sizeof(range_str), ">%" PRIu64 "ns", lo);
-        } else {
-            snprintf(range_str, sizeof(range_str), "%" PRIu64 "-%" PRIu64 "ns", lo, LOCK_TIME_HISTOGRAM_EDGES[i]);
-        }
-
-        char bar[31];
-        int bar_len = (histogram_max > 0) ? (int)((double)lock_time_histogram[i] * 30.0 / (double)histogram_max) : 0;
-        if (bar_len > 30)
-            bar_len = 30;
-        for (int j = 0; j < bar_len; j++)
-            bar[j] = '#';
-        bar[bar_len] = '\0';
-
-        printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, lock_time_histogram[i], pct, bar);
-    }
-    printf("\n");
-}
+// Timestamp of the most recent write already claimed by a first-observer
+static std::atomic<uint64_t> last_observed_write_time{0};
 
 #endif
 
@@ -181,7 +249,7 @@ struct ThreadStats {
 
     std::atomic<uint64_t> read_count{0};
     std::atomic<uint64_t> change_count{0};
-    std::atomic<uint64_t> read_time_ns{0};
+    std::atomic<uint64_t> tot_read_time_ns{0};
     std::atomic<uint64_t> max_read_time_ns{0};
 
     // Delete copy and move constructors
@@ -216,6 +284,24 @@ bool check_test_data(const ParametersT *params, uint8_t expected_first_byte) {
 //-----------------------------------------------------------------------------------------------------
 // Thread worker function
 
+// Apply +/- TEST_TASK_LOOP_JITTER_PCT random jitter to a delay (per-thread RNG)
+static uint32_t jittered_delay_us(uint32_t base_us) {
+#if defined(TEST_TASK_LOOP_JITTER_PCT) && TEST_TASK_LOOP_JITTER_PCT > 0
+    if (base_us == 0)
+        return 0;
+    thread_local std::minstd_rand rng([] {
+        static std::atomic<uint32_t> seed{2654435761u};
+        return seed.fetch_add(2654435761u, std::memory_order_relaxed);
+    }());
+    int64_t span = (int64_t)base_us * TEST_TASK_LOOP_JITTER_PCT / 100;
+    std::uniform_int_distribution<int64_t> dist(-span, span);
+    int64_t v = (int64_t)base_us + dist(rng);
+    return v < 0 ? 0 : (uint32_t)v;
+#else
+    return base_us;
+#endif
+}
+
 void worker_thread(uint32_t thread_id) {
 
     ThreadStats &stats = *thread_stats[thread_id];
@@ -239,11 +325,21 @@ void worker_thread(uint32_t thread_id) {
 
     while (test_running.load(std::memory_order_relaxed)) {
 
-        uint64_t start_time = clockGetMonotonicNs();
-
         // Lock and read from calibration segment
         {
+            uint64_t start_time = clockGetMonotonicNs();
+
             auto parameters = calseg->lock();
+
+            uint64_t read_time_ns = clockGetMonotonicNs() - start_time;
+#ifdef TEST_LOCK_TIMING
+            lock_time_histogram.add_sample(read_time_ns);
+#endif
+            if (read_time_ns > stats.max_read_time_ns.load(std::memory_order_relaxed)) { // @@@@ Not threads safe, but good enough for max measurement
+                stats.max_read_time_ns.store(read_time_ns, std::memory_order_relaxed);
+            }
+            stats.tot_read_time_ns.fetch_add(read_time_ns, std::memory_order_relaxed);
+            stats.read_count.fetch_add(1, std::memory_order_relaxed);
 
             // Check the parameter data for consistency and change
             if (first_byte != (uint16_t)parameters->data[0]) {
@@ -259,6 +355,18 @@ void worker_thread(uint32_t thread_id) {
                 }
             }
 
+#ifdef TEST_LOCK_TIMING
+            // Write->observe latency: the first reader to see a new write records how long it took to become visible
+            uint64_t wt = parameters->write_time_ns;
+            uint64_t prev = last_observed_write_time.load(std::memory_order_relaxed);
+            while (wt > prev) {
+                if (last_observed_write_time.compare_exchange_weak(prev, wt, std::memory_order_relaxed)) {
+                    visibility_time_histogram.add_sample(clockGetMonotonicNs() - wt);
+                    break;
+                }
+            }
+#endif
+
             // Check if test should continue
             if (!parameters->run) {
                 test_running.store(false, std::memory_order_relaxed);
@@ -269,16 +377,6 @@ void worker_thread(uint32_t thread_id) {
             sleepUs(TEST_TASK_LOCK_DELAY_US); // Simulate some work
 #endif
         } // unlock calibration segment
-
-        uint64_t read_time_ns = clockGetMonotonicNs() - start_time;
-#ifdef TEST_LOCK_TIMING
-        lock_test_add_sample(read_time_ns);
-#endif
-        if (read_time_ns > stats.max_read_time_ns.load(std::memory_order_relaxed)) { // @@@@ Not threads safe, but good enough for max measurement
-            stats.max_read_time_ns.store(read_time_ns, std::memory_order_relaxed);
-        }
-        stats.read_time_ns.fetch_add(read_time_ns, std::memory_order_relaxed);
-        stats.read_count.fetch_add(1, std::memory_order_relaxed);
 
         counter++;
         if (verbose) {
@@ -292,7 +390,7 @@ void worker_thread(uint32_t thread_id) {
         DaqTriggerEvent_i(event_id);
 
         // Record timing
-        sleepUs(TEST_TASK_LOOP_DELAY_US);
+        sleepUs(jittered_delay_us(TEST_TASK_LOOP_DELAY_US));
     }
 
     if (verbose)
@@ -416,6 +514,7 @@ int main(int argc, char *argv[]) {
     A2lTypedefBegin(ParametersT, &kParameters, "A2L Typedef for ParametersT");
     A2lTypedefParameterComponent(run, "Run or stop test", "", 0, 1);
     A2lTypedefParameterComponent(check, "Check value for test", "", 0, 0xFFFFFFFF);
+    A2lTypedefParameterComponent(write_time_ns, "Writer timestamp for visibility latency test", "ns", 0, 0);
     A2lTypedefCurveComponent(data, TEST_DATA_SIZE, "Test data array", "", 0, 255);
     A2lTypedefEnd();
     calseg1.CreateA2lTypedefInstance("test_params_t", "Test parameters");
@@ -580,7 +679,10 @@ int main(int argc, char *argv[]) {
 
 // Initialize lock timing test
 #ifdef TEST_LOCK_TIMING
-    lock_test_init();
+    lock_time_histogram.init();
+    write_time_histogram.init();
+    visibility_time_histogram.init();
+    last_observed_write_time.store(clockGetMonotonicNs(), std::memory_order_relaxed); // Baseline so stale/persisted timestamps are not measured
 #endif
 
     // Let the test run for the specified duration
@@ -615,9 +717,22 @@ int main(int argc, char *argv[]) {
             write_atomic_count++;
         } else
 #endif
+
         {
-            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
-            XcpWriteMta(TEST_DATA_SIZE, &test_data[0]);
+            // Assemble one contiguous block {write_time_ns, data} so the timestamp and payload publish atomically
+            uint8_t block[sizeof(uint64_t) + TEST_DATA_SIZE];
+            uint64_t now_ns = clockGetMonotonicNs();
+            memcpy(block, &now_ns, sizeof(now_ns));
+            memcpy(block + sizeof(now_ns), test_data, TEST_DATA_SIZE);
+
+            uint64_t start_time = clockGetMonotonicNs();
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, write_time_ns)));
+            XcpWriteMta((uint8_t)sizeof(block), block);
+            uint64_t write_time_ns = clockGetMonotonicNs() - start_time;
+#ifdef TEST_LOCK_TIMING
+            write_time_histogram.add_sample(write_time_ns);
+#endif
+
             write_single_count++;
         }
         write_count++;
@@ -650,6 +765,11 @@ int main(int argc, char *argv[]) {
     printf("===========================================================\n");
 
     printf("\nTest parameters:\n");
+#ifdef OPTION_CAL_RCU_REFCOUNT
+    printf("OPTION_CAL_RCU_REFCOUNT = ON\n");
+#else
+    printf("OPTION_CAL_RCU_REFCOUNT = OFF\n");
+#endif
     printf("TEST_WRITE_COUNT = %u\n", TEST_WRITE_COUNT);
     printf("TEST_THREAD_COUNT = %u\n", TEST_THREAD_COUNT);
 #ifdef TEST_CALBLK
@@ -657,7 +777,7 @@ int main(int argc, char *argv[]) {
 #else
     printf("TEST_CALBLK = OFF\n");
 #endif
-#ifdef TEST_ATOMIC_CAL
+#if defined(TEST_ATOMIC_CAL) && TEST_ATOMIC_CAL > 0
     printf("TEST_ATOMIC_CAL = ON\n");
 #else
     printf("TEST_ATOMIC_CAL = OFF\n");
@@ -677,12 +797,12 @@ int main(int argc, char *argv[]) {
         const auto &stats = *thread_stats[i];
         total_read_count += stats.read_count.load();
         total_change_count += stats.change_count.load();
-        total_read_time_ns += stats.read_time_ns.load();
+        total_read_time_ns += stats.tot_read_time_ns.load();
         if (stats.max_read_time_ns.load() > total_max_read_time_ns) {
             total_max_read_time_ns = stats.max_read_time_ns;
         }
         printf("Thread %u: reads=%llu, changes=%llu, avg_time=%.2fus, max_time=%.2fus\n", i, (unsigned long long)stats.read_count.load(),
-               (unsigned long long)stats.change_count.load(), stats.read_count.load() > 0 ? (double)stats.read_time_ns.load() / stats.read_count.load() / 1000.0 : 0.0,
+               (unsigned long long)stats.change_count.load(), stats.read_count.load() > 0 ? (double)stats.tot_read_time_ns.load() / stats.read_count.load() / 1000.0 : 0.0,
                (double)stats.max_read_time_ns.load() / 1000.0);
     }
     printf("\nTotal Results:\n");
@@ -691,15 +811,18 @@ int main(int argc, char *argv[]) {
     printf("  Total reads: %llu\n", (unsigned long long)total_read_count);
     printf("  Total changes observed: %llu (%.1f%%)\n", (unsigned long long)total_change_count,
            total_read_count > 0 ? (double)total_change_count * 100.0 / (double)total_read_count : 0.0);
-#ifdef TEST_ENABLE_DBG_METRICS
-    XcpEthTlPrintStatistics();
+#ifdef TEST_ENABLE_CAL_METRICS
+    printf("  Total write pending: %u\n", gXcpWritePendingCount);
+    printf("  Total publish all:   %u\n", gXcpCalSegPublishAllCount);
 #endif
     printf("  Total errors: %llu\n", (unsigned long long)error_count.load());
     printf("  Average lock time: %.2f us\n", total_read_count > 0 ? (double)total_read_time_ns / total_read_count / 1000.0 : 0.0);
     printf("  Maximum lock time: %.2f us\n", (double)total_max_read_time_ns / 1000.0);
 
 #ifdef TEST_LOCK_TIMING
-    lock_test_print_results();
+    lock_time_histogram.print_results();
+    write_time_histogram.print_results();
+    visibility_time_histogram.print_results();
 #endif
 
     if (total_errors > 0) {

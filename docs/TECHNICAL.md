@@ -109,11 +109,14 @@ change of the tool.
 |---|---|---|
 | `xcp_evts` | one `tXcpEventDescriptor` (16 bytes: name, cycle time, priority) per event in link order, the position is the event id | `DaqCreateEvent`, `DaqCreateEventExt`, `DaqCreateAndTriggerEvent` |
 | `xcp_cals` | one `tXcpCalSegDescriptor` (32 bytes: name, default page address, index variable, size, type) per calibration segment or block | `CalSegDecl`, `CalSegDeclRef`, `CalSegCreate` and the calibration block macros |
-| `xcp_epk` | the EPK software version string | `XcpCreateEpk` |
+| `xcp_epk` | the EPK software version string, without `OPTION_SECTION_REGISTRATION` the constant `xcp_epk__` instead (see below) | `XcpCreateEpk` |
 | `xcp_meta` | the metadata constants `xcp_meta__<kind>__<name>` | `XCP_UNIT`, `XCP_LIMITS`, `XCP_COMMENT`, `XCP_READ_WRITE` |
 
-On macOS the sections are named `__DATA,xcp_evts` etc. On platforms without section support (`XCP_EVENT_SECTION_ATTR` empty) the
-events and segments are registered at runtime only.
+The sections `xcp_evts` and `xcp_cals` exist only with the configuration option `OPTION_SECTION_REGISTRATION` (configurations `no_a2l`
+and `rtos`). Without it the event ids and segment numbers are the runtime creation order and an offline A2L tool can not know them, see
+[OFFLINE_A2L.md — Without section registration](OFFLINE_A2L.md#without-section-registration). Without it (`default` configuration) events and segments are created at runtime in creation order, the event descriptors
+are ordinary static constants and the trigger macros look up the event by name once. On macOS the sections are named `__DATA,xcp_evts`
+etc. Section registration requires ELF or Mach-O.
 
 ### Marker variables
 
@@ -132,6 +135,13 @@ static THREAD_LOCAL tXcpEventId evt__dynname;   // DaqCreateEventInstance(name),
 
 // Event trigger anchor, from DaqTriggerEvent(name), DaqTriggerEventExt(name, base), DaqEventVar(name, ...), DaqTriggerEventCapture(name, ...), see below
 static tXcpEventId trg__<modes>__name;          // in the function which triggers the event
+
+// EPK version string, from XcpCreateEpk(epk). In section xcp_epk with OPTION_SECTION_REGISTRATION, otherwise an ordinary
+// constant, found by its name in the DWARF. XcpCreateEpk stores its address in the volatile pointer xcp_epk__keep, this
+// reference keeps the array in the build when the compiler optimizes and the linker removes unreferenced sections
+// Only the string is used for the A2L file, not its address: the target keeps its own copy of the EPK given to XcpInit (epk segment,
+// EPK upload), ADDR_EPK is the address XCP_ADDR_EPK which the target XCP driver maps to this copy
+static const char xcp_epk__[];
 
 // Metadata, from XCP_COMMENT(name, text), XCP_UNIT(name, unit), XCP_LIMITS(name, min, max), XCP_READ_WRITE(name)
 static const char xcp_meta__comment__name[];    // in section xcp_meta, also xcp_meta__unit__, xcp_meta__min__, xcp_meta__max__, xcp_meta__read_write__
@@ -265,6 +275,18 @@ static tXcpEventId trg__AASDD__calc = XCP_UNDEFINED_EVENT_ID;
 // AddrExt=0,1: absolute — AddrExt=2: stack — AddrExt=3: addr(&x) — AddrExt=4: addr(&y)
 ```
 
+
+## DAQ Events
+
+A DAQ event is a measurement trigger point in the code. It has a globally unique name and a 16 bit id (`tXcpEventId`), and it is created once (`DaqCreateEvent`, `XcpCreateEvent`, or registered at link time with section registration). The XCP tool associates measurement variables with events, each trigger timestamps and transfers the current values of the associated variables consistently.
+
+An event is triggered by a function (`XcpEvent`, `XcpEventExt`, ...) or a macro (`DaqTriggerEvent`, `DaqTriggerEventExt`, ...) at a particular code location, and the event is associated with this code location: it is triggered every time the code is executed, independent of the call stack or thread context. The measurement variables of the event must be valid and accessible at the trigger location, local variables of the triggering function are addressed relative to its stack frame, heap objects relative to a base address passed to the trigger (see Addressing Modes below).
+
+Triggering the same event at multiple code locations is possible, but it is the user's responsibility to make sure that all measurement variables associated with the event are valid at each location. This is not recommended, it also makes the measurement data hard to interpret.
+
+To filter events depending on their execution context, events can be enabled and disabled at runtime (`XcpEventEnable`, `DaqEventEnable`/`DaqEventDisable`). Context dependent events, for example one event instance per thread (`DaqCreateEventInstance`, `XcpCreateEventInstance`) or per class instance, are supported but need more complex instrumentation, see `multi_thread_demo` and `cpp_demo`.
+
+The event id is the creation order (default configuration, made stable across restarts by the binary persistence file) or the position of the event descriptor in the `xcp_evts` section (section registration). The XCP tool must respect the fixed event definitions, see Tool Compatibility in the README.
 
 ## Addressing Modes
 

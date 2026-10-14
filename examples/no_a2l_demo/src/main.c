@@ -32,6 +32,10 @@ static void sig_handler(int sig) { global_running = false; }
 #define OPTION_QUEUE_SIZE (1024 * 8)      // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
+#ifndef OPTION_SECTION_REGISTRATION
+#error "This example requires OPTION_SECTION_REGISTRATION"
+#endif
+
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
 
@@ -187,45 +191,80 @@ THREAD_FUNC_RETURN task(void *p) {
 //-----------------------------------------------------------------------------------------------------
 // Demo functions
 
+void bar(void) {
+
+    XCP_COMMENT(bar__static_counter, "Static local measurement variable in function bar, writable");
+    XCP_READ_WRITE(bar__static_counter);
+    volatile static uint16_t static_counter = 0;
+
+    volatile uint16_t counter;
+
+    static_counter++;
+    counter = static_counter;
+
+    DaqCreateAndTriggerEvent(bar);
+}
+
 // Avoid inlining to be able to measure local variables
-// xcpclient ELF->A2L does not support inlined function and silently drop them
+// xcpclient ELF->A2L does not support inlined function and silently drops them
 XCP_NOINLINE void foo(void) {
 
     // Static local scope measurement variable
     XCP_COMMENT(static_counter, "Local static measurement variable in function `foo`");
-    volatile static uint16_t static_counter = 0;
-
+    static volatile uint16_t static_counter = 0; // volatile -> avoid compiler optimizing it away
     // Local measurement variable
-    XCP_COMMENT(foo__counter, "Local captured measurement variable in function `foo`");
-    uint32_t counter = 0;
+    XCP_COMMENT(counter, "Local captured measurement variable in function `foo`");
+    volatile uint32_t counter = 0; // volatile - avoid compiler optimizing it away
 
-    // More local measurement variables
-    // Measured via capture, variables stay in their registers
-    float test_float = 0.1f;
-    double test_double = 0.2;
-    uint8_t test_uint8 = 1;
-    uint16_t test_uint16 = 2;
-    uint32_t test_uint32 = 3;
-    uint64_t test_uint64 = 4;
+    // Local measurement variables of aggregate type (struct, array)
+    // If an aggregate type does not fit into a single register, the compiler might slice it into multiple pieces, so it needs to be forced to the stack for measurement
+    // Note on clang:
+    // XCP_MEAS (volatile) is not enough for clang, XCP_FORCE_TO_STACK keeps them in memory, see the comment at the macro.
+    // They are declared before the other locals on purpose: the clang compiler describes only the stack slots near the frame
+    // pointer with DW_OP_fbreg, the slots further down with DW_OP_breg<sp>, which xcpclient does not support yet
     struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
+    XCP_FORCE_TO_STACK(test_struct);
     uint8_t test_array[3] = {1, 2, 3};
+    XCP_FORCE_TO_STACK(test_array);
 
-    // Measure via stack, register variables spilled to stack
-    XCP_MEAS int8_t test_int8 = -1;
-    XCP_MEAS int16_t test_int16 = -2;
-    XCP_MEAS int32_t test_int32 = -3;
-    XCP_MEAS uint64_t test_int64 = 1;
+    // Scalar local measurement variables
+    // Spilled to stack
+    XCP_MEAS float test_float = 0.1f;
+    XCP_MEAS double test_double = 0.2;
+    XCP_MEAS uint8_t test_uint8 = 1;
+    XCP_MEAS uint16_t test_uint16 = 2;
+    XCP_MEAS uint32_t test_uint32 = 3;
+    XCP_MEAS uint64_t test_uint64 = 4;
+
+    // Captured on stack
+    volatile int8_t test_int8 = -1;
+    volatile int16_t test_int16 = -2;
+    volatile int32_t test_int32 = -3;
+    volatile uint64_t test_int64 = 1;
+    struct test_struct test_struct2 = {1, -2, 0.3f, {1, 2, 3}};
+    uint8_t test_array2[3] = {1, 2, 3};
 
     global_counter++;
     static_counter++;
     counter = global_counter;
+    bar();
 
-    DaqCreateAndTriggerEventCapture(foo, counter, test_float, test_double, test_uint8, test_uint16, test_uint32, test_uint64, test_struct, test_array);
+    DaqCreateAndTriggerEventCapture(foo, test_struct2, test_array2, counter, test_int8, test_int16, test_int32, test_int64);
+    // DaqCreateAndTriggerEventCapture must have at least one argument to capture
+
+    // Check the xcpclient log (--log-level=2 --verbose=0 --elf-unit-filter main ...)
+    /*
+    // clang: SP relative not implemented yet
+        [WARN ] 'test_int16': variable location is stack-pointer-relative (DW_OP_breg31 <offset>), not frame-base-relative; not measurable yet, eval_result=RequiresRegister {
+    register: Register(31), base_type: UnitOffset(0) }
+    // gcc: pieces not implemented yet
+    [WARN ] 'test_struct2': the variable is split into 7 slices (DW_OP_piece), not measurable: [Piece { size_in_bits: Some(16), bit_offset: None, location: Value { value:
+    Generic(1) } }, Piece { size_in_bits: Some(16), bit_offset: None, location: Value { value: Generic(18446744073709551614) } }, Piece { size_in_bits: Some(32), bit_offset: None,
+    location: Bytes { value: EndianSlice(Little, [0x9a, 0x99, 0x99, 0x3e]) } }, Piece { size_in_bits: Some(8), bit_offset: None, location: Value { value: Generic(1) } }, Piece {
+    size_in_bits: Some(8), bit_offset: None, location: Value { value: Generic(2) } }, Piece { size_in_bits: Some(8), bit_offset: None, location: Value { value: Generic(3) } },
+    Piece { size_in_bits: Some(8), bit_offset: None, location: Address { address: 0 } }]
+    */
 }
-
-// Never called
-// Just to demonstrate the DaqCreateAndTriggerEvent macro creates the event, without runing the code in foo
-void bar(void) { DaqCreateAndTriggerEvent(bar); }
 
 //-----------------------------------------------------------------------------------------------------
 // Demo main

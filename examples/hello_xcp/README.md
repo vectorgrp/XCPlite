@@ -49,6 +49,32 @@ cmake --build build --target hello_xcp
 
 ---
 
+## Quick Test
+
+Use xcpclient to check the server works:
+
+```bash
+
+# Start the demo XCP server (in a different terminal or in background)
+build/hello_xcp &
+
+# Tune/calibrate counter_max
+xcpclient --udp --cal params.counter_max 2000
+
+# Measure counter
+xcpclient --udp --mea counter --verbose 2
+
+# If in a different folder on a different machine, use  --upload-a2l to get the A2L file from the client
+# Note that an AML include file XCP_104.aml is needed beside the uploaded A2L file
+xcpclient --udp --dest-addr 192.168.0.206 --upload-a2l --mea counter --verbose 2
+
+# Stop the demo XCP server 
+pkill hello_xcp
+
+```
+
+
+
 ## CANape
 
 Open `CANape/CANape.ini` in CANape. The project is pre-configured for XCP on UDP, port 5555,

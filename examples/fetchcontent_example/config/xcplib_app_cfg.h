@@ -37,6 +37,16 @@
 #define OPTION_MAX_DBG_LEVEL 3 // Save program space, level>3 not compiled
 
 //-------------------------------------------------------------------------------
+// Linktime calibration segment and event registration
+// No runtime A2L generation
+
+#define OPTION_SECTION_REGISTRATION
+
+#undef OPTION_ENABLE_A2L_GENERATOR
+#undef OPTION_ENABLE_A2L_UPLOAD
+#undef OPTION_ENABLE_ELF_UPLOAD
+
+//-------------------------------------------------------------------------------
 // Calibration:
 
 // Disable calibration segment management and RCU completely
@@ -58,13 +68,6 @@
 #define OPTION_CAL_MEM_SIZE (1024 * 1)
 
 #endif
-
-//-------------------------------------------------------------------------------
-// Runtime A2L generation
-
-#undef OPTION_ENABLE_A2L_GENERATOR
-#undef OPTION_ENABLE_A2L_UPLOAD
-#undef OPTION_ENABLE_ELF_UPLOAD
 
 //-------------------------------------------------------------------------------
 // Events

@@ -14,13 +14,13 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
-#define OPTION_PROJECT_NAME "hello_xcp"  // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "V2.1.10" // EPK version string
-#define OPTION_USE_TCP false             // TCP or UDP
-#define OPTION_SERVER_PORT 5555          // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}  // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)    // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_LOG_LEVEL 4               // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = print XCP commands
+#define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_VERSION "V2.3"   // EPK version string
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
+#define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = print XCP commands
 
 // XCP mode:
 #ifdef OPTION_SHM_MODE
@@ -58,11 +58,16 @@ typedef struct params {
 // Default values (reference page, "FLASH") for the calibration parameters
 const params_t params = {.delay_us = 1000, .counter_max = 1024, .flow_rate = 0.301f};
 
-// A global calibration segment handle for the calibration parameters
-// A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
-// Using the calibration segment to access parameters assures safe (thread safe against XCP modifications), wait-free and consistent access
-// It supports offline calibration, RAM/FLASH page switching, reinitialization (copy FLASH to RAM page) and persistence (save to BIN file)
-tXcpCalSegIndex params_calseg = XCP_UNDEFINED_CALSEG;
+// A global calibration segment index (handle for the calibration parameter segment for `params`).
+// The calibration parameter segment can be shared and accessed lock-less in in multiple threads.
+// A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file.
+// Using the calibration segment to access parameters assures safe (thread safe against XCP modifications), wait-free and consistent access.
+// It supports offline calibration, RAM/FLASH page switching, reinitialization (copy FLASH to RAM page) and persistence (save to BIN file).
+// The segment is created in main() after XcpInit(), CalSegLock(params) uses this index in all functions.
+static tXcpCalSegIndex calseg_id_params = XCP_UNDEFINED_CALSEG;
+
+// The example code shows 2 variants: Using the CalXxx macros or using the explicit CalSegXxx functions.
+// The macros provide the option to deactivate XCP by XcpInit(XCP_MODE_DEACTIVATE), without any other code changes.
 
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
@@ -93,7 +98,7 @@ float calc_power(uint8_t t1, uint8_t t2) {
     double heat_power = diff_temp * 10.0f;      // Heat power in kW
 
 #ifndef OPTION_USE_VARIADIC_MACROS
-    // XCP: Create a measurement event 'calc_power' and register local measurement variables and function parameters
+    // Create a measurement event 'calc_power' and register local measurement variables and function parameters
     DaqCreateEvent(calc_power);
     A2lOnce() {
         // t1, t2, diff_temp and heat_power below only exist on the stack while calc_power() is executing, so they have no fixed
@@ -110,23 +115,20 @@ float calc_power(uint8_t t1, uint8_t t2) {
     // mode (stack vs. absolute) automatically per variable, so no explicit A2lSetStackAddrMode/A2lSetAbsoluteAddrMode call is needed there.
 #endif
 
-    // XCP: Lock access to calibration parameters
-    // Note: calc_power() is called from main()'s mainloop while it already holds a lock on this same segment (see below) -
-    // this nested lock is safe because XcpLockCalSeg/XcpUnlockCalSeg maintain an atomic lock count per segment rather than
-    // a traditional mutex, so recursive (nested, same thread) and concurrent (other threads) locks are both wait-free and
-    // always see a consistent page. See docs/CAL_RCU.md for the underlying RCU scheme.
-    const params_t *p = (params_t *)XcpLockCalSeg(params_calseg);
+    // Lock access to calibration parameters
+    // Note: calc_power() is called from main()'s mainloop while it already holds a lock on this same segment
+    const params_t *p = (params_t *)XcpLockCalSeg(calseg_id_params);
 
     heat_power = diff_temp * p->flow_rate * 1000.0 * 1.16; // in kWh, 1.16Wh per K per liter - calculate heat power using the flow rate calibration parameter
 
-    // XCP: Unlock the calibration segment
-    XcpUnlockCalSeg(params_calseg);
+    // Unlock the calibration segment
+    XcpUnlockCalSeg(calseg_id_params);
 
 #ifndef OPTION_USE_VARIADIC_MACROS
-    // XCP: Trigger the measurement event "calc_power"
+    // Trigger the measurement event "calc_power"
     DaqTriggerEvent(calc_power);
 #else
-    // XCP: Trigger the measurement event "calc_power" and register local measurement variables and parameters
+    // Trigger the measurement event "calc_power" and register local measurement variables and parameters
     DaqEventVar(calc_power,                                                                    //
                 A2L_MEAS(t1, "Parameter t1 in function calc_power"),                           //
                 A2L_MEAS(t2, "Parameter t2 in function calc_power"),                           //
@@ -148,12 +150,11 @@ int main(int argc, char *argv[]) {
     printf("\nXCP on Ethernet hello_xcp C demo%u V%s - %s\n", (uint32_t)(sizeof(void *) * 8), OPTION_PROJECT_VERSION, argv[0]);
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
-    // uint64_t start_time = clockGetMonotonicNs(); // Get the start time in nanoseconds
 
-    // XCP: Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
+    // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
-    // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
+    // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
     if (!XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, OPTION_XCP_MODE)) {
         printf("Failed to initialize XCP\n");
@@ -161,48 +162,42 @@ int main(int argc, char *argv[]) {
     }
     XcpSetElfName(argv[0]); // Set ELF file name for upload via GET_ID, optional
 
-    // XCP: Initialize the XCP Server
+    // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
     if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
         return 1;
     }
 
-    // XCP: Enable runtime A2L generation for data declaration as code, optional
+    // Enable runtime A2L generation for data declaration as code, optional
     if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_A2L_MODE)) {
         return 1;
     }
 
-    // XCP: Create a calibration segment named 'params' for the calibration parameter struct instance 'params' as reference page
-    params_calseg = XcpCreateCalSeg("params", &params, sizeof(params));
-    assert(params_calseg != XCP_UNDEFINED_CALSEG);
-
-    // XCP: Option1: Register the individual calibration parameters in the calibration segment
-    // A2lSetSegmentAddrMode(seg_index, seg_instance) must come after XcpCreateCalSeg (it needs the returned segment index) and before
-    // the A2lCreateParameter calls below: it makes them register their variables as offsets into calibration segment 'params_calseg'
-    // ("Calibration segment relative" addressing, see docs/TECHNICAL.md) instead of by absolute address, which is what lets
-    // the segment's page switching (RAM/FLASH), checksum and persistence mechanisms apply to these parameters.
-    A2lSetSegmentAddrMode(params_calseg, params);
+    // Create a calibration segment named 'params' for the calibration parameter struct instance 'params' as reference page
+    calseg_id_params = XcpCreateCalSeg("params", &params, sizeof(params));
+    // A2lSetSegmentAddrMode(seg_index, seg_instance) must come before the A2lCreateParameter calls below:
+    // it makes them register their variables as offsets into calibration segment 'calseg_id_params'
+    // ("Calibration segment relative" addressing, see docs/TECHNICAL.md)  instead of by absolute address,
+    // which is what lets the segment's page switching (RAM/FLASH), checksum and persistence mechanisms apply to these parameters.
+    A2lSetSegmentAddrMode(calseg_id_params, params);
+    // Option 1: Register the individual calibration parameters in the calibration segment
     A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 65535);
     A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 500000);
     A2lCreateParameter(params.flow_rate, "Flow rate", "m3/h", 0.0, 2.0);
-
-    // XCP: Option2: Register the calibration segment as a typedef instance
+    // Option 2: Register the calibration segment as a typedef instance
     // A2lTypedefBegin(params_t, &params, "Calibration parameters typedef");
     // A2lTypedefParameterComponent(counter_max, "Maximum counter value", "", 0, 2000);
     // A2lTypedefParameterComponent(flow_rate, "Flow rate", "m3/h", 0.0, 2.0);
     // A2lTypedefEnd();
-    // A2lSetSegmentAddrMode(params_calseg, params);
     // A2lCreateTypedefInstance(params, params_t, "Calibration parameters");
-
-    // uint64_t run_time = clockGetMonotonicNs(); // Get the start time of the application thread in nanoseconds
 
     uint16_t counter = 0;
 
 #ifndef OPTION_USE_VARIADIC_MACROS
-    // XCP: Create a measurement event named "mainloop"
+    // Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
 
-    // XCP: Register global measurement variables on event "mainloop"
+    // Register global measurement variables on event "mainloop"
     // outside_temperature, inside_temperature, heat_energy and global_counter are global variables: they exist at one fixed
     // address for the whole program lifetime, so XCP can read them directly by that address ("Absolute" addressing) - no
     // stack frame or calibration segment offset is involved, unlike the two modes used elsewhere in this file.
@@ -213,7 +208,7 @@ int main(int argc, char *argv[]) {
     A2lCreatePhysMeasurement(heat_energy, "Accumulated heat energy in kWh", "kWh", 0.0, 10000.0);
     A2lCreateMeasurement(global_counter, "Global free running counter");
 
-    // XCP: Register local measurement variables on event "mainloop"
+    // Register local measurement variables on event "mainloop"
     // counter is local to main()'s stack frame (like t1/t2/diff_temp/heat_power in calc_power() above), so it needs
     // "Stack frame relative" addressing again, resolved against the stack frame current when event 'mainloop' fires.
     A2lSetStackAddrMode(mainloop);
@@ -221,23 +216,20 @@ int main(int argc, char *argv[]) {
 #endif
 
     // Mainloop
-    // printf("Start application main loop... (startup time: %llu us)\n", (run_time - start_time) / 1000);
     uint32_t delay_us = 1000; // Mainloop delay time in us
     while (running) {
-        // XCP: Lock the calibration parameter segment for consistent and safe access
+
+        // Lock the calibration parameter segment for consistent and safe access
         // Calibration segment locking is wait-free, locks may be recursive
         // Returns a pointer to the active page (working or reference) of the calibration segment
-        // Note: calc_power(), called below while this lock is still held, locks the very same segment again - see the
-        // recursive-locking remark there for why that nested lock is safe.
-        const params_t *p = (params_t *)XcpLockCalSeg(params_calseg);
-
+        const params_t *p = (params_t *)XcpLockCalSeg(calseg_id_params);
         delay_us = p->delay_us; // Get the delay_us calibration value
 
         // Local variables
         counter++;
         if (counter > p->counter_max) { // Get the counter_max calibration value and reset counter
-            // printf("counter_max = %u\n", p->counter_max);
             counter = 0;
+            printf("Reset counter to 0 at %u\n", p->counter_max);
         }
 
         // Global variables
@@ -247,16 +239,16 @@ int main(int argc, char *argv[]) {
         double heat_power = calc_power(outside_temperature, inside_temperature); // Demo function to calculate heat power in W
         heat_energy += heat_power / 3600e6;                                      // Integrate heat energy in kWh in a global measurement variable, kWh = W/1000  * us/ 3600e6
 
-        // XCP: Unlock the calibration segment
-        XcpUnlockCalSeg(params_calseg);
+        // Unlock the calibration segment
+        XcpUnlockCalSeg(calseg_id_params);
 
 #ifndef OPTION_USE_VARIADIC_MACROS
-        // XCP: Trigger the measurement event "mainloop"
+        // Trigger the measurement event "mainloop"
         DaqTriggerEvent(mainloop);
 #else
         // Register the linear conversion for temperature once
         A2lOnce(temperature) { A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "C", 1.0, -55.0); }
-        // XCP: Create and trigger measurement event mainloop, register global and local measurement variables
+        // Create and trigger measurement event mainloop, register global and local measurement variables
         DaqEventVar(mainloop,                                                                                                       //
                     A2L_MEAS(outside_temperature, "Temperature in °C read from outside sensor", "conv.temperature", -55, 255 - 55), //
                     A2L_MEAS(inside_temperature, "Temperature in °C read from inside sensor", "conv.temperature", -55, 255 - 55),   //
@@ -275,7 +267,8 @@ int main(int argc, char *argv[]) {
 
     XcpDisconnect(); // Force disconnect the XCP client
     A2lFinalize();   // Finalize A2L generation, if not done yet
-    // XcpFreeze(); // Save current calibration segments to binary persistence file
+    // XcpFreeze(); // Save current calibration segments to binary persistence file (OPTION_ENABLE_PERSISTENCE and XCP_MODE_PERSISTENCE)
     XcpEthServerShutdown(); // Stop the XCP server
+
     return 0;
 }

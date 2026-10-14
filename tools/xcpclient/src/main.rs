@@ -29,11 +29,14 @@ use xcp_client::*;
 
 mod xcp_test_executor;
 
+mod a2l_fix;
+
+use xcp_registry::McA2mlMode;
 use xcp_registry::McEvent;
 use xcp_test_executor::test_executor;
 
 pub mod elf_reader;
-use elf_reader::ElfReader;
+use elf_reader::{ElfFilter, ElfReader};
 
 pub mod bin_reader;
 
@@ -133,7 +136,7 @@ struct Args {
     log_level: u8,
 
     // -v --verbose
-    /// Content information detail verbosity level
+    /// ELF parsing log verbosity level
     #[arg(long, default_value_t = 0)]
     verbose: usize,
 
@@ -207,10 +210,17 @@ struct Args {
     create_a2l_template: bool,
 
     // --fix-a2l
-    /// Update the given A2L file with XCP server information about events and memory segments.
+    /// Correct the event ids and calibration segment numbers of the given A2L file with XCP server information and rewrite it, the original is kept as <file>.a2l.bak.
+    /// Only for A2L files created by xcpclient (--elf and --create-a2l), typically generated offline without section registration.
     /// Requires that the XCP server supports the GET_EVENT_INFO and GET_SEGMENT_INFO commands.
     #[arg(long, default_value_t = false)]
     fix_a2l: bool,
+
+    // --embed-aml
+    /// Embed the XCP A2ML description into an A2L file created by xcpclient (--elf, --create-a2l, --create-a2l-template), instead of including XCP_104.aml.
+    /// The A2L file is self-contained, XCP_104.aml is not needed next to it. --fix-a2l keeps an embedded A2ML description.
+    #[arg(long, default_value_t = false)]
+    embed_aml: bool,
 
     // --upload-elf
     /// Upload ELF file from XCP server.
@@ -346,13 +356,6 @@ impl ToLogLevelFilter for u8 {
     }
 }
 
-//-----------------------------------------------------------------------------
-// Test (--test) settings
-
-const TEST_CAL: xcp_test_executor::TestModeCal = xcp_test_executor::TestModeCal::Cal; // Execute calibration tests: Cal or None
-const TEST_DAQ: xcp_test_executor::TestModeDaq = xcp_test_executor::TestModeDaq::Daq; // Execute measurement tests: Daq or None
-const TEST_DURATION_MS: u64 = 5000;
-
 //------------------------------------------------------------------------
 // Handle incoming DAQ data
 // Prints the decoded data to the console
@@ -366,12 +369,12 @@ struct DaqDecoder {
     event_count: usize,
     byte_count: usize,
     daq_timestamp: [u64; MAX_EVENT],
-    verbose: u8,
+    log_measurements: bool,
     csv_writer: Option<std::io::BufWriter<std::fs::File>>,
 }
 
 impl DaqDecoder {
-    pub fn new(verbose: u8, csv_filename: &str) -> DaqDecoder {
+    pub fn new(log_measurements: bool, csv_filename: &str) -> DaqDecoder {
         let csv_writer = if csv_filename.is_empty() {
             None
         } else {
@@ -393,7 +396,7 @@ impl DaqDecoder {
             event_count: 0,
             byte_count: 0,
             daq_timestamp: [0; MAX_EVENT],
-            verbose,
+            log_measurements,
             csv_writer,
         }
     }
@@ -481,12 +484,12 @@ impl XcpDaqDecoder for DaqDecoder {
         let t_ns = t * self.timestamp_resolution;
         let delta_us = ((t - t_last) * self.timestamp_resolution) / 1000;
 
-        if self.verbose >= 2 {
+        if self.csv_writer.is_none() {
             println!("EVENT: daq={}, odt={}, lost={}, t={}ns (+{}us)", daq, odt, lost, t_ns, delta_us);
         }
 
         // Decode all odt entries — for terminal (log_level >= 2) and/or CSV output
-        if self.verbose >= 1 || self.csv_writer.is_some() {
+        {
             let daq_list = &self.daq_odt_entries.as_ref().unwrap()[daq as usize];
 
             for odt_entry in daq_list.iter() {
@@ -529,8 +532,7 @@ impl XcpDaqDecoder for DaqDecoder {
 
                 if let Some(ref mut writer) = self.csv_writer {
                     let _ = writeln!(writer, "{},{},{},{}", t_ns, daq, odt_entry.name, value_str);
-                }
-                if self.verbose >= 1 {
+                } else {
                     println!(" {} = {}", odt_entry.name, value_str);
                 }
             }
@@ -588,6 +590,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
         create_a2l,
         create_a2l_template,
         fix_a2l,
+        embed_aml,
         elf: elf_filename,
         upload_elf,
         elf_unit_limit_min,
@@ -638,7 +641,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
             // Connect to the XCP server
             // Print protocol information
             info!("XCP Connect using {}", protocol);
-            let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new(verbose as u8, &csv_filename)));
+            let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new(true, &csv_filename)));
             match xcp_client.connect(connect_mode, Arc::clone(&daq_decoder), ServTextDecoder::new()).await {
                 Ok(_) => {
                     info!("Connected to XCP server at {}", dest_addr);
@@ -707,6 +710,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
         }
         reg.set_flatten_typedefs_mode(false);
         reg.set_prefix_names_mode(false);
+        reg.set_a2ml_mode(if embed_aml { McA2mlMode::Embed } else { McA2mlMode::Include });
 
         // Set A2L file path to given command line argument 'a2l' or to GET_ID IDT_ASAM_NAME or IDT_ASCII
         let (mut a2l_path, a2l_asam_name) = if !a2l_filename.is_empty() {
@@ -821,13 +825,16 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                     }
                 }
 
+                // The compilation unit and variable name selection, built and validated once here and then carried by the ELF reader
+                let elf_filter = ElfFilter::new(elf_unit_limit_min, elf_unit_limit, &elf_unit_filter, &elf_var_filter)?;
+
                 // Read ELF file and DWARF debug information, compilation unit number may be limited to reduce processing time and memory needed
                 info!("Reading ELF file: {}", elf_filename);
-                let elf_reader =
-                    ElfReader::new(&elf_filename, verbose, (elf_unit_limit_min, elf_unit_limit)).map_err(|e| format!("Failed to read ELF file '{}': {}", elf_filename, e))?;
+                let elf_reader = ElfReader::new(&elf_filename, verbose, elf_filter).map_err(|e| format!("Failed to read ELF file '{}': {}", elf_filename, e))?;
                 elf_reader.log_compilers();
+
                 if verbose > 0 {
-                    elf_reader.debug_data.print_debug_info(verbose, (elf_unit_limit_min, elf_unit_limit)); // print only variables <= compilation unit 0
+                    elf_reader.debug_data.print_debug_info(verbose);
                 }
 
                 // Detect addressing scheme for calibration segments
@@ -850,14 +857,15 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                     if segment_relative { "segment relative" } else { "absolute" }
                 );
 
-                // Get the EPK string and address from debug_data and set it in the registry application version information, if available
-                elf_reader.register_epk_addr_info(&mut reg, verbose);
-
                 // Register events from event creation markers (evt__name) in the code
                 elf_reader.register_events(&mut reg, verbose)?;
 
                 // Register segments from segment creation markers (calseg__name) found in the code
                 elf_reader.register_segments(&mut reg, segment_relative, verbose)?;
+
+                // Get the EPK string from debug_data and set it in the registry application version information, if available
+                // After the segments, ADDR_EPK depends on the addressing mode and the epk segment
+                elf_reader.register_epk_addr_info(&mut reg, segment_relative, verbose);
 
                 // Find event triggers in the code by their trigger markers (trg__mode__name) and register their location (compilation unit, function, CFA offset)
                 elf_reader.register_event_locations(&mut reg, verbose)?;
@@ -869,15 +877,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                     if let Some(event) = &default_event {
                         default_event_id = Some(event.resolve(&reg)?);
                     }
-                    elf_reader.register_variables(
-                        &mut reg,
-                        segment_relative,
-                        verbose,
-                        (elf_unit_limit_min, elf_unit_limit),
-                        &elf_var_filter,
-                        &elf_unit_filter,
-                        default_event_id,
-                    )?;
+                    elf_reader.register_variables(&mut reg, segment_relative, verbose, default_event_id)?;
                     // Register the captured local variables of the event triggers (DaqTriggerEventCapture)
                     elf_reader.register_captures(&mut reg, verbose)?;
                     // Apply metadata (XCP_UNIT / XCP_LIMITS / XCP_COMMENT) from the xcp_meta ELF section
@@ -916,6 +916,10 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 .unwrap();
                 info!("Created A2L with file: {} {}", a2l_path.display(), mode);
             }
+
+            // The A2L file keeps the typedef structure, but xcp_client supports only basic type instances (see load_a2l_file_into_registry):
+            // flatten the registry like loading an A2L file does, so --list-cal, --cal and --mea work the same as with --a2l
+            reg.flatten_typedefs();
         }
         //----------------------------------------------------------------
         // Load A2L from local file
@@ -1019,16 +1023,36 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 }
             }
 
-            // Fix the registry
-            // In the event list and in the address information of all instance in event relative addressing mode
+            // Fix the registry used in this run and rewrite the A2L file
+            // In the event list and calibration segment list, and in the addresses of all instances with XCPlite event relative
+            // or calibration segment relative addressing, which contain the event id or segment number
             if fix_a2l {
+                // Only an A2L file generated by xcpclient is corrected, the event ids and segment numbers of an A2L file generated offline
+                // from the ELF file without section registration. Any other A2L file is rejected, it might lose information when rewritten
+                let a2l_text = std::fs::read_to_string(&a2l_path).map_err(|e| format!("Could not read A2L file '{}': {}", a2l_path.display(), e))?;
+                if !a2l_fix::is_created_by_xcpclient(&a2l_text) {
+                    return Err(format!(
+                        "--fix-a2l: A2L file '{}' was not created by xcpclient, only A2L files created with --elf and --create-a2l can be corrected. \
+                         Create the A2L file with --elf and --create-a2l while connected to the XCP server instead",
+                        a2l_path.display()
+                    )
+                    .into());
+                }
                 if !event_mapping.is_empty() {
                     info!("Event mapping information:");
                     for (k, v) in &event_mapping {
                         info!("  {} -> {}", k, v);
                     }
-                    reg.update_event_mapping(&event_mapping);
                 }
+                if !seg_mapping.is_empty() {
+                    info!("Calibration segment mapping information:");
+                    for (k, v) in &seg_mapping {
+                        info!("  {} -> {}", k, v);
+                    }
+                }
+                let project_no = a2l_fix::get_project_no(&a2l_text);
+                a2l_fix::apply_mappings(&mut reg, &event_mapping, &seg_mapping, project_no.as_deref());
+
                 if missing_event_ids > 0 {
                     if missing_event_ids == 1 {
                         // Add a dummy event
@@ -1043,17 +1067,18 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                     }
                 }
 
-                // Fix the calibration segment list and the address information of all calibration objects in calibration segment relative addressing mode
-                // Update the registry
-                if !seg_mapping.is_empty() {
-                    info!("Calibration segment mapping information:");
-                    for (k, v) in &seg_mapping {
-                        info!("  {} -> {}", k, v);
-                        reg.update_cal_seg_mapping(&seg_mapping);
-                    }
+                if event_mapping.is_empty() && seg_mapping.is_empty() {
+                    info!("Event ids and calibration segment numbers of A2L file {} match the target", a2l_path.display());
+                } else {
+                    let tl_params = match dest_addr.ip() {
+                        std::net::IpAddr::V4(addr) if protocol == "TCP" || protocol == "UDP" => Some((protocol, addr, dest_addr.port())),
+                        _ => None,
+                    };
+                    a2l_fix::rewrite_a2l_file(&a2l_path, &event_mapping, &seg_mapping, tl_params, embed_aml)
+                        .map_err(|e| format!("Could not rewrite A2L file '{}': {}", a2l_path.display(), e))?;
                 }
             } else if !event_mapping.is_empty() || !seg_mapping.is_empty() {
-                warn!("A2L file {} differs from target, use automatic correction (--fix_a2l)", a2l_path.display());
+                warn!("A2L file {} differs from target, use automatic correction (--fix-a2l)", a2l_path.display());
                 info!("events: {:?}", event_mapping);
                 info!("segments: {:?}", seg_mapping);
             }
@@ -1350,6 +1375,7 @@ struct ConfigFile {
     create_a2l: Option<bool>,
     create_a2l_template: Option<bool>,
     fix_a2l: Option<bool>,
+    embed_aml: Option<bool>,
     upload_elf: Option<bool>,
     elf: Option<String>,
     elf_unit_limit: Option<usize>,
@@ -1401,6 +1427,7 @@ fn merge_config(matches: &clap::ArgMatches, config: ConfigFile, args: &mut Args)
     apply!(create_a2l);
     apply!(create_a2l_template);
     apply!(fix_a2l);
+    apply!(embed_aml);
     apply!(upload_elf);
     apply!(elf);
     apply!(elf_unit_limit);
@@ -1502,7 +1529,9 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
     // Run the test executor if --test is specified
     if args.test {
-        if !test_executor(protocol, dest_addr, local_addr, TEST_CAL, TEST_DAQ, TEST_DURATION_MS).await {
+        const TEST_CAL: xcp_test_executor::TestModeCal = xcp_test_executor::TestModeCal::Cal; // Execute calibration tests: Cal or None
+        const TEST_DAQ: xcp_test_executor::TestModeDaq = xcp_test_executor::TestModeDaq::DaqCmd; // Execute measurement tests: DaqCmd, Daq or None
+        if !test_executor(protocol, dest_addr, local_addr, TEST_CAL, TEST_DAQ).await {
             return Err("XCP test failed".into());
         }
     }

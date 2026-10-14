@@ -402,8 +402,11 @@ int main(void) {
             join_thread(t[i]);
     }
 
-#ifdef TEST_ENABLE_DBG_METRICS
-    XcpEthTlPrintStatistics();
+#ifdef TEST_ENABLE_TL_METRICS
+    printf("  Total TX packets:    %u\n", gXcpTxPacketCount);
+    printf("  Total TX messages:   %u\n", gXcpTxMessageCount);
+    printf("  Total TX iovecs:     %u\n", gXcpTxIoVectorCount);
+    printf("  Total RX packets:    %u\n", gXcpRxPacketCount);
 #endif
 
     XcpDisconnect();        // Force disconnect the XCP client

@@ -219,6 +219,7 @@ void XcpShmUnlink(void) {
 /**************************************************************************/
 
 // Print the status and information in tXcpData, for debugging purposes.
+#ifdef OPTION_ENABLE_DBG_PRINTS
 void XcpShmDebugPrint(void) {
 
     if (gXcpData == NULL)
@@ -275,6 +276,7 @@ void XcpShmDebugPrint(void) {
     }
     printf(ANSI_COLOR_RESET);
 }
+#endif
 
 /**************************************************************************/
 // A2L file management
@@ -497,7 +499,8 @@ void XcpShmCheckAliveCounters(void) {
         }
     }
 
-    // Print changes since last check
+// Print changes since last check
+#ifdef OPTION_ENABLE_DBG_PRINTS
     if (DBG_LEVEL >= 3) {
         static uint32_t last_count = 0;
         uint32_t current_count = XcpShmGetActiveAppCount(); // Apps with alive_count > 0
@@ -511,6 +514,7 @@ void XcpShmCheckAliveCounters(void) {
             last_count = current_count;
         }
     }
+#endif
 
     // Reset alive counters, so applications must increment them to prove they are alive
     XcpShmResetAliveCounters_();

@@ -34,7 +34,7 @@ fi
 REMOTE=true
 
 # Run a short calibration and measurement test
-TEST=false
+TEST=true
 CSVFILE="$REPO_ROOT/examples/freertos_demo/freertos_emu_demo/CANape/freertos_demo.csv"
 
 
@@ -64,7 +64,7 @@ BUILD_TYPE="RelWithDebInfo"
 #TARGET_USER="parallels"
 #TARGET_HOST="10.211.55.4"
 TARGET_USER="rainer"
-TARGET_HOST="192.168.0.206"
+TARGET_HOST="192.168.8.135"
 TARGET_PATH="~/XCPlite-rtos"
 TARGET_BUILD_DIR="build-rtos"
 TARGET_BINARY="freertos_emu_demo"
@@ -161,7 +161,7 @@ echo "Creating A2L file from XCPlite ELF file ..."
 echo "========================================================================================================"
 echo ""
 # --log-level is program flow verbosity
-# --verbose is information detail level
+# --verbose is ELF information detail level
 # Remove the A2L file of a previous run, so a failed generation can not leave a stale A2L file behind
 rm -f "$A2LFILE"
 XCPCLIENT_ARGS=(--log-level=3 --verbose=5 --dest-addr="$TARGET_HOST" --udp --offline --elf "$ELFFILE" --elf-unit-filter xcp_demo --default-event=0 --create-a2l --a2l "$A2LFILE")

@@ -886,6 +886,22 @@ static const char *A2lGetInputQuantity_x(void) { return gA2lInputQuantity_x ? gA
 static const char *A2lGetInputQuantity_y(void) { return gA2lInputQuantity_y ? gA2lInputQuantity_y : "NO_INPUT_QUANTITY"; }
 
 //----------------------------------------------------------------------------------
+// Symbol prefix
+
+// Same as A2L_MODE_SYMBOL_PREFIX in A2lInit, applies to the symbols created after the call
+void A2lSetSymbolPrefix(bool enable) {
+    if (enable) {
+        gA2lMode |= A2L_MODE_SYMBOL_PREFIX;
+    } else {
+#ifdef OPTION_SHM_MODE // prefix is mandatory in SHM mode to avoid conflicts between applications
+        DBG_PRINT_WARNING("A2lSetSymbolPrefix(false) ignored, symbol prefix is mandatory in SHM mode!\n");
+#else
+        gA2lMode &= (uint8_t)~A2L_MODE_SYMBOL_PREFIX;
+#endif
+    }
+}
+
+//----------------------------------------------------------------------------------
 // Conversions
 
 static void printPhysUnit(FILE *file, const char *unit_or_conversion) {
@@ -1515,7 +1531,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     gA2lUseTCP = useTCP;
 
     // Check mode
-    if ((gA2lMode & A2L_MODE_WRITE_ONCE) && (XcpGetInitMode() & XCP_MODE_PERSISTENCE) == 0) {
+    if ((mode & A2L_MODE_WRITE_ONCE) && (XcpGetInitMode() & XCP_MODE_PERSISTENCE) == 0) {
         mode |= A2L_MODE_WRITE_ALWAYS;
         mode &= ~(A2L_MODE_WRITE_ONCE);
         DBG_PRINT_WARNING("Persistence mode not enabled, mode A2L_MODE_WRITE_ONCE ignored!\n");
@@ -1528,9 +1544,6 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     A2lRstAddrMode();
     gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
     mutexInit(&gA2lMutex, false, 0);
-
-    // Register a callback called on XCP connect
-    ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
 
     DBG_PRINTF3(ANSI_COLOR_GREEN "Init A2L generation: mode=(%s%s%s%s%s%s)\n" ANSI_COLOR_RESET, (mode & A2L_MODE_WRITE_ALWAYS) ? "WRITE_ALWAYS " : "",
                 (mode & A2L_MODE_WRITE_ONCE) ? "WRITE_ONCE " : "", (mode & A2L_MODE_FINALIZE_ON_CONNECT) ? "FINALIZE_ON_CONNECT " : "",

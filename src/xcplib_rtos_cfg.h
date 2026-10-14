@@ -52,7 +52,17 @@
 #define OPTION_FREERTOS_PRIORITY (tskIDLE_PRIORITY + 2U)
 
 // FreeRTOS IP stack configuration
-#define OPTION_FREERTOS_LWIP // Use the lwIP socket API for FreeRTOS
+#define OPTION_FREERTOS_LWIP // Use lwIP for FreeRTOS
+
+// lwIP API used by the XCP server, default is the netconn API
+// netconn API: each transmitted datagram is copied into a pbuf owned by lwIP. Works with any lwIP build options
+//   and any Ethernet driver, including drivers which transmit with asynchronous DMA directly from the pbuf
+//   and skip cache maintenance for referenced (PBUF_REF) payloads, e.g. TI CPSW lwipif.
+// socket API: lwip_sendto references the XCP transmit buffer without copying when lwIP is built with
+//   LWIP_NETIF_TX_SINGLE_PBUF=0. Only correct when the Ethernet driver has finished reading the buffer, or has
+//   copied it, before lwip_sendto returns, and keeps it coherent with its DMA (CPU cache). Saves one copy per datagram.
+// Both need LWIP_SO_RCVTIMEO=1.
+// #define OPTION_FREERTOS_LWIP_SOCKET_API
 
 //-------------------------------------------------------------------------------
 // Logging
@@ -79,7 +89,7 @@
 //-------------------------------------------------------------------------------
 // XCP server
 #undef OPTION_ENABLE_TCP // TCP support stubs not implemented yet for FreeRTOS
-// OPTION_ENABLE_UDP stays enabled: FreeRTOS targets use the lwIP socket API (OPTION_FREERTOS_LWIP above),
+// OPTION_ENABLE_UDP stays enabled: FreeRTOS targets use lwIP (OPTION_FREERTOS_LWIP above),
 // the POSIX simulator uses host sockets. For targets without any IP stack, use XCPLITE_CONFIGURATION=raw
 // (OPTION_ENABLE_UDP_RAW, hand-crafted UDP/IP over a raw Ethernet HAL) - see docs/SOCKET_RAW.md
 
@@ -114,7 +124,7 @@
 // Data acquisition
 
 // No dynamic event list management, use section registered events
-#undef OPTION_DAQ_EVENT_LIST
+// #define OPTION_DAQ_EVENT_LIST
 
 // Adjust OPTION_DAQ_MEM_SIZE and OPTION_DAQ_EVENT_COUNT to your application
 // In maximum fragmentation, each measurement value needs 6 bytes DAQ list memory
@@ -128,7 +138,7 @@
 #undef OPTION_QUEUE_64_VAR_SIZE
 #undef OPTION_QUEUE_64_FIX_SIZE
 #define OPTION_QUEUE_32
-// Fixed 4 KB for the queue buffer, parameter of XcpEthServerInit ignored, must be a multiple of sizeof(tXcpSegmentBuffer)
+// Fixed size of the queue buffer (16 segments, about 23 KB with OPTION_MTU 1500), must be a multiple of sizeof(tXcpSegmentBuffer), the queue size parameter of XcpEthServerInit must be 0
 #define OPTION_QUEUE_32_SIZE (16 * sizeof(tXcpSegmentBuffer))
 // Use a crtical section instead of a mutex, locked sequences are only a few instructions
 #define OPTION_QUEUE32_CRITICAL_SECTION
@@ -136,6 +146,17 @@
 
 //-------------------------------------------------------------------------------
 // A2L / ELF — no filesystem on embedded; generate A2L externally via xcpclient or other tools
+
 #undef OPTION_ENABLE_A2L_GENERATOR
 #undef OPTION_ENABLE_A2L_UPLOAD
 #undef OPTION_ENABLE_ELF_UPLOAD
+
+// Use linker section based event and calibration segment registration
+// Linker sections xcp_evts and xcp_cals
+#define OPTION_SECTION_REGISTRATION
+
+// @@@@ Test:
+// rtos configuration without section registration (not recommended),
+// needs XCP tool support for event and segment detection or xcpclient in online A2L generation mode
+// #undef OPTION_SECTION_REGISTRATION
+// #define OPTION_DAQ_EVENT_LIST

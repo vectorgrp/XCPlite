@@ -1,7 +1,9 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-project(xcplite VERSION 2.2.2 LANGUAGES C CXX)
+project(xcplite VERSION 2.3.2 LANGUAGES C CXX)
+# keep in sync with src/xcplib_cfg.h version defines (OPTION_VERSION_MAJOR, OPTION_VERSION_MINOR, OPTION_VERSION_PATCH)
+
 
 # Check if xcplite is the top-level project, or is it consumed as a subproject (add_subdirectory / FetchContent)
 # Settings which touch the global CMake cache (install prefix, per-build-type compiler flags, install rules) are applied only
@@ -121,9 +123,6 @@ endif()
 #     no_a2l   -> no_a2l_demo, no_a2l_demo_cpp
 #     ptp      -> ptp4l_demo (Linux)
 #     shm      -> hello_xcp (SHM mode), hello_xcp_cpp (SHM mode)
-#                Note: silkit_demo is a standalone project (requires SilKit + installed xcplite);
-#                build it separately from examples/silkit_demo/ after installing xcplite.
-#                external_example is also a standalone project; see examples/external_example/
 #     rtos     -> freertos_demo (downloads FreeRTOS-Kernel via FetchContent)
 #   XCPLITE_BUILD_TESTS
 #     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp
@@ -154,7 +153,11 @@ option(XCPLITE_BUILD_BPF_DEMO   "Build bpf_demo (default configuration, Linux on
 option(XCPLITE_INSTALL          "Generate install rules for xcplite (default: ON when top-level, OFF when consumed via add_subdirectory/FetchContent)" ${_xcplite_is_top_level})
 
 # Find required packages
-find_package(Threads REQUIRED)
+# The rtos configuration is single-threaded from pthreads' perspective (FreeRTOS primitives only);
+# bare-metal sysroots have no pthread.h, so skip the Threads dependency there.
+if(NOT XCPLITE_CONFIGURATION STREQUAL "rtos")
+    find_package(Threads REQUIRED)
+endif()
 
 # Enable compile commands for VS Code IntelliSense (standalone builds only; not propagated to consumers)
 if(_xcplite_is_top_level)
@@ -294,20 +297,37 @@ else()
     target_compile_definitions(xcplite PUBLIC $<$<PLATFORM_ID:Linux>:_GNU_SOURCE>)
 endif()
 
-# Link threads library to xcplite (needed for pthread usage in platform.h)
-target_link_libraries(xcplite PUBLIC Threads::Threads)
+# Link threads library to xcplite (needed for pthread usage in platform.h; not for rtos, see above)
+if(NOT XCPLITE_CONFIGURATION STREQUAL "rtos")
+    target_link_libraries(xcplite PUBLIC Threads::Threads)
+endif()
 
 # Link math library on Unix/Linux/macOS (needed for math functions)
 if(UNIX)
     target_link_libraries(xcplite PUBLIC m)
 endif()
 
-# Check for atomic library support (needed on some ARM platforms with clang)
-include(CheckLibraryExists)
-check_library_exists(atomic __atomic_store_4 "" HAVE_LIBATOMIC)
-if(HAVE_LIBATOMIC)
-    message(STATUS "Linking with atomic library for C11 atomics support")
-    target_link_libraries(xcplite PUBLIC atomic)
+# Check for atomic library support.
+# The lock-free 64-bit transmit queues (queue64v.c / queue64f.c) use atomic_uint_fast64_t. On
+# targets where the compiler cannot lower 64-bit atomics to inline lock-free instructions (e.g.
+# some ARM/clang combinations), it emits calls to libatomic runtime helpers (__atomic_*), so the
+# library must be linked. Where 64-bit atomics are inlined (typical x86-64/AArch64), libatomic does
+# not exist / is not needed and the probe simply comes back false.
+# This probe only makes libatomic available for linking; it does NOT decide lock-freedom and cannot
+# tell an out-of-line-but-lock-free helper from libatomic's lock-table emulation. The actual lock-free
+# guarantee is enforced in the source: queue64v.c / queue64f.c carry a compile-time
+# static_assert(ATOMIC_LLONG_LOCK_FREE == 2), so a target whose 64-bit atomics would fall back to a
+# hidden lock table fails to build and must opt into the mutex queue32.c via OPTION_ATOMIC_EMULATION.
+# The rtos configuration uses queue32m.c with FreeRTOS critical sections, not 64-bit lock-free
+# atomics, so it needs no libatomic. Skipping the probe also avoids a cross-compile pitfall where
+# check_library_exists finds the host's libatomic and links a library absent from the target sysroot.
+if(NOT XCPLITE_CONFIGURATION STREQUAL "rtos")
+    include(CheckLibraryExists)
+    check_library_exists(atomic __atomic_store_4 "" HAVE_LIBATOMIC)
+    if(HAVE_LIBATOMIC)
+        message(STATUS "Linking with atomic library for C11 atomics support")
+        target_link_libraries(xcplite PUBLIC atomic)
+    endif()
 endif()
 
 
@@ -389,10 +409,6 @@ if(XCPLITE_BUILD_EXAMPLES)
         add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp)
         target_link_libraries(hello_xcp_cpp PRIVATE xcplite)
 
-        # silkit_demo is a standalone project requiring SilKit + an installed xcplite.
-        # Build it separately: cd examples/silkit_demo && cmake -B build -DSilKit_DIR=... -Dxcplite_DIR=...
-        message(STATUS "silkit_demo: not built from root (standalone project, see examples/silkit_demo/)")
-
     elseif(XCPLITE_CONFIGURATION STREQUAL "raw")
 
         # udp_raw_demo: XCP over the raw Ethernet transport (UDP/IPv4 inside xcplib).
@@ -433,8 +449,7 @@ if(XCPLITE_BUILD_TESTS)
     #   Run all:              ctest --test-dir build --output-on-failure
     #   Only fast unit tests: ctest --test-dir build -L unit
     # Only hermetic, self-terminating tests are registered here. Interactive server tests
-    # (daq_test, clock_test), the client probe (xcp_test) and the throughput benchmark
-    # (queue_test) are run by hand - see test/README.md.
+    # (daq_test, clock_test) and the throughput benchmark (queue_test) are run by hand - see test/README.md.
     enable_testing()
 
     if(XCPLITE_CONFIGURATION STREQUAL "default")
@@ -471,6 +486,7 @@ if(XCPLITE_BUILD_TESTS)
         target_link_libraries(queue_test PRIVATE xcplite)
 
         add_executable(xcp_test test/xcp_test/src/main.cpp)
+        target_link_libraries(xcp_test PRIVATE xcplite)
         if(WIN32)
             target_link_libraries(xcp_test PRIVATE ws2_32)
         endif()
@@ -503,6 +519,10 @@ if(XCPLITE_BUILD_TESTS)
         else()
             message(STATUS "a2l_test: not registered with CTest (a2ltool not found on PATH)")
         endif()
+
+        # xcp_test validates against an in-process server
+        add_test(NAME xcp_test COMMAND xcp_test)
+        set_tests_properties(xcp_test PROPERTIES LABELS "integration" TIMEOUT 60)
 
     elseif(XCPLITE_CONFIGURATION STREQUAL "ptp")
 

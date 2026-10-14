@@ -799,10 +799,11 @@ static int16_t mapSendResult(int16_t r, uint16_t bufferSize) {
 }
 
 // Send one UDP datagram to addr:port.
+// Blocking call
+// buffer,bufferSize: must remain valid and unmodified until socketSendTo returns, and the transport must fully consume it before returning
 // The payload is copied into a frame buffer behind the header. Used for command responses, which
 // are built on the stack and therefore have no headroom in front of them.
-// Returns: bytes sent (the PAYLOAD size, not the frame size - XcpEthTlSend compares the result
-//          against the payload size), 0 on closed socket, -1 on error
+// Returns total number of payload bytes sent, 0 on socket closed or -1 on error
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time) {
 
     assert(socket != INVALID_SOCKET_HANDLE);

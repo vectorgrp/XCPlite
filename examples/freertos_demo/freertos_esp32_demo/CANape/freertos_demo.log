@@ -1,0 +1,1018 @@
+[INFO ] xcp_client - version 4.0.1
+[INFO ] Default event fastTask for variables without a fixed event
+[INFO ] Using A2L file name from command line argument: CANape/freertos_demo.a2l
+[INFO ] A2L path: CANape/freertos_demo.a2l
+[INFO ] Generate A2L file CANape/freertos_demo.a2l with ELF/DWARF information only,  offline mode 
+[INFO ] Reading ELF file: .pio/build/lilygo-t-display-s3/firmware.elf
+[INFO ] Parsing ELF object file .pio/build/lilygo-t-display-s3/firmware.elf
+
+====================================================================================================
+Format: Elf
+Architecture: Xtensa
+Endianness: Little
+
+Sections:
+  Name: .rtc.text            Addr: 0x600fe000 Size: 0 bytes Kind: Other 
+  Name: .rtc.force_fast      Addr: 0x600fe000 Size: 0 bytes Kind: Other 
+  Name: .rtc_noinit          Addr: 0x50000200 Size: 0 bytes Kind: Other 
+  Name: .rtc.force_slow      Addr: 0x50000200 Size: 32 bytes Kind: Data 
+  Name: .rtc_reserved        Addr: 0x600fffd8 Size: 40 bytes Kind: UninitializedData 
+  Name: .iram0.vectors       Addr: 0x40374000 Size: 1028 bytes Kind: Text 
+  Name: .iram0.text          Addr: 0x40374404 Size: 76351 bytes Kind: Text 
+  Name: .dram0.dummy         Addr: 0x3fc88000 Size: 61184 bytes Kind: UninitializedData 
+  Name: .dram0.data          Addr: 0x3fc96f00 Size: 22780 bytes Kind: Data 
+  Name: .noinit              Addr: 0x3fc9c7fc Size: 0 bytes Kind: UninitializedData 
+  Name: .dram0.bss           Addr: 0x3fc9c800 Size: 66544 bytes Kind: UninitializedData 
+  Name: .flash.text          Addr: 0x42000020 Size: 717448 bytes Kind: Text 
+  Name: .flash_rodata_dummy  Addr: 0x3c000020 Size: 720896 bytes Kind: UninitializedData 
+  Name: .flash.appdesc       Addr: 0x3c0b0020 Size: 256 bytes Kind: ReadOnlyData 
+  Name: .flash.rodata        Addr: 0x3c0b0120 Size: 207408 bytes Kind: Data 
+  Name: xcp_epk              Addr: 0x3c0e2b50 Size: 8 bytes Kind: ReadOnlyData 
+  Name: xcp_meta             Addr: 0x3c0e2b58 Size: 640 bytes Kind: ReadOnlyData 
+  Name: .flash.rodata_noload Addr: 0x3c0e2dd8 Size: 23251 bytes Kind: UninitializedData 
+  Name: .ext_ram.dummy       Addr: 0x3c000020 Size: 983008 bytes Kind: UninitializedData 
+  Name: .iram0.text_end      Addr: 0x40386e43 Size: 189 bytes Kind: UninitializedData 
+  Name: .iram0.data          Addr: 0x40386f00 Size: 0 bytes Kind: Other 
+  Name: .iram0.bss           Addr: 0x40386f00 Size: 0 bytes Kind: Other 
+  Name: .dram0.heap_start    Addr: 0x3fcacbf0 Size: 0 bytes Kind: Other 
+  Name: .debug_aranges       Addr: 0x00000000 Size: 92296 bytes Kind: Other 
+  Name: .debug_info          Addr: 0x00000000 Size: 8376362 bytes Kind: Other 
+  Name: .debug_abbrev        Addr: 0x00000000 Size: 801326 bytes Kind: Other 
+  Name: .debug_line          Addr: 0x00000000 Size: 3963394 bytes Kind: Other 
+  Name: .debug_frame         Addr: 0x00000000 Size: 240852 bytes Kind: Other 
+  Name: .debug_str           Addr: 0x00000000 Size: 1012735 bytes Kind: OtherString 
+  Name: .debug_loc           Addr: 0x00000000 Size: 1742136 bytes Kind: Other 
+  Name: .debug_ranges        Addr: 0x00000000 Size: 236712 bytes Kind: Other 
+  Name: .debug_line_str      Addr: 0x00000000 Size: 13286 bytes Kind: OtherString 
+  Name: .debug_loclists      Addr: 0x00000000 Size: 119501 bytes Kind: Other 
+  Name: .debug_rnglists      Addr: 0x00000000 Size: 11872 bytes Kind: Other 
+  Name: .comment             Addr: 0x00000000 Size: 181 bytes Kind: OtherString 
+  Name: .xtensa.info         Addr: 0x00000000 Size: 56 bytes Kind: Note 
+  Name: .xt.prop             Addr: 0x00000000 Size: 13704 bytes Kind: Other 
+  Name: .xt.lit              Addr: 0x00000000 Size: 216 bytes Kind: Other 
+  Name: .symtab              Addr: 0x00000000 Size: 182320 bytes Kind: Metadata 
+  Name: .strtab              Addr: 0x00000000 Size: 220891 bytes Kind: Metadata 
+  Name: .shstrtab            Addr: 0x00000000 Size: 526 bytes Kind: Metadata 
+
+[INFO ] Loading DWARF sections
+[INFO ] EPK string read from xcp_epk section: 'V201' at address 0x3C0E2B50
+[WARN ] xcp_demo_cpp:434: 'phase': location evaluation result not handled Piece { size_in_bits: None, bit_offset: None, location: Bytes { value: EndianSlice(Little, [0x00, 0x00, 0x00, 0x00]) } }
+[WARN ] xcp_demo_cpp:435: 'slow_task_period_ms': location is a register Register(6)
+[WARN ] xcp_demo_cpp:436: 'fast_task_period_ms': location is a register Register(9)
+[WARN ] xcp_demo_cpp:491: 'delayed': location is a register Register(10)
+[WARN ] xcp_demo_cpp:452: 'params': the variable is split into 2 slices (DW_OP_piece), not measurable: [Piece { size_in_bits: Some(32), bit_offset: None, location: Address { address: 0 } }, Piece { size_in_bits: Some(32), bit_offset: None, location: Value { value: Generic(1007456428) } }]
+[WARN ] xcp_demo_cpp:375: 'period_ms': location is a register Register(5)
+[WARN ] xcp_demo_cpp:420: 'delayed': location is a register Register(10)
+[WARN ] xcp_demo_cpp:386: 'params': the variable is split into 2 slices (DW_OP_piece), not measurable: [Piece { size_in_bits: Some(32), bit_offset: None, location: Address { address: 0 } }, Piece { size_in_bits: Some(32), bit_offset: None, location: Value { value: Generic(1007456428) } }]
+[WARN ] xcp_demo_cpp:331: 'test_float': expression not evaluated, unsupported, eval_result=RequiresRegister { register: Register(19), base_type: UnitOffset(37) }
+[WARN ] xcp_demo_cpp:332: 'test_double': expression not evaluated, unsupported, eval_result=RequiresRegister { register: Register(7), base_type: UnitOffset(0) }
+[WARN ] xcp_demo_cpp:334: 'test_uint16': expression not evaluated, unsupported, eval_result=RequiresRegister { register: Register(5), base_type: UnitOffset(0) }
+[WARN ] xcp_demo_cpp:335: 'test_uint32': expression not evaluated, unsupported, eval_result=RequiresRegister { register: Register(7), base_type: UnitOffset(0) }
+[WARN ] xcp_demo_cpp:336: 'test_uint64': expression not evaluated, unsupported, eval_result=RequiresRegister { register: Register(7), base_type: UnitOffset(0) }
+[WARN ] xcp_demo_cpp:342: 'test_struct': expression not evaluated, unsupported, eval_result=RequiresRegister { register: Register(19), base_type: UnitOffset(37) }
+[WARN ] xcp_demo_cpp:343: 'test_array': the variable is split into 3 slices (DW_OP_piece), not measurable: [Piece { size_in_bits: Some(8), bit_offset: None, location: Value { value: Generic(1) } }, Piece { size_in_bits: Some(8), bit_offset: None, location: Value { value: Generic(2) } }, Piece { size_in_bits: Some(8), bit_offset: None, location: Register { register: Register(3) } }]
+[WARN ] Failed to read type: unexpected DWARF tag DW_TAG_ptr_to_member_type in type definition
+[WARN ] Failed to read type: unexpected DWARF tag DW_TAG_ptr_to_member_type in type definition
+[WARN ] Failed to read type: unexpected DWARF tag DW_TAG_ptr_to_member_type in type definition
+[WARN ] Failed to read type: unexpected DWARF tag DW_TAG_ptr_to_member_type in type definition
+[WARN ] Failed to read type: unexpected DWARF tag DW_TAG_ptr_to_member_type in type definition
+[WARN ] Failed to read type: unexpected DWARF tag DW_TAG_ptr_to_member_type in type definition
+[INFO ] Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdisable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu17 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -ffunction-sections -fdata-sections -freorder-blocks -fstack-protector -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion
+[INFO ] Compiler: GNU C++20 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdisable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu++23 -std=gnu++20 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-rtti -fexceptions -fuse-cxa-atexit -ffunction-sections -fdata-sections -freorder-blocks -fstack-protector -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion
+[INFO ] Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdisable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu17 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -ffunction-sections -fdata-sections -freorder-blocks -fstack-protector -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -fno-inline-functions -fno-inline-small-functions -fno-inline-functions-called-once
+[INFO ] Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdisable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu17 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -ffunction-sections -fdata-sections -freorder-blocks -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -fno-stack-protector
+[INFO ] Compiler: GNU AS 2.43.1
+[INFO ] Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mno-disable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu17 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -ffunction-sections -fdata-sections -freorder-blocks -fstack-protector -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion
+[INFO ] Compiler: GNU C++20 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdisable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu++23 -std=gnu++20 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-rtti -ffunction-sections -fdata-sections -freorder-blocks -fstack-protector -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -fexceptions -fuse-cxa-atexit
+[INFO ] Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -Os -Os -fno-builtin -ffunction-sections -fdata-sections -fno-rtti
+[INFO ] Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -Os -Os -fbuiltin -fno-math-errno -ffunction-sections -fdata-sections -fno-rtti
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=del_ops.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=del_opv.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_aux_runtime.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_catch.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_globals.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_personality.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_terminate.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_throw.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_unex_handler.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=new_handler.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=new_op.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=new_opnt.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=new_opv.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=new_opvnt.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=si_class_type_info.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=tinfo.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=functexcept.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=functional.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=bad_alloc.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=bad_array_new.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=class_type_info.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=del_op.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_alloc.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_call.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_exception.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_term_handler.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++98 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++98 -fno-implicit-templates -frandom-seed=stdexcept.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=cow-stdexcept.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=cow-string-inst.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=random.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=sso_string.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=string-inst.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=system_error.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=cxx11-stdexcept.lo -fno-rtti -ffunction-sections -fdata-sections
+[INFO ] Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -g -g -g -g -g -O2 -Os -O2 -O2 -Os -fno-rtti -fbuilding-libgcc -fno-stack-protector -fexceptions -fnon-call-exceptions
+[INFO ] Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -g -g -g -g -g -O2 -Os -O2 -O2 -Os -fno-rtti -fbuilding-libgcc -fno-stack-protector -fexceptions
+
+====================================================================================================
+DebugData information summary:
+  Compilation units: 646 units
+  Compiler: GNU AS 2.43.1
+  Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=cow-stdexcept.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=cow-string-inst.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=cxx11-stdexcept.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=functexcept.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=functional.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=random.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=sso_string.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=string-inst.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++11 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++11 -fno-implicit-templates -frandom-seed=system_error.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=bad_alloc.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=bad_array_new.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=class_type_info.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=del_op.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=del_ops.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=del_opv.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_alloc.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_aux_runtime.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_call.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_catch.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_exception.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_globals.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_personality.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_term_handler.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_terminate.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_throw.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=eh_unex_handler.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=new_handler.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=new_op.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=new_opnt.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=new_opv.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=new_opvnt.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=si_class_type_info.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -fno-implicit-templates -frandom-seed=tinfo.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C++20 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdisable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu++23 -std=gnu++20 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-rtti -fexceptions -fuse-cxa-atexit -ffunction-sections -fdata-sections -freorder-blocks -fstack-protector -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion
+  Compiler: GNU C++20 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdisable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu++23 -std=gnu++20 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -fno-rtti -ffunction-sections -fdata-sections -freorder-blocks -fstack-protector -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -fexceptions -fuse-cxa-atexit
+  Compiler: GNU C++98 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -g -O2 -Os -std=gnu++98 -fno-implicit-templates -frandom-seed=stdexcept.lo -fno-rtti -ffunction-sections -fdata-sections
+  Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -g -g -g -g -g -O2 -Os -O2 -O2 -Os -fno-rtti -fbuilding-libgcc -fno-stack-protector -fexceptions
+  Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -g -g -g -g -g -O2 -Os -O2 -O2 -Os -fno-rtti -fbuilding-libgcc -fno-stack-protector -fexceptions -fnon-call-exceptions
+  Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdisable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu17 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -ffunction-sections -fdata-sections -freorder-blocks -fstack-protector -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion
+  Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdisable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu17 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -ffunction-sections -fdata-sections -freorder-blocks -fstack-protector -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -fno-inline-functions -fno-inline-small-functions -fno-inline-functions-called-once
+  Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdisable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu17 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -ffunction-sections -fdata-sections -freorder-blocks -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -fno-stack-protector
+  Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -Os -Os -fbuiltin -fno-math-errno -ffunction-sections -fdata-sections -fno-rtti
+  Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mdynconfig=xtensa_esp32s3.so -g -Os -Os -fno-builtin -ffunction-sections -fdata-sections -fno-rtti
+  Compiler: GNU C17 14.2.0 -mdynconfig=xtensa_esp32s3.so -mlongcalls -mno-disable-hardware-atomics -gdwarf-4 -ggdb -Os -std=gnu17 -fno-builtin-memcpy -fno-builtin-memset -fno-builtin-bzero -ffunction-sections -fdata-sections -freorder-blocks -fstack-protector -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion
+  Sections: 16
+  Endianness: Little Endian
+  Variables 29930 with 7258 unique names
+  Demangled names: 0 entries
+  Type names: 2144 named types
+  Types: 41420 total types
+  EPK string: `V201` at address 0x3C0E2B50
+  XCP metadata section (xcp_meta) found at address 0x3C0E2B58, 640 bytes
+
+====================================================================================================
+Compilation units in debug_data.unit_names:
+  Unit 0: cal_c
+  Unit 1: platform_c
+  Unit 2: queue32m_c
+  Unit 3: sockets_c
+  Unit 4: xcpappl_c
+  Unit 5: xcpethserver_c
+  Unit 6: xcpethtl_c
+  Unit 7: xcplite_c
+  Unit 8: SPI_cpp
+  Unit 9: Wire_cpp
+  Unit 10: LGFXBase_cpp
+  Unit 11: LGFX_Button_cpp
+  Unit 12: LGFX_Sprite_cpp
+  Unit 13: lgfx_fonts_cpp
+  Unit 14: DividedFrameBuffer_cpp
+  Unit 15: SpriteBuffer_cpp
+  Unit 16: pixelcopy_cpp
+  Unit 17: Panel_AMOLED_cpp
+  Unit 18: Panel_Device_cpp
+  Unit 19: Panel_ED2208_cpp
+  Unit 20: Panel_FlexibleFrameBuffer_cpp
+  Unit 21: Panel_FrameBufferBase_cpp
+  Unit 22: Panel_GDEW0154D67_cpp
+  Unit 23: Panel_GDEW0154M09_cpp
+  Unit 24: Panel_HUB75_cpp
+  Unit 25: Panel_HasBuffer_cpp
+  Unit 26: Panel_ILI9225_cpp
+  Unit 27: Panel_IT8951_cpp
+  Unit 28: Panel_LCD_cpp
+  Unit 29: Panel_M5HDMI_cpp
+  Unit 30: Panel_M5UnitGLASS_cpp
+  Unit 31: Panel_M5UnitLCD_cpp
+  Unit 32: Panel_NT35510_cpp
+  Unit 33: Panel_NV3041A_cpp
+  Unit 34: Panel_RA8875_cpp
+  Unit 35: Panel_RM68120_cpp
+  Unit 36: Panel_SH8601Z_cpp
+  Unit 37: Panel_SSD1306_cpp
+  Unit 38: Panel_SSD1327_cpp
+  Unit 39: Panel_SSD1331_cpp
+  Unit 40: Panel_SSD1351_cpp
+  Unit 41: Panel_SSD1963_cpp
+  Unit 42: Panel_SharpLCD_cpp
+  Unit 43: Bus_Stream_cpp
+  Unit 44: Bus_EPD_cpp
+  Unit 45: Bus_I2C_cpp
+  Unit 46: Bus_SPI_cpp
+  Unit 47: Light_PWM_cpp
+  Unit 48: Panel_EPD_cpp
+  Unit 49: common_cpp
+  Unit 50: Touch_ST7123_cpp
+  Unit 51: Bus_Parallel16_cpp
+  Unit 52: Bus_Parallel8_cpp
+  Unit 53: Bus_RGB_cpp
+  Unit 54: Panel_RGB_cpp
+  Unit 55: Touch_CHSC6x_cpp
+  Unit 56: Touch_CSTxxx_cpp
+  Unit 57: Touch_FT5x06_cpp
+  Unit 58: Touch_GSLx680_cpp
+  Unit 59: Touch_GT911_cpp
+  Unit 60: Touch_NS2009_cpp
+  Unit 61: Touch_RA8875_cpp
+  Unit 62: Touch_STMPE610_cpp
+  Unit 63: Touch_TT21xxx_cpp
+  Unit 64: Touch_XPT2046_cpp
+  Unit 65: Adafruit_BusIO_Register_cpp
+  Unit 66: Adafruit_GenericDevice_cpp
+  Unit 67: Adafruit_I2CDevice_cpp
+  Unit 68: Adafruit_SPIDevice_cpp
+  Unit 69: Adafruit_ADS1X15_cpp
+  Unit 70: NetworkClient_cpp
+  Unit 71: NetworkEvents_cpp
+  Unit 72: NetworkInterface_cpp
+  Unit 73: NetworkManager_cpp
+  Unit 74: NetworkServer_cpp
+  Unit 75: NetworkUdp_cpp
+  Unit 76: AP_cpp
+  Unit 77: STA_cpp
+  Unit 78: WiFi_cpp
+  Unit 79: WiFiAP_cpp
+  Unit 80: WiFiGeneric_cpp
+  Unit 81: WiFiMulti_cpp
+  Unit 82: WiFiSTA_cpp
+  Unit 83: WiFiScan_cpp
+  Unit 84: clock64_c
+  Unit 85: main_cpp
+  Unit 86: xcp_demo_cpp
+  Unit 87: HWCDC_cpp
+  Unit 88: IPAddress_cpp
+  Unit 89: Print_cpp
+  Unit 90: Stream_cpp
+  Unit 91: StreamString_cpp
+  Unit 92: WString_cpp
+  Unit 93: cbuf_cpp
+  Unit 94: esp32-hal-gpio_c
+  Unit 95: esp32-hal-i2c-ng_c
+  Unit 96: esp32-hal-i2c-slave_c
+  Unit 97: esp32-hal-ledc_c
+  Unit 98: esp32-hal-matrix_c
+  Unit 99: esp32-hal-misc_c
+  Unit 100: esp32-hal-periman_c
+  Unit 101: esp32-hal-psram_c
+  Unit 102: esp32-hal-spi_c
+  Unit 103: esp32-hal-uart_c
+  Unit 104: main_cpp
+  Unit 105: FunctionalInterrupt_cpp
+  Unit 106: HardwareSerial_cpp
+  Unit 107: chip-debug-report_cpp
+  Unit 108: esp32-hal-bt_c
+  Unit 109: esp32-hal-cpu_c
+  Unit 110: Esp_cpp
+  Unit 111: MD5Builder_cpp
+  Unit 112: HEXBuilder_cpp
+  Unit 113: gpio_c
+  Unit 114: rtc_io_c
+  Unit 115: esp_app_desc_c
+  Unit 116: esp_ota_ops_c
+  Unit 117: partition_c
+  Unit 118: partition_target_c
+  Unit 119: esp_efuse_api_c
+  Unit 120: esp_efuse_utility_c
+  Unit 121: esp_efuse_startup_c
+  Unit 122: esp_efuse_table_c
+  Unit 123: esp_efuse_utility_c
+  Unit 124: bootloader_common_loader_c
+  Unit 125: flash_encrypt_c
+  Unit 126: bootloader_flash_c
+  Unit 127: bootloader_utility_c
+  Unit 128: esp_image_format_c
+  Unit 129: bootloader_sha_c
+  Unit 130: esp_cache_msync_c
+  Unit 131: flash_mmap_c
+  Unit 132: esp_flash_api_c
+  Unit 133: esp_flash_spi_init_c
+  Unit 134: spi_flash_os_func_app_c
+  Unit 135: spi_flash_os_func_noos_c
+  Unit 136: flash_brownout_hook_c
+  Unit 137: spi_flash_chip_drivers_c
+  Unit 138: spi_flash_chip_generic_c
+  Unit 139: spi_flash_chip_issi_c
+  Unit 140: spi_flash_chip_mxic_c
+  Unit 141: spi_flash_chip_gd_c
+  Unit 142: spi_flash_chip_winbond_c
+  Unit 143: spi_flash_chip_boya_c
+  Unit 144: spi_flash_chip_mxic_opi_c
+  Unit 145: spi_flash_chip_th_c
+  Unit 146: memspi_host_driver_c
+  Unit 147: cache_utils_c
+  Unit 148: flash_ops_c
+  Unit 149: spi_flash_oct_flash_init_c
+  Unit 150: spi_flash_hpm_enable_c
+  Unit 151: esp_err_c
+  Unit 152: esp_ipc_c
+  Unit 153: esp_system_c
+  Unit 154: startup_funcs_c
+  Unit 155: stack_check_c
+  Unit 156: ubsan_c
+  Unit 157: task_wdt_c
+  Unit 158: task_wdt_impl_timergroup_c
+  Unit 159: cpu_start_c
+  Unit 160: panic_handler_c
+  Unit 161: esp_system_chip_c
+  Unit 162: esp_ipc_isr_c
+  Unit 163: esp_ipc_isr_port_c
+  Unit 164: panic_arch_c
+  Unit 165: debug_helpers_c
+  Unit 166: debug_helpers_asm_S
+  Unit 167: highint_hdl_S
+  Unit 168: clk_c
+  Unit 169: reset_reason_c
+  Unit 170: system_internal_c
+  Unit 171: cache_err_int_c
+  Unit 172: apb_backup_dma_c
+  Unit 173: crosscore_int_c
+  Unit 174: freertos_hooks_c
+  Unit 175: int_wdt_c
+  Unit 176: panic_c
+  Unit 177: startup_c
+  Unit 178: esp_ipc_isr_handler_S
+  Unit 179: esp_err_to_name_c
+  Unit 180: esp_rom_sys_c
+  Unit 181: esp_rom_spiflash_c
+  Unit 182: esp_rom_efuse_c
+  Unit 183: esp_rom_cache_esp32s2_esp32s3_c
+  Unit 184: esp_rom_cache_writeback_esp32s3_S
+  Unit 185: efuse_hal_c
+  Unit 186: efuse_hal_c
+  Unit 187: mmu_hal_c
+  Unit 188: cache_hal_c
+  Unit 189: spi_flash_hal_c
+  Unit 190: spi_flash_hal_iram_c
+  Unit 191: spi_flash_encrypt_hal_iram_c
+  Unit 192: uart_hal_iram_c
+  Unit 193: gpio_hal_c
+  Unit 194: spi_flash_hal_gpspi_c
+  Unit 195: log_timestamp_c
+  Unit 196: util_c
+  Unit 197: log_c
+  Unit 198: log_write_c
+  Unit 199: log_level_c
+  Unit 200: tag_log_level_c
+  Unit 201: log_linked_list_c
+  Unit 202: log_binary_heap_c
+  Unit 203: log_lock_c
+  Unit 204: heap_caps_base_c
+  Unit 205: heap_caps_c
+  Unit 206: heap_caps_init_c
+  Unit 207: multi_heap_c
+  Unit 208: tlsf_c
+  Unit 209: multi_heap_poisoning_c
+  Unit 210: memory_layout_utils_c
+  Unit 211: memory_layout_c
+  Unit 212: gpio_periph_c
+  Unit 213: uart_periph_c
+  Unit 214: i2c_periph_c
+  Unit 215: lcd_periph_c
+  Unit 216: rtc_io_periph_c
+  Unit 217: init_c
+  Unit 218: cpu_c
+  Unit 219: esp_memory_utils_c
+  Unit 220: esp_clk_c
+  Unit 221: hw_random_c
+  Unit 222: intr_alloc_c
+  Unit 223: mac_addr_c
+  Unit 224: periph_ctrl_c
+  Unit 225: rtc_module_c
+  Unit 226: regi2c_ctrl_c
+  Unit 227: esp_gpio_reserve_c
+  Unit 228: io_mux_c
+  Unit 229: esp_clk_tree_c
+  Unit 230: spi_bus_lock_c
+  Unit 231: esp_clk_tree_common_c
+  Unit 232: sleep_modes_c
+  Unit 233: sleep_gpio_c
+  Unit 234: mspi_timing_tuning_c
+  Unit 235: brownout_c
+  Unit 236: rtc_clk_c
+  Unit 237: rtc_init_c
+  Unit 238: rtc_sleep_c
+  Unit 239: rtc_time_c
+  Unit 240: chip_info_c
+  Unit 241: sar_periph_ctrl_c
+  Unit 242: mspi_timing_config_c
+  Unit 243: mspi_timing_by_mspi_delay_c
+  Unit 244: esp_cpu_intr_c
+  Unit 245: app_startup_c
+  Unit 246: queue_c
+  Unit 247: tasks_c
+  Unit 248: event_groups_c
+  Unit 249: port_c
+  Unit 250: portasm_S
+  Unit 251: idf_additions_c
+  Unit 252: heap_idf_c
+  Unit 253: port_common_c
+  Unit 254: port_systick_c
+  Unit 255: list_c
+  Unit 256: timers_c
+  Unit 257: init_c
+  Unit 258: abort_c
+  Unit 259: assert_c
+  Unit 260: heap_c
+  Unit 261: locks_c
+  Unit 262: pthread_c
+  Unit 263: getentropy_c
+  Unit 264: stdatomic_c
+  Unit 265: time_c
+  Unit 266: syscalls_c
+  Unit 267: reent_syscalls_c
+  Unit 268: esp_time_impl_c
+  Unit 269: stdatomic_s32c1i_c
+  Unit 270: reent_init_c
+  Unit 271: newlib_init_c
+  Unit 272: pthread_c
+  Unit 273: pthread_cond_var_c
+  Unit 274: pthread_local_storage_c
+  Unit 275: pthread_rwlock_c
+  Unit 276: pthread_semaphore_c
+  Unit 277: cxx_guards_cpp
+  Unit 278: cxx_init_cpp
+  Unit 279: esp_timer_init_c
+  Unit 280: system_time_c
+  Unit 281: esp_timer_impl_common_c
+  Unit 282: esp_timer_impl_systimer_c
+  Unit 283: ringbuf_c
+  Unit 284: esp_psram_c
+  Unit 285: esp_psram_impl_octal_c
+  Unit 286: esp_psram_mspi_c
+  Unit 287: uart_c
+  Unit 288: uart_vfs_c
+  Unit 289: default_event_loop_c
+  Unit 290: esp_event_c
+  Unit 291: nvs_api_cpp
+  Unit 292: nvs_page_cpp
+  Unit 293: nvs_storage_cpp
+  Unit 294: nvs_handle_simple_cpp
+  Unit 295: nvs_partition_cpp
+  Unit 296: nvs_partition_manager_cpp
+  Unit 297: nvs_types_cpp
+  Unit 298: nvs_platform_cpp
+  Unit 299: nvs_item_hash_list_cpp
+  Unit 300: nvs_pagemanager_cpp
+  Unit 301: nvs_partition_lookup_cpp
+  Unit 302: nvs_encrypted_partition_cpp
+  Unit 303: phy_override_c
+  Unit 304: phy_common_c
+  Unit 305: phy_init_c
+  Unit 306: phy_init_data_c
+  Unit 307: usb_serial_jtag_connection_monitor_c
+  Unit 308: usb_serial_jtag_vfs_c
+  Unit 309: usb_serial_jtag_c
+  Unit 310: vfs_console_c
+  Unit 311: vfs_c
+  Unit 312: nullfs_c
+  Unit 313: api_lib_c
+  Unit 314: api_msg_c
+  Unit 315: err_c
+  Unit 316: netbuf_c
+  Unit 317: sockets_c
+  Unit 318: tcpip_c
+  Unit 319: def_c
+  Unit 320: dns_c
+  Unit 321: init_c
+  Unit 322: ip_c
+  Unit 323: mem_c
+  Unit 324: memp_c
+  Unit 325: netif_c
+  Unit 326: pbuf_c
+  Unit 327: raw_c
+  Unit 328: tcp_c
+  Unit 329: tcp_in_c
+  Unit 330: tcp_out_c
+  Unit 331: timeouts_c
+  Unit 332: udp_c
+  Unit 333: dhcp_c
+  Unit 334: etharp_c
+  Unit 335: icmp_c
+  Unit 336: igmp_c
+  Unit 337: ip4_c
+  Unit 338: ip4_napt_c
+  Unit 339: ip4_addr_c
+  Unit 340: ip4_frag_c
+  Unit 341: dhcp6_c
+  Unit 342: icmp6_c
+  Unit 343: ip6_c
+  Unit 344: ip6_addr_c
+  Unit 345: ip6_frag_c
+  Unit 346: mld6_c
+  Unit 347: nd6_c
+  Unit 348: ethernet_c
+  Unit 349: ppp_c
+  Unit 350: pppos_c
+  Unit 351: upap_c
+  Unit 352: vj_c
+  Unit 353: tcp_isn_default_c
+  Unit 354: lwip_default_hooks_c
+  Unit 355: sockets_ext_c
+  Unit 356: sys_arch_c
+  Unit 357: acd_dhcp_check_c
+  Unit 358: vfs_lwip_c
+  Unit 359: sntp_c
+  Unit 360: inet_chksum_c
+  Unit 361: auth_c
+  Unit 362: ipcp_c
+  Unit 363: lcp_c
+  Unit 364: magic_c
+  Unit 365: fsm_c
+  Unit 366: esp_netif_objects_c
+  Unit 367: esp_netif_lwip_c
+  Unit 368: esp_netif_lwip_ppp_c
+  Unit 369: crypto_ops_c
+  Unit 370: esp_eap_client_c
+  Unit 371: esp_wpa_main_c
+  Unit 372: esp_wpas_glue_c
+  Unit 373: esp_common_c
+  Unit 374: esp_wps_c
+  Unit 375: esp_wpa3_c
+  Unit 376: esp_owe_c
+  Unit 377: esp_hostap_c
+  Unit 378: crypto_mbedtls_c
+  Unit 379: crypto_mbedtls-ec_c
+  Unit 380: fastpsk_c
+  Unit 381: os_xtensa_c
+  Unit 382: eloop_c
+  Unit 383: ap_config_c
+  Unit 384: wpa_auth_c
+  Unit 385: wpa_auth_ie_c
+  Unit 386: pmksa_cache_auth_c
+  Unit 387: sta_info_c
+  Unit 388: ieee802_11_c
+  Unit 389: comeback_token_c
+  Unit 390: sae_c
+  Unit 391: dragonfly_c
+  Unit 392: wpa_common_c
+  Unit 393: sha256-kdf_c
+  Unit 394: ccmp_c
+  Unit 395: aes-gcm_c
+  Unit 396: dh_groups_c
+  Unit 397: sha256-prf_c
+  Unit 398: sha1-prf_c
+  Unit 399: pmksa_cache_c
+  Unit 400: wpa_c
+  Unit 401: wpa_ie_c
+  Unit 402: common_c
+  Unit 403: wpabuf_c
+  Unit 404: sae_pk_c
+  Unit 405: crypto_mbedtls-bignum_c
+  Unit 406: rc4_c
+  Unit 407: aes-wrap_c
+  Unit 408: aes-unwrap_c
+  Unit 409: aes-ccm_c
+  Unit 410: aes-siv_c
+  Unit 411: ieee802_11_common_c
+  Unit 412: esp_coex_adapter_c
+  Unit 413: smartconfig_c
+  Unit 414: wifi_init_c
+  Unit 415: wifi_default_c
+  Unit 416: wifi_netif_c
+  Unit 417: esp_adapter_c
+  Unit 418: smartconfig_ack_c
+  Unit 419: i2c_master_c
+  Unit 420: i2c_common_c
+  Unit 421: ledc_c
+  Unit 422: esp_lcd_panel_io_i80_c
+  Unit 423: esp_lcd_common_c
+  Unit 424: core_dump_init_c
+  Unit 425: core_dump_common_c
+  Unit 426: core_dump_flash_c
+  Unit 427: core_dump_elf_c
+  Unit 428: core_dump_crc_c
+  Unit 429: core_dump_port_c
+  Unit 430: core_dump_stack_switch_S
+  Unit 431: nvs_sec_provider_c
+  Unit 432: esp_diagnostics_log_hook_c
+  Unit 433: esp_diagnostics_utils_c
+  Unit 434: manager_c
+  Unit 435: cJSON_c
+  Unit 436: protocomm_c
+  Unit 437: xtensa_context_S
+  Unit 438: xtensa_intr_asm_S
+  Unit 439: xtensa_intr_c
+  Unit 440: xtensa_vectors_S
+  Unit 441: pm_locks_c
+  Unit 442: bootloader_mem_c
+  Unit 443: bootloader_flash_config_esp32s3_c
+  Unit 444: esp_mmu_map_c
+  Unit 445: ext_mem_layout_c
+  Unit 446: esp_cache_utils_c
+  Unit 447: heap_align_hw_c
+  Unit 448: panic_handler_asm_S
+  Unit 449: clk_tree_hal_c
+  Unit 450: systimer_hal_c
+  Unit 451: uart_hal_c
+  Unit 452: ledc_hal_c
+  Unit 453: ledc_hal_iram_c
+  Unit 454: i2c_hal_c
+  Unit 455: lcd_hal_c
+  Unit 456: brownout_hal_c
+  Unit 457: interrupts_c
+  Unit 458: ledc_periph_c
+  Unit 459: temperature_sensor_periph_c
+  Unit 460: esp_crypto_lock_c
+  Unit 461: esp_crypto_periph_clk_c
+  Unit 462: cpu_region_protect_c
+  Unit 463: clk_ctrl_os_c
+  Unit 464: sar_periph_ctrl_common_c
+  Unit 465: esp_dma_utils_c
+  Unit 466: gdma_link_c
+  Unit 467: adc_share_hw_ctrl_c
+  Unit 468: gdma_c
+  Unit 469: systimer_c
+  Unit 470: esp_timer_c
+  Unit 471: ets_timer_legacy_c
+  Unit 472: dhcpserver_c
+  Unit 473: esp_netif_handlers_c
+  Unit 474: esp_netif_defaults_c
+  Unit 475: esp_netif_lwip_defaults_c
+  Unit 476: wlanif_c
+  Unit 477: esp_pbuf_ref_c
+  Unit 478: asn1write_c
+  Unit 479: bignum_c
+  Unit 480: bignum_core_c
+  Unit 481: cipher_c
+  Unit 482: cipher_wrap_c
+  Unit 483: constant_time_c
+  Unit 484: cmac_c
+  Unit 485: ecdh_c
+  Unit 486: ecdsa_c
+  Unit 487: ecp_c
+  Unit 488: ecp_curves_c
+  Unit 489: hmac_drbg_c
+  Unit 490: md_c
+  Unit 491: md5_c
+  Unit 492: oid_c
+  Unit 493: pk_c
+  Unit 494: pk_ecc_c
+  Unit 495: pk_wrap_c
+  Unit 496: pkparse_c
+  Unit 497: platform_c
+  Unit 498: platform_util_c
+  Unit 499: rsa_c
+  Unit 500: rsa_alt_helpers_c
+  Unit 501: sha1_c
+  Unit 502: sha256_c
+  Unit 503: sha512_c
+  Unit 504: esp_hardware_c
+  Unit 505: esp_mem_c
+  Unit 506: esp_aes_xts_c
+  Unit 507: esp_aes_common_c
+  Unit 508: esp_aes_c
+  Unit 509: sha_c
+  Unit 510: esp_bignum_c
+  Unit 511: bignum_alt_c
+  Unit 512: esp_sha1_c
+  Unit 513: esp_sha256_c
+  Unit 514: esp_sha512_c
+  Unit 515: esp_aes_gcm_c
+  Unit 516: esp_md_c
+  Unit 517: aria_c
+  Unit 518: asn1parse_c
+  Unit 519: camellia_c
+  Unit 520: ccm_c
+  Unit 521: gcm_c
+  Unit 522: pem_c
+  Unit 523: esp_sha_gdma_impl_c
+  Unit 524: esp_aes_dma_core_c
+  Unit 525: esp_crypto_shared_gdma_c
+  Unit 526: esp_sha_c
+  Unit 527: base64_c
+  Unit 528: esp_aes_gdma_impl_c
+  Unit 529: mpu_hal_c
+  Unit 530: gdma_hal_top_c
+  Unit 531: gdma_hal_ahb_v1_c
+  Unit 532: mpi_hal_c
+  Unit 533: sha_hal_c
+  Unit 534: aes_hal_c
+  Unit 535: dport_access_common_c
+  Unit 536: mpi_periph_c
+  Unit 537: ethip6_c
+  Unit 538: lib_printf_c
+  Unit 539: lib_printf_c
+  Unit 540: esp_wifi_regulatory_c
+  Unit 541: sf_floor_c
+  Unit 542: sf_sin_c
+  Unit 543: sf_round_c
+  Unit 544: kf_cos_c
+  Unit 545: kf_sin_c
+  Unit 546: ef_rem_pio2_c
+  Unit 547: sf_fabs_c
+  Unit 548: kf_rem_pio2_c
+  Unit 549: sf_scalbn_c
+  Unit 550: del_ops_cc
+  Unit 551: del_opv_cc
+  Unit 552: eh_aux_runtime_cc
+  Unit 553: eh_catch_cc
+  Unit 554: eh_globals_cc
+  Unit 555: eh_personality_cc
+  Unit 556: eh_terminate_cc
+  Unit 557: eh_throw_cc
+  Unit 558: eh_unex_handler_cc
+  Unit 559: new_handler_cc
+  Unit 560: new_op_cc
+  Unit 561: new_opnt_cc
+  Unit 562: new_opv_cc
+  Unit 563: new_opvnt_cc
+  Unit 564: si_class_type_info_cc
+  Unit 565: tinfo_cc
+  Unit 566: functexcept_cc
+  Unit 567: functional_cc
+  Unit 568: bad_alloc_cc
+  Unit 569: bad_array_new_cc
+  Unit 570: class_type_info_cc
+  Unit 571: del_op_cc
+  Unit 572: eh_alloc_cc
+  Unit 573: eh_call_cc
+  Unit 574: eh_exception_cc
+  Unit 575: eh_term_handler_cc
+  Unit 576: stdexcept_cc
+  Unit 577: cow-stdexcept_cc
+  Unit 578: cow-string-inst_cc
+  Unit 579: random_cc
+  Unit 580: sso_string_cc
+  Unit 581: string-inst_cc
+  Unit 582: system_error_cc
+  Unit 583: cxx11-stdexcept_cc
+  Unit 584: libgcc2_c
+  Unit 585: libgcc2_c
+  Unit 586: libgcc2_c
+  Unit 587: libgcc2_c
+  Unit 588: unwind-dw2-xtensa_c
+  Unit 589: unwind-dw2-fde_c
+  Unit 590: lib2funcs_S
+  Unit 591: lib_printf_c
+  Unit 592: environ_c
+  Unit 593: getenv_c
+  Unit 594: getenv_r_c
+  Unit 595: cxa_atexit_c
+  Unit 596: ctype__c
+  Unit 597: fclose_c
+  Unit 598: fflush_c
+  Unit 599: findfp_c
+  Unit 600: fopen_c
+  Unit 601: fprintf_c
+  Unit 602: fseek_c
+  Unit 603: fvwrite_c
+  Unit 604: fwalk_c
+  Unit 605: printf_c
+  Unit 606: putc_c
+  Unit 607: putchar_c
+  Unit 608: puts_c
+  Unit 609: refill_c
+  Unit 610: snprintf_c
+  Unit 611: sprintf_c
+  Unit 612: stdio_c
+  Unit 613: vprintf_c
+  Unit 614: vsnprintf_c
+  Unit 615: wbuf_c
+  Unit 616: wsetup_c
+  Unit 617: fseeko_c
+  Unit 618: strerror_c
+  Unit 619: u_strerr_c
+  Unit 620: locale_c
+  Unit 621: reent_c
+  Unit 622: impure_c
+  Unit 623: errno_c
+  Unit 624: sysclose_c
+  Unit 625: sysfcntl_c
+  Unit 626: sysgettod_c
+  Unit 627: sysopen_c
+  Unit 628: sysread_c
+  Unit 629: syswrite_c
+  Unit 630: __atexit_c
+  Unit 631: __call_atexit_c
+  Unit 632: envlock_c
+  Unit 633: mbtowc_r_c
+  Unit 634: mprec_c
+  Unit 635: on_exit_args_c
+  Unit 636: wctomb_r_c
+  Unit 637: svfiprintf_c
+  Unit 638: svfprintf_c
+  Unit 639: vfprintf_c
+  Unit 640: vfiprintf_c
+  Unit 641: flags_c
+  Unit 642: makebuf_c
+  Unit 643: localeconv_c
+  Unit 644: s_frexp_c
+  Unit 645: dtoa_c
+
+====================================================================================================
+DWARF sections by address:
+  '.flash_rodata_dummy': 0x3c000020, 1006632992 bytes (1007353888)
+  '.ext_ram.dummy': 0x3c000020, 0 bytes (1007616000)
+  '.flash.appdesc': 0x3c0b0020, 720896 bytes (1007354144)
+  '.flash.rodata': 0x3c0b0120, 256 bytes (1007561552)
+  'xcp_epk': 0x3c0e2b50, 207408 bytes (1007561560)
+  'xcp_meta': 0x3c0e2b58, 8 bytes (1007562200)
+  '.flash.rodata_noload': 0x3c0e2dd8, 640 bytes (1007585451)
+  '.dram0.dummy': 0x3fc88000, 62542376 bytes (1070165760)
+  '.dram0.data': 0x3fc96f00, 61184 bytes (1070188540)
+  '.dram0.bss': 0x3fc9c800, 22784 bytes (1070255088)
+  '.iram0.vectors': 0x40374000, 7174144 bytes (1077363716)
+  '.iram0.text': 0x40374404, 1028 bytes (1077440067)
+  '.iram0.text_end': 0x40386e43, 76351 bytes (1077440256)
+  '.flash.text': 0x42000020, 29856221 bytes (1108013736)
+  '.rtc.force_slow': 0x50000200, 234881504 bytes (1342177824)
+  '.rtc_reserved': 0x600fffd8, 269483480 bytes (1611661312)
+
+====================================================================================================
+A2L Creator variables:
+XCPLITE__ACSDD':  xcplite_c:'<global>' : addr=0:0x00000000
+calseg__epk':  xcplite_c:'XcpInit' : addr=0:0x3C0B0120
+xcp_meta__comment__global_counter':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2D94
+xcp_meta__read_write__global_counter':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2D93
+xcp_meta__comment__channel1':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2D6A
+xcp_meta__unit__channel1':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2D65
+xcp_meta__comment__parameters__counter_max':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2D40
+xcp_meta__min__parameters__counter_max':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2D38
+xcp_meta__max__parameters__counter_max':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2D30
+xcp_meta__comment__parameters__fast_task_period_ms':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2D0B
+xcp_meta__unit__parameters__fast_task_period_ms':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2D08
+xcp_meta__min__parameters__fast_task_period_ms':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2D00
+xcp_meta__max__parameters__fast_task_period_ms':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2CF8
+xcp_meta__comment__parameters__slow_task_period_ms':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2CD3
+xcp_meta__unit__parameters__slow_task_period_ms':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2CD0
+xcp_meta__min__parameters__slow_task_period_ms':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2CC8
+xcp_meta__max__parameters__slow_task_period_ms':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2CC0
+xcp_meta__comment__parameters__amplitude':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2C95
+xcp_meta__unit__parameters__amplitude':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2C90
+xcp_meta__min__parameters__amplitude':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2C88
+xcp_meta__max__parameters__amplitude':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2C80
+xcp_meta__comment__parameters__period':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2C5A
+xcp_meta__unit__parameters__period':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2C58
+xcp_meta__min__parameters__period':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2C50
+xcp_meta__max__parameters__period':  xcp_demo_cpp:'<global>' : addr=0:0x3C0E2C48
+calseg__parameters':  xcp_demo_cpp:'<global>' : addr=0:0x3C0B0140
+xcp_meta__comment__counter':  xcp_demo_cpp:'slowTask' : addr=0:0x3C0E2B58
+evt__slowTask':  xcp_demo_cpp:'slowTask' : addr=0:0x3C0B0160
+trg__AAS__slowTask':  xcp_demo_cpp:'slowTask' : addr=0:0x00000000
+xcp_meta__comment__static_counter':  xcp_demo_cpp:'fastTask' : addr=0:0x3C0E2B81
+evt__fastTask':  xcp_demo_cpp:'fastTask' : addr=0:0x3C0B0170
+trg__AAS__fastTask':  xcp_demo_cpp:'fastTask' : addr=0:0x00000000
+cap__foo':  xcp_demo_cpp:'foo' : addr=2:0x7FFFFFB0
+evt__foo':  xcp_demo_cpp:'foo' : addr=0:0x3C0B0180
+trg__AASR__foo':  xcp_demo_cpp:'foo' : addr=0:0x00000000
+xcp_epk__':  xcp_demo_cpp:'startXcpServer' : addr=0:0x3C0E2B50
+xcp_epk__keep':  xcp_demo_cpp:'startXcpServer' : addr=2:0x7FFFFFD8
+
+[INFO ] ===============================================================
+[INFO ] Target signature found: ACSDD
+[INFO ] Using absolute addressing for calibration segments
+[INFO ] ===============================================================
+[INFO ] Registering event information:
+[INFO ] ===============================================================
+[INFO ] Found XCP event descriptors using linker symbols at address = 0x3C0B0160, size = 48 bytes
+[INFO ] Event definition for event 'slowTask' found in xcp_demo_cpp:slowTask, addr = 0x3c0b0160
+[INFO ] New event 'slowTask' found: event id = 0
+[INFO ] Event definition for event 'fastTask' found in xcp_demo_cpp:fastTask, addr = 0x3c0b0170
+[INFO ] New event 'fastTask' found: event id = 1
+[INFO ] Event definition for event 'foo' found in xcp_demo_cpp:foo, addr = 0x3c0b0180
+[INFO ] New event 'foo' found: event id = 2
+[INFO ] ===============================================================
+[INFO ] Registering segment information (absolute addressing mode):
+[INFO ] ===============================================================
+Found 2 segment definition marker variables:
+0: 'epk' - number=Some(0), addr=00000000'
+1: 'parameters' - number=Some(1), addr=3C0B0140'
+[INFO ] Calibration segment 'epk' not yet defined in registry
+[INFO ] Created segment 0: 'epk':  addr = 0x3C0E2B50, size = 32, mem_addr = 0x3C0E2B50
+[INFO ] Calibration segment 'parameters' default page variable found in debug data: Address = 0x3c0c90ac, Size = 0x14
+[INFO ] Calibration segment 'parameters' not yet defined in registry
+[INFO ] Created segment 1: 'parameters':  addr = 0x3C0C90AC, size = 20, mem_addr = 0x3C0C90AC
+[INFO ] ===============================================================
+[INFO ] EPK string 'V201' found at address 0x3C0E2B50
+  EPK 'V201', ADDR_EPK = 0xFFFFFF00
+[INFO ] ===============================================================
+[INFO ] Registering event locations:
+[INFO ] ===============================================================
+[INFO ] Event slowTask trigger found in xcp_demo_cpp:slowTask, address resolver mode AAS
+  Event 'slowTask' trigger in function 'slowTask', frame base Cfa
+[INFO ] Event fastTask trigger found in xcp_demo_cpp:fastTask, address resolver mode AAS
+  Event 'fastTask' trigger in function 'fastTask', frame base Cfa
+[INFO ] Event foo trigger found in xcp_demo_cpp:foo, address resolver mode AASR
+  Event 'foo' trigger in function 'foo', frame base Cfa
+[INFO ] ===============================================================
+[INFO ] Registering variables:
+[INFO ] ===============================================================
+[INFO ] Default event 'fastTask' (id 1) for global and static variables without an event trigger
+[INFO ] Compilation unit filter: 'xcp_demo'
+[INFO ] Local variable 'counter' in function 'Some("slowTask")', event id = Some(0), offset = -38
+        Registered variable 'slowTask.counter' type_name = 'uint16_t', size = 2, event_id = Some(0)
+[INFO ] Local variable 'counter' in function 'Some("fastTask")', event id = Some(1), offset = -38
+        Registered variable 'fastTask.counter' type_name = 'uint16_t', size = 2, event_id = Some(1)
+[INFO ] Global variable 'parameters', event id = Some(1)
+        Registered variable 'parameters' type_name = 'parameters', size = 20, event_id = Some(1)
+[INFO ] Global variable 'fastTaskHandle', event id = Some(1)
+[WARN ] Variable 'fastTaskHandle' has unsupported type: Pointer(...)
+[INFO ] Global variable 'slowTaskHandle', event id = Some(1)
+[WARN ] Variable 'slowTaskHandle' has unsupported type: Pointer(...)
+[INFO ] Global variable 'global_counter', event id = Some(1)
+        Registered variable 'global_counter' type_name = 'uint16_t', size = 2, event_id = Some(1)
+[INFO ] Global variable 'channel1', event id = Some(1)
+        Registered variable 'channel1' type_name = 'float', size = 4, event_id = Some(1)
+[INFO ] Global variable 'fastTaskOverruns', event id = Some(1)
+        Registered variable 'fastTaskOverruns' type_name = 'uint32_t', size = 4, event_id = Some(1)
+[INFO ] Global variable 'slowTaskOverruns', event id = Some(1)
+        Registered variable 'slowTaskOverruns' type_name = 'uint32_t', size = 4, event_id = Some(1)
+[INFO ] Local variable 'lastWakeTime' in function 'Some("slowTask")', event id = Some(0), offset = -36
+        Registered variable 'slowTask.lastWakeTime' type_name = 'TickType_t', size = 4, event_id = Some(0)
+[INFO ] Local variable 'lastWakeTime' in function 'Some("fastTask")', event id = Some(1), offset = -36
+        Registered variable 'fastTask.lastWakeTime' type_name = 'TickType_t', size = 4, event_id = Some(1)
+[INFO ] Static variable 'static_counter' local to function 'Some("fastTask")', event id = 1
+        Registered variable 'fastTask.static_counter' type_name = 'uint16_t', size = 2, event_id = Some(1)
+[INFO ] Static variable 'static_counter' local to function 'Some("foo")', event id = 2
+        Registered variable 'foo.static_counter' type_name = 'uint16_t', size = 2, event_id = Some(2)
+[INFO ] Local variable 'test_int8' in function 'Some("foo")', event id = Some(2), offset = -115
+        Registered variable 'foo.test_int8' type_name = 'int8_t', size = 1, event_id = Some(2)
+[INFO ] Local variable 'test_int16' in function 'Some("foo")', event id = Some(2), offset = -114
+        Registered variable 'foo.test_int16' type_name = 'int16_t', size = 2, event_id = Some(2)
+[INFO ] Local variable 'test_int32' in function 'Some("foo")', event id = Some(2), offset = -108
+        Registered variable 'foo.test_int32' type_name = 'int32_t', size = 4, event_id = Some(2)
+[INFO ] Local variable 'test_int64' in function 'Some("foo")', event id = Some(2), offset = -104
+        Registered variable 'foo.test_int64' type_name = 'uint64_t', size = 8, event_id = Some(2)
+[WARN ] Local variable 'bindAny' in function Some("startXcpServer") skipped, could not find event for dyn addressing mode
+[INFO ] ===============================================================
+[INFO ] Registering captured variables:
+[INFO ] ===============================================================
+[INFO ] Capture of event 'foo' in function 'foo' with 9 variables
+[INFO ] Captured variable 'counter' in function 'foo', event id = 2, offset = 0
+[INFO ] Captured variable 'test_float' in function 'foo', event id = 2, offset = 4
+[INFO ] Captured variable 'test_double' in function 'foo', event id = 2, offset = 8
+[INFO ] Captured variable 'test_uint8' in function 'foo', event id = 2, offset = 16
+[INFO ] Captured variable 'test_uint16' in function 'foo', event id = 2, offset = 18
+[INFO ] Captured variable 'test_uint32' in function 'foo', event id = 2, offset = 20
+[INFO ] Captured variable 'test_uint64' in function 'foo', event id = 2, offset = 24
+[INFO ] Captured variable 'test_struct' in function 'foo', event id = 2, offset = 32
+[INFO ] Captured variable 'test_array' in function 'foo', event id = 2, offset = 44
+[INFO ] ===============================================================
+[INFO ] Registering metadata from xcp_meta section:
+[INFO ] ===============================================================
+[INFO ] Metadata comment xcp_meta__comment__global_counter applied to instance 'global_counter'
+[INFO ] Metadata read_write xcp_meta__read_write__global_counter applied to instance 'global_counter'
+[INFO ] Metadata comment xcp_meta__comment__channel1 applied to instance 'channel1'
+[INFO ] Metadata unit xcp_meta__unit__channel1 applied to instance 'channel1'
+[INFO ] Metadata xcp_meta__comment__parameters__counter_max applied to typedef field 'parameters.counter_max'
+[INFO ] Metadata xcp_meta__min__parameters__counter_max applied to typedef field 'parameters.counter_max'
+[INFO ] Metadata xcp_meta__max__parameters__counter_max applied to typedef field 'parameters.counter_max'
+[INFO ] Metadata xcp_meta__comment__parameters__fast_task_period_ms applied to typedef field 'parameters.fast_task_period_ms'
+[INFO ] Metadata xcp_meta__unit__parameters__fast_task_period_ms applied to typedef field 'parameters.fast_task_period_ms'
+[INFO ] Metadata xcp_meta__min__parameters__fast_task_period_ms applied to typedef field 'parameters.fast_task_period_ms'
+[INFO ] Metadata xcp_meta__max__parameters__fast_task_period_ms applied to typedef field 'parameters.fast_task_period_ms'
+[INFO ] Metadata xcp_meta__comment__parameters__slow_task_period_ms applied to typedef field 'parameters.slow_task_period_ms'
+[INFO ] Metadata xcp_meta__unit__parameters__slow_task_period_ms applied to typedef field 'parameters.slow_task_period_ms'
+[INFO ] Metadata xcp_meta__min__parameters__slow_task_period_ms applied to typedef field 'parameters.slow_task_period_ms'
+[INFO ] Metadata xcp_meta__max__parameters__slow_task_period_ms applied to typedef field 'parameters.slow_task_period_ms'
+[INFO ] Metadata xcp_meta__comment__parameters__amplitude applied to typedef field 'parameters.amplitude'
+[INFO ] Metadata xcp_meta__unit__parameters__amplitude applied to typedef field 'parameters.amplitude'
+[INFO ] Metadata xcp_meta__min__parameters__amplitude applied to typedef field 'parameters.amplitude'
+[INFO ] Metadata xcp_meta__max__parameters__amplitude applied to typedef field 'parameters.amplitude'
+[INFO ] Metadata xcp_meta__comment__parameters__period applied to typedef field 'parameters.period'
+[INFO ] Metadata xcp_meta__unit__parameters__period applied to typedef field 'parameters.period'
+[INFO ] Metadata xcp_meta__min__parameters__period applied to typedef field 'parameters.period'
+[INFO ] Metadata xcp_meta__max__parameters__period applied to typedef field 'parameters.period'
+[INFO ] Metadata comment xcp_meta__comment__counter applied to instance 'slowTask.counter'
+[INFO ] Metadata comment xcp_meta__comment__counter applied to instance 'fastTask.counter'
+[INFO ] Metadata comment xcp_meta__comment__counter applied to instance 'foo.counter'
+[INFO ] Metadata comment xcp_meta__comment__static_counter applied to instance 'fastTask.static_counter'
+[INFO ] Metadata comment xcp_meta__comment__static_counter applied to instance 'foo.static_counter'
+[INFO ] ===============================================================
+[INFO ] Write A2L file "CANape/freertos_demo.a2l"
+[INFO ] A2L writer: transport layer: UDP 192.168.8.127:5555
+[INFO ] Check A2L file "CANape/freertos_demo.a2l"
+[INFO ] A2L file check ok
+[INFO ] Created A2L with file: CANape/freertos_demo.a2l ELF/DWARF information only,  offline mode
+[INFO ] Flattening typedef structure in registry into mangled instance names !
+[INFO ] Default event 'fastTask' resolved to event id 1

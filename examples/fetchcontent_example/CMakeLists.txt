@@ -28,10 +28,10 @@ include(FetchContent)
 # ---------------------------------------------------------------------------
 # Release:
 set(XCPLITE_GIT_REPOSITORY "https://github.com/vectorgrp/XCPlite" CACHE STRING "xcplite git repository")
-set(XCPLITE_GIT_TAG        "V2.2.2"                               CACHE STRING "xcplite git tag, branch or commit")
+set(XCPLITE_GIT_TAG        "V2.3.2"                               CACHE STRING "xcplite git tag, branch or commit")
 # Dev:
 #set(XCPLITE_GIT_REPOSITORY "https://github.com/RainerZ/XCPlite.git" CACHE STRING "xcplite git repository")
-#set(XCPLITE_GIT_TAG        "dev-2.2.2"                              CACHE STRING "xcplite git tag, branch or commit")
+#set(XCPLITE_GIT_TAG        "dev-2.3.2"                              CACHE STRING "xcplite git tag, branch or commit")
 
 FetchContent_Declare(xcplite
     GIT_REPOSITORY ${XCPLITE_GIT_REPOSITORY}

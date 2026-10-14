@@ -15,10 +15,11 @@
 |   ELF upload is optional
 |
 |   Key differences in overrides from the defaults in xcplib_cfg.h:
+|       #define OPTION_SECTION_REGISTRATION
 |       #undef OPTION_ENABLE_A2L_GENERATOR
 |       #undef OPTION_ENABLE_A2L_UPLOAD
 |   Addressing scheme:
-|     Default
+|     XCPLITE__ACxxx - OPTION_CAL_SEGMENTS_ABS
 |   Platform requirements:
 |    File system for ELF optional ELF upload and .BIN files
 |   Examples:
@@ -28,6 +29,10 @@
 |   Tests:
 |     -
  ----------------------------------------------------------------------------*/
+
+// Enable segment and event registration at compile or link time
+// Uses sections xcp_evts and xcp_cals
+#define OPTION_SECTION_REGISTRATION
 
 // No persistence — not supported in OPTION_CAL_SEGMENTS_ABS
 #undef OPTION_ENABLE_PERSISTENCE

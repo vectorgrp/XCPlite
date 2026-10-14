@@ -37,6 +37,14 @@
 #include "xcp.h"      // XCP protocol definitions
 #include "xcplite.h"  // XCP protocol layer interface functions
 
+/****************************************************************************/
+// Metrics
+
+#ifdef TEST_ENABLE_CAL_METRICS
+uint32_t gXcpWritePendingCount = 0;
+uint32_t gXcpCalSegPublishAllCount = 0;
+#endif
+
 /**************************************************************************/
 // State
 
@@ -96,6 +104,21 @@ extern tXcpLocalData gXcpLocalData;
 static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, FILE *default_page_file, uint16_t page_size, bool memory_segment);
 static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const void *default_page, FILE *default_page_file, uint16_t page_size, bool memory_segment);
 
+// RCU primitives, two implementations selected with OPTION_CAL_RCU_REFCOUNT, see below
+static void CalSegRcuReset(tXcpCalSeg *c);
+static void CalSegRcuInit(tXcpCalSeg *c, uint32_t aligned_page_size);
+static const uint8_t *CalSegRcuLock(tXcpCalSeg *c);
+#ifdef OPTION_CAL_RCU_REFCOUNT
+static void CalSegRcuUnlock(tXcpCalSeg *c, const uint8_t *page);
+#else
+static void CalSegRcuUnlock(tXcpCalSeg *c);
+#endif
+static bool CalSegRcuTryPublish(tXcpCalSeg *c);
+#if !defined(NDEBUG) && !defined(OPTION_SHM_MODE)
+#define XCP_CALSEG_CHECK_UNLOCKED // Contract check in XcpDeinitCalSegList, not in SHM mode, other processes may hold locks
+static bool CalSegRcuIsUnlocked(const tXcpCalSeg *c);
+#endif
+
 // Thread-safe bump allocator for calibration segment memory
 // Memory is only freed as a whole when the calibration segment list is destroyed
 static void *XcpCalMemAlloc_(size_t size) {
@@ -119,6 +142,7 @@ static void *XcpCalMemAlloc_(size_t size) {
 // Pre-register all tXcpCalSegDescriptor variables placed in the xcp_cals section
 // Must be called after SS_ACTIVATED is set
 // If a persistence file was loaded before this call, segments are matched by name and keep their saved id
+#ifdef OPTION_SECTION_REGISTRATION
 uint16_t XcpRegisterSectionCalSegs(void) {
 
     uint16_t count = 0;
@@ -140,6 +164,16 @@ uint16_t XcpRegisterSectionCalSegs(void) {
                 assert(index != XCP_UNDEFINED_CALSEG);
                 count++;
             }
+#if defined(XCP_ENABLE_TEST_CHECKS) && !defined(NDEBUG)
+            else {
+                const tXcpCalSeg *c = CalSegPtr(index);
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
+                assert((c->h.mode & PAG_PROPERTY_PRELOAD) != 0 || strcmp(c->h.name, XCP_EPK_CALSEG_NAME) == 0); // Unexpected duplicate
+#else
+                assert(strcmp(c->h.name, XCP_EPK_CALSEG_NAME) == 0); // Unexpected duplicate
+#endif
+            }
+#endif
             *(e->indexp) = index; // initialize the segment index pointer
         }
     } else {
@@ -151,7 +185,7 @@ uint16_t XcpRegisterSectionCalSegs(void) {
     if (begin != NULL) {
         const tXcpCalSegDescriptor *end = begin + (sz / sizeof(tXcpCalSegDescriptor));
         for (const tXcpCalSegDescriptor *e = begin; e < end; e++) {
-            DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x, indexp=%p\n", e->name, e->addr, e->size, e->type, e->indexp);
+            DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x, indexp=%p\n", e->name, e->addr, e->size, e->type, (void *)e->indexp);
             tXcpCalSegIndex index = XcpFindCalSeg(e->name);
             if (index == XCP_UNDEFINED_CALSEG) {
                 assert(e->type == XCP_CALSEG_TYPE_SEGMENT || e->type == XCP_CALSEG_TYPE_BLOCK);
@@ -159,6 +193,16 @@ uint16_t XcpRegisterSectionCalSegs(void) {
                 assert(index != XCP_UNDEFINED_CALSEG);
                 count++;
             }
+#if defined(XCP_ENABLE_TEST_CHECKS) && !defined(NDEBUG)
+            else {
+                const tXcpCalSeg *c = CalSegPtr(index);
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
+                assert((c->h.mode & PAG_PROPERTY_PRELOAD) != 0 || strcmp(c->h.name, XCP_EPK_CALSEG_NAME) == 0); // Unexpected duplicate
+#else
+                assert(strcmp(c->h.name, XCP_EPK_CALSEG_NAME) == 0); // Unexpected duplicate
+#endif
+            }
+#endif
             *(e->indexp) = index;
         }
     } else {
@@ -178,6 +222,7 @@ uint16_t XcpRegisterSectionCalSegs(void) {
 #endif
     return count;
 }
+#endif
 
 /**************************************************************************/
 
@@ -199,16 +244,15 @@ void XcpDeinitCalSegList(void) {
     // @@@@ TODO: Deinit calibration segment list in SHM mode, clear pending states
 #endif
 
-#if !defined(NDEBUG) && !defined(OPTION_SHM_MODE)
+#ifdef XCP_CALSEG_CHECK_UNLOCKED
     // User contract (see docs/CAL_RCU.md): no thread may be inside a calibration segment lock when XCP is deinitialized
     // A lock which is still held at this point would be leaked, the check is compiled out in release builds
     // Not checked in SHM mode, the lock count is shared with other processes, which may legitimately hold locks
     uint16_t n = (uint16_t)atomic_load_explicit(&shared.cal_seg_list.count, memory_order_acquire);
     for (uint16_t i = 0; i < n; i++) {
         const tXcpCalSeg *c = CalSegPtr(i);
-        uint16_t lock_count = (uint16_t)atomic_load_explicit(&c->h.lock_count, memory_order_relaxed);
-        if (lock_count != 0) {
-            DBG_PRINTF_ERROR("XcpDeinitCalSegList: calseg %s is still locked (lock_count=%u)\n", c->h.name, lock_count);
+        if (!CalSegRcuIsUnlocked(c)) {
+            DBG_PRINTF_ERROR("XcpDeinitCalSegList: calseg %s is still locked\n", c->h.name);
             assert(0);
         }
     }
@@ -506,7 +550,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
     }
 #endif //   XCP_ENABLE_CAL_PERSISTENCE
 
-#ifdef XCP_ENABLE_TEST_CHECKS
+#if defined(XCP_ENABLE_TEST_CHECKS) && defined(OPTION_ENABLE_DBG_PRINTS)
     // For an already existing segment, the default page should be the same as the existing one, because we assume it has static lifetime
     if (default_page != NULL && memcmp(default_page, CalSegDefaultPage(calseg), page_size) != 0) {
         DBG_PRINTF_WARNING("Calibration segment '%s' already exists with a different default page\n", calseg->h.name);
@@ -529,7 +573,7 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
     // Align page size to 8 bytes for better performance
     uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1);
 
-    size_t name_len = strnlen(name, XCP_MAX_CALSEG_NAME);
+    size_t name_len = STRNLEN(name, XCP_MAX_CALSEG_NAME);
     memcpy(c->h.name, name, name_len);
     c->h.name[name_len] = '\0';
     c->h.size = page_size;
@@ -588,32 +632,16 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
     }
 
     // Reset RCU, XCP passive mode
-    c->h.xcp_page = XCP_CALSEG_NO_PAGE;
-    atomic_store_explicit(&c->h.ecu_page, XCP_CALSEG_NO_PAGE, memory_order_relaxed);
-    atomic_store_explicit(&c->h.free_page, XCP_CALSEG_NO_PAGE, memory_order_relaxed);
-    c->h.free_page_hazard = false;
-    atomic_store_explicit(&c->h.ecu_page_next, XCP_CALSEG_NO_PAGE, memory_order_relaxed);
+    CalSegRcuReset(c);
     c->h.write_pending = false;
     c->h.xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access if XCP is not activated
     atomic_store_explicit(&c->h.ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access if XCP is not activated
-    atomic_store_explicit(&c->h.lock_count, 0, memory_order_relaxed);
 
     // Init RCU if XCP is activated
     if (isActivated()) {
 
-        // Initialize the ECU working page (RAM page)
-        atomic_store_explicit(&c->h.ecu_page, (uint_least32_t)ECU_PAGE_OFFSET(aligned_page_size), memory_order_relaxed);
-        memcpy(CalSegEcuPage(c), CalSegDefaultPage(c), page_size); // Copy default page to ECU page
-
-        // Initialize the XCP working page (RAM page)
-        c->h.xcp_page = XCP_PAGE_OFFSET(aligned_page_size);
-        memcpy(CalSegXcpPage(c), CalSegDefaultPage(c), page_size); // Copy default page to working page
-
-        // Allocate a free uninitialized page
-        atomic_store_explicit(&c->h.free_page, (uint_least32_t)FREE_PAGE_OFFSET(aligned_page_size), memory_order_relaxed);
-
-        // New ECU page version not updated
-        atomic_store_explicit(&c->h.ecu_page_next, atomic_load_explicit(&c->h.ecu_page, memory_order_relaxed), memory_order_relaxed);
+        // Initialize the RCU pages with the default page content
+        CalSegRcuInit(c, aligned_page_size);
 
 #ifdef XCP_START_ON_REFERENCE_PAGE
         // Enable access to the reference page
@@ -631,36 +659,168 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
 
 //----------------------------------------------------------------------------------------------------------
 
-// Lock a calibration segment and return a pointer to the ECU page
-// Thread safe
-// Shared atomic state is lock_count, ecu_page_next, free_page, ecu_page, ecu_access
-// Shared non atomic is free_page_hazard, release on free_page
-const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
+/**************************************************************************/
+// RCU primitives
+//
+// Two implementations, selected with OPTION_CAL_RCU_REFCOUNT (see docs/CAL_RCU.md, chapters 4 and 5)
+// Everything else in this file is independent of the RCU algorithm and uses only these functions:
+//   CalSegRcuReset      - reset the RCU state, passive mode, no pages
+//   CalSegRcuInit       - initialize the RCU pages from the default page, once, before the segment is visible to other threads
+//   CalSegRcuLock       - reader: get the active page (working or reference page)
+//   CalSegRcuUnlock     - reader: release the page returned by CalSegRcuLock
+//   CalSegRcuTryPublish - writer: publish the writer page, false when no page is available yet, the changes stay in the writer page
+//   CalSegRcuIsUnlocked - no reader holds a lock, contract check in debug builds
 
-    // User contract (see docs/CAL_RCU.md): XcpInit() has completed, XCP is activated and calseg_index is a valid handle
-    // Passive mode (XCP_MODE_DEACTIVATE) is resolved by the CalSegLock() macros and the C++ wrappers, they return the default page without calling this function
-    // The checks below are contract assertions only, they are compiled out in release builds
-#ifndef NDEBUG
-    if (!isActivated()) {
-        DBG_PRINT_ERROR("XcpLockCalSeg: XCP not activated\n");
-        assert(0);
-        return NULL;
+#ifdef OPTION_CAL_RCU_REFCOUNT
+
+//----------------------------------------------------------------------------------------------------------
+// Per page reference counting
+//
+// RCU page 0 is the writer page, it is never published and never pinned by a reader
+// The writer publishes by copying the writer page into a free candidate page and announcing it in published_page
+// A reader pins the published page with its reference count and re-validates published_page afterwards
+// The four operations which couple readers and writer (pin, validation load, reference count load, announcement store)
+// are sequentially consistent, the correctness argument needs a single total order over them (see CAL_RCU.md 5.6)
+// Publishing is independent of reader progress, the lock is lock-free (retries when a publish lands between its two loads), the unlock is wait-free
+
+static void CalSegRcuReset(tXcpCalSeg *c) {
+    c->h.xcp_page = XCP_CALSEG_NO_PAGE;
+    atomic_store_explicit(&c->h.published_page, XCP_CALSEG_NO_PAGE, memory_order_relaxed);
+    for (uint32_t i = 0; i < XCP_CALSEG_RCU_PAGES; i++) {
+        atomic_store_explicit(&c->h.page_refs[i], 0, memory_order_relaxed);
     }
-    if (calseg_index >= atomic_load_explicit(&shared.cal_seg_list.count, memory_order_relaxed)) {
-        DBG_PRINTF_ERROR("XcpLockCalSeg: Invalid calseg index %u\n", calseg_index);
-        assert(0);
-        return NULL; // Uninitialized or invalid calseg_index
+}
+
+static void CalSegRcuInit(tXcpCalSeg *c, uint32_t aligned_page_size) {
+    // Writer page (RCU page 0) and published page (RCU page 1) start with the default page content, the candidates are written before they are published
+    c->h.xcp_page = CALSEG_RCU_PAGE_OFFSET(aligned_page_size, 0);
+    memcpy(CalSegXcpPage(c), CalSegDefaultPage(c), c->h.size);
+    memcpy(CalSegRcuPage(c, 1), CalSegDefaultPage(c), c->h.size);
+    for (uint32_t i = 0; i < XCP_CALSEG_RCU_PAGES; i++) {
+        atomic_store_explicit(&c->h.page_refs[i], 0, memory_order_relaxed);
     }
+    atomic_store_explicit(&c->h.published_page, 1, memory_order_release);
+}
+
+// Reader: lock, lock-free
+static const uint8_t *CalSegRcuLock(tXcpCalSeg *c) {
+    // Reference page active: it is immutable, no pin needed
+    if (atomic_load_explicit(&c->h.ecu_access, memory_order_relaxed) != XCP_CALPAGE_WORKING_PAGE) {
+        return CalSegDefaultPage(c);
+    }
+    for (;;) {
+        uint32_t page = (uint32_t)atomic_load_explicit(&c->h.published_page, memory_order_seq_cst);
+        assert(page > 0 && page < XCP_CALSEG_RCU_PAGES);
+        atomic_fetch_add_explicit(&c->h.page_refs[page], 1, memory_order_seq_cst); // Pin
+        // Still the published page ? Then it holds complete data and the writer will not overwrite it while it is pinned
+        if ((uint32_t)atomic_load_explicit(&c->h.published_page, memory_order_seq_cst) == page) {
+            return CalSegRcuPage(c, page);
+        }
+        atomic_fetch_sub_explicit(&c->h.page_refs[page], 1, memory_order_seq_cst); // A publish landed in between, unpin and retry
+    }
+}
+
+// Reader: unlock, wait-free
+static void CalSegRcuUnlock(tXcpCalSeg *c, const uint8_t *page) {
+    if (page == CalSegDefaultPage(c)) {
+        return; // Reference page was active, nothing pinned
+    }
+    // Find the RCU page index from the page pointer, page 0 (writer page) is never pinned
+    uint32_t aligned_page_size = CalSegAlignedPageSize(c);
+    const uint8_t *base = &c->b[CALSEG_RCU_PAGE_BASE(aligned_page_size)];
+    uint32_t idx = 1;
+    while (idx < XCP_CALSEG_RCU_PAGES && page != base + idx * aligned_page_size) {
+        idx++;
+    }
+    if (idx >= XCP_CALSEG_RCU_PAGES) {
+        DBG_PRINTF_ERROR("XcpUnlockCalSeg: calseg %s, the page pointer is not a locked page\n", c->h.name);
+        assert(0);
+        return;
+    }
+    uint16_t old_refs = (uint16_t)atomic_fetch_sub_explicit(&c->h.page_refs[idx], 1, memory_order_seq_cst); // Unpin
+    (void)old_refs;
+    assert(old_refs > 0); // Calling XcpUnlockCalSeg without a matching lock
+}
+
+// Writer: publish
+static bool CalSegRcuTryPublish(tXcpCalSeg *c) {
+    uint32_t published = (uint32_t)atomic_load_explicit(&c->h.published_page, memory_order_seq_cst);
+    // Find a target page, neither the writer page (0), nor the published page, nor pinned by a reader
+    // Round robin starting after the published page, so that a retired page is not reused before the other candidates
+    uint32_t target = XCP_CALSEG_RCU_PAGES; // none
+    uint32_t idx = published;
+    for (uint32_t i = 1; i < XCP_CALSEG_RCU_PAGES; i++) {
+        idx = (idx + 1 < XCP_CALSEG_RCU_PAGES) ? idx + 1 : 1;
+        if (idx == published) {
+            continue;
+        }
+        if (atomic_load_explicit(&c->h.page_refs[idx], memory_order_seq_cst) == 0) {
+            target = idx;
+            break;
+        }
+    }
+    if (target >= XCP_CALSEG_RCU_PAGES) {
+        return false; // Every candidate is pinned by a reader
+    }
+    memcpy(CalSegRcuPage(c, target), CalSegXcpPage(c), c->h.size);             // Copy first ...
+    atomic_store_explicit(&c->h.published_page, target, memory_order_seq_cst); // ... then announce
+    DBG_PRINTF6("XcpCalSegPublish: %s published page %u\n", c->h.name, target);
+    return true;
+}
+
+#ifdef XCP_CALSEG_CHECK_UNLOCKED
+static bool CalSegRcuIsUnlocked(const tXcpCalSeg *c) {
+    for (uint32_t i = 0; i < XCP_CALSEG_RCU_PAGES; i++) {
+        if (atomic_load_explicit(&c->h.page_refs[i], memory_order_relaxed) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
 #endif
 
-    tXcpCalSeg *c = CalSegPtrMut(calseg_index);
+#else
 
-    // Update
+//----------------------------------------------------------------------------------------------------------
+// Lock count and page hand-over
+//
+// Three pages: ecu_page (readers), xcp_page (writer) and free_page (reclamation list with one element)
+// The reader which takes the first lock (lock count 0->1) takes over a published page and hands the old ECU page back as free page
+// The free page is confirmed as unused by the next first lock without a pending page (free_page_hazard)
+// Publishing depends on the readers, the lock and the unlock are wait-free
+
+static void CalSegRcuReset(tXcpCalSeg *c) {
+    c->h.xcp_page = XCP_CALSEG_NO_PAGE;
+    atomic_store_explicit(&c->h.ecu_page, XCP_CALSEG_NO_PAGE, memory_order_relaxed);
+    atomic_store_explicit(&c->h.free_page, XCP_CALSEG_NO_PAGE, memory_order_relaxed);
+    c->h.free_page_hazard = false;
+    atomic_store_explicit(&c->h.ecu_page_next, XCP_CALSEG_NO_PAGE, memory_order_relaxed);
+    atomic_store_explicit(&c->h.lock_count, 0, memory_order_relaxed);
+}
+
+static void CalSegRcuInit(tXcpCalSeg *c, uint32_t aligned_page_size) {
+    // Initialize the ECU working page (RAM page)
+    atomic_store_explicit(&c->h.ecu_page, (uint_least32_t)ECU_PAGE_OFFSET(aligned_page_size), memory_order_relaxed);
+    memcpy(CalSegEcuPage(c), CalSegDefaultPage(c), c->h.size); // Copy default page to ECU page
+    // Initialize the XCP working page (RAM page)
+    c->h.xcp_page = XCP_PAGE_OFFSET(aligned_page_size);
+    memcpy(CalSegXcpPage(c), CalSegDefaultPage(c), c->h.size); // Copy default page to working page
+    // Allocate a free uninitialized page
+    atomic_store_explicit(&c->h.free_page, (uint_least32_t)FREE_PAGE_OFFSET(aligned_page_size), memory_order_relaxed);
+    c->h.free_page_hazard = false;
+    // New ECU page version not updated
+    atomic_store_explicit(&c->h.ecu_page_next, atomic_load_explicit(&c->h.ecu_page, memory_order_relaxed), memory_order_relaxed);
+    atomic_store_explicit(&c->h.lock_count, 0, memory_order_relaxed);
+}
+
+// Reader: lock, wait-free
+// Shared atomic state is lock_count, ecu_page_next, free_page, ecu_page, ecu_access
+// Shared non atomic is free_page_hazard, release on free_page
+static const uint8_t *CalSegRcuLock(tXcpCalSeg *c) {
     // Increment the lock count
     // Acquire, to make sure the lock is announced before the ECU page offset and the page content are read
-    // Pairs with the release in XcpUnlockCalSeg, a thread observing old_lock_count==0 then also observes the completed reads of all previous lock holders
+    // Pairs with the release in CalSegRcuUnlock, a thread observing old_lock_count==0 then also observes the completed reads of all previous lock holders
     uint16_t old_lock_count = (uint16_t)atomic_fetch_add_explicit(&c->h.lock_count, 1, memory_order_acquire);
-    // DBG_PRINTF6("XcpLockCalSeg: %s old_lock_count=%u\n",c->h.name,old_lock_count);
     assert(old_lock_count != UINT16_MAX); // Lock count overflow, too many concurrent or nested locks, or missing XcpUnlockCalSeg
     if (old_lock_count == 0) {
 
@@ -688,10 +848,82 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
     }
 }
 
-// Unlock a calibration segment
+// Reader: unlock, wait-free
+static void CalSegRcuUnlock(tXcpCalSeg *c) {
+    // Decrement the lock count
+    // Release, to make sure all reads from the ECU page are completed before the lock is released
+    // Pairs with the acquire in CalSegRcuLock, which resets free_page_hazard when it observes lock_count==0
+    uint16_t old_lock_count = (uint16_t)atomic_fetch_sub_explicit(&c->h.lock_count, 1, memory_order_release);
+    (void)old_lock_count;
+    assert(old_lock_count > 0); // Calling XcpUnlockCalSeg without a prior lock
+}
+
+// Writer: publish
+static bool CalSegRcuTryPublish(tXcpCalSeg *c) {
+    // Try to allocate a new xcp page
+    // In a multithreaded consumer use case, we must be sure the free page is really not in use anymore (free_page_hazard)
+    // Acquire/release semantics with CalSegRcuLock on the free page offset
+    uint32_t free_page = (uint32_t)atomic_load_explicit(&c->h.free_page, memory_order_acquire);
+    if (free_page == XCP_CALSEG_NO_PAGE || c->h.free_page_hazard) {
+        return false; // No free page available, or it is not confirmed as unused yet
+    }
+
+    // Acquire the free page
+    uint32_t xcp_page_new = free_page;
+    atomic_store_explicit(&c->h.free_page, (uint_least32_t)XCP_CALSEG_NO_PAGE, memory_order_release);
+
+    // Copy old xcp page to the new xcp page
+    uint32_t xcp_page_old = c->h.xcp_page;
+    memcpy(&c->b[xcp_page_new], &c->b[xcp_page_old], c->h.size); // Copy the xcp page
+    c->h.xcp_page = xcp_page_new;
+
+    // Publish the old xcp page
+    // Acquire/release semantics with CalSegRcuLock on the ecu_page_next offset
+    atomic_store_explicit(&c->h.ecu_page_next, (uint_least32_t)xcp_page_old, memory_order_release);
+    DBG_PRINTF6("XcpCalSegPublish: %s xcp_page published\n", c->h.name);
+    return true;
+}
+
+#ifdef XCP_CALSEG_CHECK_UNLOCKED
+static bool CalSegRcuIsUnlocked(const tXcpCalSeg *c) { return atomic_load_explicit(&c->h.lock_count, memory_order_relaxed) == 0; }
+#endif
+
+#endif // OPTION_CAL_RCU_REFCOUNT
+
+//----------------------------------------------------------------------------------------------------------
+
+// Lock a calibration segment and return a pointer to the active page (working or reference page)
 // Thread safe
-// Shared state is lock_count
-uint16_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
+const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
+
+    // User contract (see docs/CAL_RCU.md): XcpInit() has completed, XCP is activated and calseg_index is a valid handle
+    // Passive mode (XCP_MODE_DEACTIVATE) is resolved by the CalSegLock() macros and the C++ wrappers, they return the default page without calling this function
+    // The checks below are contract assertions only, they are compiled out in release builds
+#ifndef NDEBUG
+    if (!isActivated()) {
+        DBG_PRINT_ERROR("XcpLockCalSeg: XCP not activated\n");
+        assert(0);
+        return NULL;
+    }
+    if (calseg_index >= atomic_load_explicit(&shared.cal_seg_list.count, memory_order_relaxed)) {
+        DBG_PRINTF_ERROR("XcpLockCalSeg: Invalid calseg index %u\n", calseg_index);
+        assert(0);
+        return NULL; // Uninitialized or invalid calseg_index
+    }
+#endif
+
+    tXcpCalSeg *c = CalSegPtrMut(calseg_index);
+    return CalSegRcuLock(c);
+}
+
+// Unlock a calibration segment
+// page is the pointer returned by the matching XcpLockCalSeg
+// Thread safe
+#ifdef OPTION_CAL_RCU_REFCOUNT
+void XcpUnlockCalSeg(tXcpCalSegIndex calseg_index, const void *page) {
+#else
+void XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
+#endif
 
     // User contract (see docs/CAL_RCU.md): XCP is still activated (XcpDeinit() may not be called while a lock is held) and calseg_index is a valid handle
     // The checks below are contract assertions only, they are compiled out in release builds
@@ -699,23 +931,21 @@ uint16_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
     if (!isActivated()) {
         DBG_PRINT_ERROR("XcpUnlockCalSeg: XCP not activated\n");
         assert(0);
-        return 0;
+        return;
     }
     if (calseg_index >= atomic_load_explicit(&shared.cal_seg_list.count, memory_order_relaxed)) {
         DBG_PRINTF_ERROR("XcpUnlockCalSeg: Invalid calseg index %u\n", calseg_index);
         assert(0);
-        return 0; // Uninitialized or invalid calseg_index
+        return; // Uninitialized or invalid calseg_index
     }
 #endif
 
     tXcpCalSeg *c = CalSegPtrMut(calseg_index);
-    // Decrement the lock count
-    // Release, to make sure all reads from the ECU page are completed before the lock is released
-    // Pairs with the acquire in XcpLockCalSeg, which resets free_page_hazard when it observes lock_count==0
-    uint16_t old_lock_count = (uint16_t)atomic_fetch_sub_explicit(&c->h.lock_count, 1, memory_order_release);
-    // DBG_PRINTF6("XcpUnlockCalSeg: %s old_lock_count=%u\n",c->h.name,old_lock_count);
-    assert(old_lock_count > 0); // Calling XcpUnlockCalSeg without a prior lock
-    return old_lock_count;
+#ifdef OPTION_CAL_RCU_REFCOUNT
+    CalSegRcuUnlock(c, (const uint8_t *)page);
+#else
+    CalSegRcuUnlock(c);
+#endif
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -751,54 +981,28 @@ uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst) {
 // Wait timeout is XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT in ms
 // Single threaded function, called from XcpCalSegPublishAll or XcpCalSegWriteMemory in the XCP server thread
 static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
-    // Try allocate a new xcp page
-    // In a multithreaded consumer use case, we must be sure the free page is really not in use anymore
-    // We simply wait until all threads are updated, this is theoretically not free of starvation, but calibration changes are slow
-    // Note: This is one of the compromises we make for this simple RCU: Calibration changes are delayed and dependand on calls to XcpLockCalSeg or XcpPublishAll
-    // Acquire/release semantics with XcpCalSegLock on the free page pointer
-    uint32_t free_page = (uint32_t)atomic_load_explicit(&c->h.free_page, memory_order_acquire);
-    if (wait) {
-        // Wait and delay the XCP server receive thread, until a free page becomes available
-        for (int timeout = 0; timeout < XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT && (free_page == XCP_CALSEG_NO_PAGE || c->h.free_page_hazard); timeout++) {
+    // Note: This is one of the compromises we make for this RCU: Calibration changes are delayed while no page is available, this depends on the progress of the readers
+    bool published = CalSegRcuTryPublish(c);
+    if (!published && wait) {
+        // Wait and delay the XCP server receive thread, until a page becomes available
+        for (int timeout = 0; timeout < XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT && !published; timeout++) {
             sleepUs(1000);
-            free_page = (uint32_t)atomic_load_explicit(&c->h.free_page, memory_order_acquire);
-        }
-        // The loop above may also have been left by timeout, with a free page which is not safe to use yet (hazard)
-        // Never take a hazardous page, it might still be in use by a reader thread
-        if (free_page == XCP_CALSEG_NO_PAGE || c->h.free_page_hazard) {
-            DBG_PRINTF_ERROR("Can not update calibration changes, timeout - calseg %s locked, %s\n", c->h.name, c->h.free_page_hazard ? "hazard" : "no free page");
-            c->h.write_pending = true; // Keep the changes pending in the xcp page, to retry publishing them later
-#ifdef TEST_ENABLE_DBG_METRICS
-            gXcpWritePendingCount++;
-#endif
-            return CRC_ACCESS_DENIED; // No free page available
-        }
-    } else {
-        if (free_page == XCP_CALSEG_NO_PAGE || c->h.free_page_hazard) {
-            DBG_PRINTF6("Can not update calibration changes of %s yet, %s\n", c->h.name, c->h.free_page_hazard ? "hazard" : "no free page");
-            c->h.write_pending = true;
-#ifdef TEST_ENABLE_DBG_METRICS
-            gXcpWritePendingCount++;
-#endif
-            return CRC_CMD_PENDING; // No free page available
+            published = CalSegRcuTryPublish(c);
         }
     }
-
-    // Acquire the free page
-    uint32_t xcp_page_new = free_page;
-    atomic_store_explicit(&c->h.free_page, (uint_least32_t)XCP_CALSEG_NO_PAGE, memory_order_release);
-
-    // Copy old xcp page to the new xcp page
-    uint32_t xcp_page_old = c->h.xcp_page;
-    memcpy(&c->b[xcp_page_new], &c->b[xcp_page_old], c->h.size); // Copy the xcp page
-    c->h.xcp_page = xcp_page_new;
-
-    // Publish the old xcp page
-    // Acquire/release semantics with XcpCalSegLock on the ecu_page_next pointer
+    if (!published) {
+        c->h.write_pending = true; // Keep the changes pending in the xcp page, to retry publishing them later
+#ifdef TEST_ENABLE_CAL_METRICS
+        gXcpWritePendingCount++;
+#endif
+        if (wait) {
+            DBG_PRINTF_ERROR("Can not update calibration changes, timeout - calseg %s locked\n", c->h.name);
+            return CRC_ACCESS_DENIED;
+        }
+        DBG_PRINTF6("Can not update calibration changes of %s yet\n", c->h.name);
+        return CRC_CMD_PENDING;
+    }
     c->h.write_pending = false; // No longer pending
-    atomic_store_explicit(&c->h.ecu_page_next, (uint_least32_t)xcp_page_old, memory_order_release);
-
-    DBG_PRINTF6("XcpCalSegPublish: %s xcp_page published\n", c->h.name);
     return CRC_CMD_OK;
 }
 
@@ -821,7 +1025,7 @@ uint8_t XcpCalSegPublishAll(bool wait) {
             if (c->h.write_pending) {
                 uint8_t res1 = XcpCalSegPublish(c, wait);
                 if (res1 == CRC_CMD_OK) {
-#ifdef TEST_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_CAL_METRICS
                     gXcpCalSegPublishAllCount++;
 #endif
                 } else {
@@ -890,8 +1094,10 @@ void XcpCalUpdateEpkSeg(const char epk[XCP_EPK_MAX_LENGTH + 1]) {
         assert(c != NULL);
         assert(c->h.size >= XCP_EPK_MAX_LENGTH + 1);
         memcpy(CalSegDefaultPage(c), epk, XCP_EPK_MAX_LENGTH + 1); // Update the default page with the current EPK value
-        memcpy(CalSegEcuPage(c), epk, XCP_EPK_MAX_LENGTH + 1);     // Update the ECU page with the current EPK value
-        memcpy(CalSegXcpPage(c), epk, XCP_EPK_MAX_LENGTH + 1);     // Update the XCP page with the current EPK value
+        // @@@@ TODO: Direct write into the published ECU page from the writer thread, a reader may hold this page, check if this is acceptable
+        // The RCU conform way is to write the xcp page and publish it
+        memcpy(CalSegEcuPage(c), epk, XCP_EPK_MAX_LENGTH + 1); // Update the ECU page with the current EPK value
+        memcpy(CalSegXcpPage(c), epk, XCP_EPK_MAX_LENGTH + 1); // Update the XCP page with the current EPK value
         DBG_PRINTF4(ANSI_COLOR_BLUE "EPK calibration segment 'epk' updated to  '%s'\n" ANSI_COLOR_RESET, epk);
     } else {
         DBG_PRINTF5(ANSI_COLOR_BLUE "EPK calibration segment 'epk' not present, EPK '%s' not updated\n" ANSI_COLOR_RESET, epk);

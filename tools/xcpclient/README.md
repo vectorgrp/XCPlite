@@ -109,7 +109,10 @@ Options:
           Build a minimal A2L template from XCP server event and memory segment information only. No variables or types are registered; the result is a skeleton A2L file. Requires that the XCP server supports the GET_EVENT_INFO and GET_SEGMENT_INFO commands
 
       --fix-a2l
-          Update the given A2L file with XCP server information about events and memory segments. Requires that the XCP server supports the GET_EVENT_INFO and GET_SEGMENT_INFO commands
+          Correct the event ids and calibration segment numbers of the given A2L file with XCP server information and rewrite it, the original is kept as <file>.a2l.bak. Only for A2L files created by xcpclient (--elf and --create-a2l), typically generated offline without section registration. Requires that the XCP server supports the GET_EVENT_INFO and GET_SEGMENT_INFO commands
+
+      --embed-aml
+          Embed the XCP A2ML description into an A2L file created by xcpclient (--elf, --create-a2l, --create-a2l-template), instead of including XCP_104.aml. The A2L file is self-contained, XCP_104.aml is not needed next to it. --fix-a2l keeps an embedded A2ML description
 
       --upload-elf
           Upload ELF file from XCP server. Requires that the XCP server supports proprietary GET_ID ELF upload command
@@ -256,7 +259,7 @@ xcpclient --udp --elf build/hello_xcp --mea "counter" --verbose 2
 xcpclient --dest-addr=192.168.0.206:5555 --tcp --upload-a2l   
 ```
 
-### Create an A2L file for a target from ELF without on target A2L generation support
+### Create an A2L file for a target from ELF without on-target A2L generation support
 
 Create an A2L file from the ELF file (and optional XCP server information about events and memory segments), then save the A2L file as hello_xcp.a2l:
 ```bash

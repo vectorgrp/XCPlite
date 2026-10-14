@@ -4,7 +4,10 @@ This folder contains various examples demonstrating different features and capab
 
 ## Getting Started
 
-To get started, take a first look at the C example `hello_xcp` or at `hello_xcp_cpp` for C++.
+To get started take a first look at the C example `hello_xcp` or at `hello_xcp_cpp` for C++. These two examples use the default configuration of the library, which is with on-target A2L generation enabled and runtime event and calibration segment management.  
+
+For embedded use-cases, start with `no_a2l_demo` or at `no_a2l_demo_cpp` for C++, which demonstrate the concepts for offline A2L generation from linker files on Linux.
+
 
 
 ### Example CANape Projects
@@ -25,9 +28,9 @@ Note that examples targets may need different XCPlite library build configuratio
 ```bash
    cmake -B build        -S . -DXCPLITE_CONFIGURATION=default   # (or omit for default)
    cmake -B build-no_a2l -S . -DXCPLITE_CONFIGURATION=no_a2l    # for no_a2l_demo and no_a2l_demo_cpp
-   cmake -B build-ptp    -S . -DXCPLITE_CONFIGURATION=ptp       # for ptp4l_demo
-   cmake -B build-shm    -S . -DXCPLITE_CONFIGURATION=shm       # for silkit_demo
    cmake -B build-rtos   -S . -DXCPLITE_CONFIGURATION=rtos      # for freertos_demo with the FreeRTOS POSIX simulator
+   cmake -B build-shm    -S . -DXCPLITE_CONFIGURATION=shm       # for silkit_demo
+   cmake -B build-ptp    -S . -DXCPLITE_CONFIGURATION=ptp       # for ptp4l_demo
    cmake -B build-raw    -S . -DXCPLITE_CONFIGURATION=raw       # for udp_raw_demo with the raw Ethernet transport
 ```
 
@@ -82,6 +85,26 @@ Builds against a pre-built libxcplite and silkit library
 Demonstrates how to use a PTP (Precision Time Protocol) synchronized clock as XCP data acquisition timestamp source.  
 
 
+### [external_example](external_example/README.md)
+
+Demonstrates using libxcplite as a pre-built external library:
+- Independent from the main build system.  
+- Shows how to build against an installed libxcplite binary (system-wide or local staging).  
+- Independent CMakeLists.txt using `find_package(libxcplite)`.  
+- Typical workflow for production deployments where libxcplite is distributed as a library package.  
+- No system installation required for development - uses local staging directory.  
+
+
+### [fetchcontent_example](fetchcontent_example/README.md)
+
+Demonstrates building libxcplite from source on Github as part of your own project via CMake `FetchContent`: 
+- No install step.  
+- Independent CMakeLists.txt with `FetchContent_Declare(xcplite GIT_REPOSITORY ... GIT_TAG ...)`, pinned to a release tag.  
+- Same application code and the same `xcplite::xcplite` link target as external_example.  
+- Typical workflow for CI builds, cross-compiling and projects which want the xcplite version pinned in code.  
+
+
+
 ### [udp_raw_demo](udp_raw_demo/README.md)
 
 Demonstrates XCP on UDP/IPv4 without any TCP/IP stack: 
@@ -103,23 +126,6 @@ Demonstrates supplying your own Ethernet HAL backend from outside the library:
 - Linux only, needs `CAP_NET_RAW`. Not built from the root CMakeLists.  
 
 
-### [external_example](external_example/README.md)
-
-Demonstrates using libxcplite as a pre-built external library:
-- Independent from the main build system.  
-- Shows how to build against an installed libxcplite binary (system-wide or local staging).  
-- Independent CMakeLists.txt using `find_package(libxcplite)`.  
-- Typical workflow for production deployments where libxcplite is distributed as a library package.  
-- No system installation required for development - uses local staging directory.  
-
-
-### [fetchcontent_example](fetchcontent_example/README.md)
-
-Demonstrates building libxcplite from source on Github as part of your own project via CMake `FetchContent`: 
-- No install step.  
-- Independent CMakeLists.txt with `FetchContent_Declare(xcplite GIT_REPOSITORY ... GIT_TAG ...)`, pinned to a release tag.  
-- Same application code and the same `xcplite::xcplite` link target as external_example.  
-- Typical workflow for CI builds, cross-compiling and projects which want the xcplite version pinned in code.  
 
 
 ### [c_demo](c_demo/README.md)

@@ -26,14 +26,15 @@ const C_INLINED_FUNCTION_ELF: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtu
 const C_INLINED_FUNCTION_CLANG_ELF: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/c_inlined_function_clang.elf");
 // The same clang build without frame pointer, the frame base of the functions is the stack pointer
 const C_INLINED_FUNCTION_CLANG_NOFP_ELF: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/c_inlined_function_clang_nofp.elf");
+// C++ test fixture with compile time constants and symbols whose names end with a variable name, see fixtures/cpp_const_value_a.cpp
+// (GCC 12.3 arm-none-eabi, DWARF 5, -O1)
+const CPP_CONST_VALUE_ELF: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/cpp_const_value.elf");
 
 // Load a fixture ELF file and register all its variables
 fn load_fixture(elf_file: &str) -> (ElfReader, Registry) {
-    let elf_reader = ElfReader::new(elf_file, 0, (0, usize::MAX)).unwrap_or_else(|e| panic!("failed to load {elf_file}: {e}"));
+    let elf_reader = ElfReader::new(elf_file, 0, ElfFilter::default()).unwrap_or_else(|e| panic!("failed to load {elf_file}: {e}"));
     let mut reg = Registry::new();
-    elf_reader
-        .register_variables(&mut reg, false, 0, (0, usize::MAX), "", "", None)
-        .expect("register_variables failed");
+    elf_reader.register_variables(&mut reg, false, 0, None).expect("register_variables failed");
     (elf_reader, reg)
 }
 
@@ -135,9 +136,10 @@ fn test_register_same_named_c_types_in_different_units() {
 // entirely: state_a is declared in compilation unit 0 (excluded by the min limit), state_b in compilation unit 1 (still in range)
 #[test]
 fn test_unit_idx_limit_min_does_not_stop_parsing() {
-    let elf_reader = ElfReader::new(C_LOCAL_TYPES_ELF, 0, (1, usize::MAX)).expect("failed to load fixtures/c_local_types.elf");
+    let filter = ElfFilter::new(1, usize::MAX, "", "").unwrap();
+    let elf_reader = ElfReader::new(C_LOCAL_TYPES_ELF, 0, filter).expect("failed to load fixtures/c_local_types.elf");
     let mut reg = Registry::new();
-    elf_reader.register_variables(&mut reg, false, 0, (1, usize::MAX), "", "", None).unwrap();
+    elf_reader.register_variables(&mut reg, false, 0, None).unwrap();
 
     assert!(
         reg.instance_list.get_instance("state_a", McObjectType::Measurement, None).is_none(),
@@ -192,11 +194,11 @@ fn test_register_inlined_function_variables() {
 // The checks of test_register_inlined_function_variables for one fixture ELF file (GCC or clang build of the same source),
 // bar_counter_offset is the DW_OP_fbreg offset of the variable counter in bar
 fn register_inlined_function_variables(elf_file: &str, bar_counter_offset: i64, test_float_measurable: bool) {
-    let elf_reader = ElfReader::new(elf_file, 0, (0, usize::MAX)).unwrap_or_else(|e| panic!("failed to load {elf_file}: {e}"));
+    let elf_reader = ElfReader::new(elf_file, 0, ElfFilter::default()).unwrap_or_else(|e| panic!("failed to load {elf_file}: {e}"));
     let mut reg = Registry::new();
     elf_reader.register_events(&mut reg, 0).unwrap();
     elf_reader.register_event_locations(&mut reg, 0).unwrap();
-    elf_reader.register_variables(&mut reg, false, 0, (0, usize::MAX), "", "", None).unwrap();
+    elf_reader.register_variables(&mut reg, false, 0, None).unwrap();
     let event_id = |name: &str| reg.event_list.find_event(name, 0).unwrap_or_else(|| panic!("event {name}")).get_id();
     let instance = |name: &str| reg.instance_list.get_instance(name, McObjectType::Measurement, None);
 
@@ -234,11 +236,11 @@ fn register_inlined_function_variables(elf_file: &str, bar_counter_offset: i64, 
 // variables keep the function scope and the event
 #[test]
 fn test_register_stack_variables_without_frame_pointer() {
-    let elf_reader = ElfReader::new(C_INLINED_FUNCTION_CLANG_NOFP_ELF, 0, (0, usize::MAX)).expect("failed to load fixtures/c_inlined_function_clang_nofp.elf");
+    let elf_reader = ElfReader::new(C_INLINED_FUNCTION_CLANG_NOFP_ELF, 0, ElfFilter::default()).expect("failed to load fixtures/c_inlined_function_clang_nofp.elf");
     let mut reg = Registry::new();
     elf_reader.register_events(&mut reg, 0).unwrap();
     elf_reader.register_event_locations(&mut reg, 0).unwrap();
-    elf_reader.register_variables(&mut reg, false, 0, (0, usize::MAX), "", "", None).unwrap();
+    elf_reader.register_variables(&mut reg, false, 0, None).unwrap();
     let instance = |name: &str| reg.instance_list.get_instance(name, McObjectType::Measurement, None);
 
     assert_eq!(elf_reader.debug_data.variables["trg__AAS__bar"][0].frame_base, FrameBase::Register(13));
@@ -253,11 +255,11 @@ fn test_register_stack_variables_without_frame_pointer() {
 // is captured is not registered a second time as a stack variable, and a capture in an inlined function works
 #[test]
 fn test_register_captured_variables() {
-    let elf_reader = ElfReader::new(C_CAPTURES_ELF, 0, (0, usize::MAX)).expect("failed to load fixtures/c_captures.elf");
+    let elf_reader = ElfReader::new(C_CAPTURES_ELF, 0, ElfFilter::default()).expect("failed to load fixtures/c_captures.elf");
     let mut reg = Registry::new();
     elf_reader.register_events(&mut reg, 0).unwrap();
     elf_reader.register_event_locations(&mut reg, 0).unwrap();
-    elf_reader.register_variables(&mut reg, false, 0, (0, usize::MAX), "", "", None).unwrap();
+    elf_reader.register_variables(&mut reg, false, 0, None).unwrap();
     elf_reader.register_captures(&mut reg, 0).unwrap();
 
     let event_id = |name: &str| reg.event_list.find_event(name, 0).unwrap_or_else(|| panic!("event {name}")).get_id();
@@ -294,11 +296,11 @@ fn test_register_captured_variables() {
 // a captured struct keeps the name of its own type in the A2L file and not the one of any helper type of the capture macro
 #[test]
 fn test_register_captured_variables_cpp() {
-    let elf_reader = ElfReader::new(CPP_CAPTURES_ELF, 0, (0, usize::MAX)).expect("failed to load fixtures/cpp_captures.elf");
+    let elf_reader = ElfReader::new(CPP_CAPTURES_ELF, 0, ElfFilter::default()).expect("failed to load fixtures/cpp_captures.elf");
     let mut reg = Registry::new();
     elf_reader.register_events(&mut reg, 0).unwrap();
     elf_reader.register_event_locations(&mut reg, 0).unwrap();
-    elf_reader.register_variables(&mut reg, false, 0, (0, usize::MAX), "", "", None).unwrap();
+    elf_reader.register_variables(&mut reg, false, 0, None).unwrap();
     elf_reader.register_captures(&mut reg, 0).unwrap();
 
     let task = reg.event_list.find_event("task", 0).expect("event task").get_id();
@@ -325,11 +327,11 @@ fn test_register_captured_variables_cpp() {
 // the two markers named static_counter are told apart by their size
 #[test]
 fn test_register_metadata_local_variable_markers() {
-    let elf_reader = ElfReader::new(C_META_MARKERS_ELF, 0, (0, usize::MAX)).expect("failed to load fixtures/c_meta_markers.elf");
+    let elf_reader = ElfReader::new(C_META_MARKERS_ELF, 0, ElfFilter::default()).expect("failed to load fixtures/c_meta_markers.elf");
     let mut reg = Registry::new();
     elf_reader.register_events(&mut reg, 0).unwrap();
     elf_reader.register_event_locations(&mut reg, 0).unwrap();
-    elf_reader.register_variables(&mut reg, false, 0, (0, usize::MAX), "", "", None).unwrap();
+    elf_reader.register_variables(&mut reg, false, 0, None).unwrap();
     elf_reader.register_metadata(&mut reg, 0).unwrap();
 
     let comment = |name: &str| {
@@ -345,12 +347,71 @@ fn test_register_metadata_local_variable_markers() {
     assert_eq!(comment("foo.static_counter"), "Local static measurement variable in function foo");
 }
 
+// Variables without DW_AT_location get their address from a symbol with exactly their name, never from a symbol whose name only
+// ends with it: the pin constant MOSI (DW_AT_const_value, no memory) is not the function spiDetachMOSI, the undefined sens_value
+// is not the function read_sens_value. A constant does not take the address of a global variable of the same name in another
+// compilation unit (LED_PIN). GCC describes the metadata markers in a namespace and in a function with DW_AT_const_value as well,
+// but they are in memory and are found by their Itanium mangled names, also in functions without mangled name (main, extern "C")
+#[test]
+fn test_register_variables_without_location_exact_symbols() {
+    let elf_reader = ElfReader::new(CPP_CONST_VALUE_ELF, 0, ElfFilter::default()).expect("failed to load fixtures/cpp_const_value.elf");
+    let debug_data = &elf_reader.debug_data;
+    let symbol = |name: &str| *debug_data.symbol_addresses.get(name).unwrap_or_else(|| panic!("symbol '{name}' not found"));
+    let addresses = |name: &str| debug_data.variables.get(name).map(|v| v.iter().map(|v| v.address).collect::<Vec<_>>()).unwrap_or_default();
+
+    // Compile time constants without memory are skipped
+    assert!(debug_data.symbol_addresses.contains_key("spiDetachMOSI"));
+    assert!(!debug_data.variables.contains_key("MOSI"), "MOSI resolved to {:x?}", addresses("MOSI"));
+    // The constant LED_PIN is skipped, only the global variable LED_PIN of the other compilation unit is left
+    assert_eq!(addresses("LED_PIN"), vec![(0, symbol("LED_PIN"))]);
+    // A declaration without definition has no address
+    assert!(debug_data.symbol_addresses.contains_key("read_sens_value"));
+    assert_eq!(addresses("sens_value"), vec![(0, 0)]);
+    // Markers with DW_AT_const_value and memory
+    assert_eq!(addresses("xcp_meta__comment__input"), vec![(0, symbol("_ZN5motorL24xcp_meta__comment__inputE"))]);
+    assert_eq!(addresses("xcp_meta__min__static_counter"), vec![(0, symbol("_ZZ3foovE29xcp_meta__min__static_counter"))]);
+    assert_eq!(addresses("xcp_meta__max__static_counter"), vec![(0, symbol("_ZZ3foovE29xcp_meta__max__static_counter"))]);
+    // Markers in functions without mangled name (main, extern "C") are mangled with the plain function name
+    assert_eq!(
+        addresses("xcp_meta__comment__main_counter"),
+        vec![(0, symbol("_ZZ4mainE31xcp_meta__comment__main_counter"))]
+    );
+    assert_eq!(
+        addresses("xcp_meta__comment__detach_counter"),
+        vec![(0, symbol("_ZZ13spiDetachMOSIE33xcp_meta__comment__detach_counter"))]
+    );
+
+    let mut reg = Registry::new();
+    elf_reader.register_variables(&mut reg, false, 0, None).unwrap();
+    elf_reader.register_metadata(&mut reg, 0).unwrap();
+    let measurement = |name: &str| reg.instance_list.get_instance(name, McObjectType::Measurement, None);
+    assert!(measurement("MOSI").is_none());
+    assert!(measurement("sens_value").is_none());
+    assert!(measurement("pin_state").is_some());
+    assert!(measurement("LED_PIN").is_some());
+    assert_eq!(measurement("input").expect("instance 'input' not registered").comment(), "Motor input");
+    // Static variables in functions are always prefixed with the function name, also when the name is unique,
+    // and the marker in the function reaches them
+    assert!(measurement("main_counter").is_none());
+    assert_eq!(
+        measurement("main.main_counter").expect("instance 'main.main_counter' not registered").comment(),
+        "Static local in main"
+    );
+    assert_eq!(
+        measurement("spiDetachMOSI.detach_counter")
+            .expect("instance 'spiDetachMOSI.detach_counter' not registered")
+            .comment(),
+        "Static local in an extern C function"
+    );
+    assert!(measurement("foo.static_counter").is_some());
+}
+
 // A marker at file scope which names no instance reaches the field of a typedef instance (delay_us -> params.delay_us),
 // but never a local variable of a function (foo.counter), which is named by a marker in that function
 #[test]
 fn test_register_metadata_file_scope_marker_fallback() {
     let meta_base: u64 = 0xF000;
-    let meta: Vec<u8> = b"Delay Counter in foo ".to_vec(); // offsets 0 and 6
+    let meta: Vec<u8> = b"Delay\0Counter in foo\0".to_vec(); // offsets 0 and 6
     let marker = |addr: u64, function: Option<&str>| {
         vec![VarInfo {
             address: (0, addr),
@@ -385,6 +446,16 @@ fn test_register_metadata_file_scope_marker_fallback() {
     assert_eq!(comment("foo.counter"), "");
 }
 
+// The segment index variables of the calibration segment and block declaration macros are not registered as measurements,
+// a variable which only contains such a name is
+#[test]
+fn test_calseg_index_variables_are_internal() {
+    assert!(is_internal_variable("calseg_id_params"));
+    assert!(is_internal_variable("calblk_id_params"));
+    assert!(!is_internal_variable("my_calseg_id_params"));
+    assert!(!is_internal_variable("params"));
+}
+
 // The addressing mode signature is read from the symbol table, so it is found even when the debug information of the XCPlite
 // library is not parsed (--elf-unit-limit) or the library was built without it. The DWARF variables are the fallback
 #[test]
@@ -414,15 +485,15 @@ fn test_get_target_signature() {
 // Global variables get the default event when one is specified, otherwise no event
 #[test]
 fn test_register_variables_default_event() {
-    let elf_reader = ElfReader::new(CPP_TYPES_ELF, 0, (0, usize::MAX)).expect("failed to load fixtures/cpp_types.elf");
+    let elf_reader = ElfReader::new(CPP_TYPES_ELF, 0, ElfFilter::default()).expect("failed to load fixtures/cpp_types.elf");
 
     let mut reg = Registry::new();
-    elf_reader.register_variables(&mut reg, false, 0, (0, usize::MAX), "", "", Some(3)).unwrap();
+    elf_reader.register_variables(&mut reg, false, 0, Some(3)).unwrap();
     let g_plain = reg.instance_list.get_instance("g_plain", McObjectType::Measurement, None).expect("instance g_plain");
     assert_eq!(g_plain.event_id(), Some(3));
 
     let mut reg = Registry::new();
-    elf_reader.register_variables(&mut reg, false, 0, (0, usize::MAX), "", "", None).unwrap();
+    elf_reader.register_variables(&mut reg, false, 0, None).unwrap();
     let g_plain = reg.instance_list.get_instance("g_plain", McObjectType::Measurement, None).expect("instance g_plain");
     assert_eq!(g_plain.event_id(), None);
 }
@@ -443,6 +514,7 @@ fn empty_debug_data() -> DebugData {
         epk_addr: 0,
         xcp_meta_data: None,
         is_little_endian: true,
+        filter: ElfFilter::default(),
     }
 }
 
@@ -492,7 +564,7 @@ fn elf_reader_with_conflicting_types() -> ElfReader {
 fn test_register_conflicting_typedef_names() {
     let elf = elf_reader_with_conflicting_types();
     let mut reg = Registry::new();
-    elf.register_variables(&mut reg, false, 0, (0, usize::MAX), "", "", None).unwrap();
+    elf.register_variables(&mut reg, false, 0, None).unwrap();
     assert_eq!(instance_typedef(&reg, "state_a"), "state");
     assert_eq!(instance_typedef(&reg, "state_b"), "state_1");
     assert_eq!(typedef_fields(&reg, "state"), vec![("a", 0)]);
@@ -827,4 +899,30 @@ fn test_register_events_marker_outside_section() {
     assert_eq!(reg.event_list.find_event("foo", 0).unwrap().get_id(), 0xFFFF);
     assert_eq!(reg.event_list.find_event("out", 0).unwrap().get_id(), 0xFFFE);
     assert_eq!(reg.event_list.find_event("zero", 0).unwrap().get_id(), 0xFFFD);
+}
+
+// The EPK in the A2L file is the EPK as XcpInit stores it on the target: truncated to XCP_EPK_MAX_LENGTH, space, tab and colon replaced
+#[test]
+fn normalize_epk_like_target() {
+    assert_eq!(normalize_epk("V201"), "V201");
+    assert_eq!(normalize_epk("V 1.0:build\t7"), "V_1.0_build_7");
+    let long = "0123456789012345678901234567890123456789";
+    assert_eq!(normalize_epk(long), &long[..XCP_EPK_MAX_LENGTH]);
+}
+
+// ADDR_EPK is the address the target maps to its own EPK copy (XCP_ADDR_EPK), not the address of the xcp_epk__ string
+#[test]
+fn epk_addr_is_target_epk_address() {
+    assert_eq!(epk_addr(false, true), 0xFFFFFF00); // ACSDD
+    assert_eq!(epk_addr(false, false), 0xFFFFFF00);
+    assert_eq!(epk_addr(true, true), 0x80000000); // CASDD, epk segment 0 offset 0
+    assert_eq!(epk_addr(true, false), 0xFFFFFF00); // CASDD without epk segment
+
+    let mut debug_data = empty_debug_data();
+    debug_data.epk_string = Some("V 201".to_string());
+    debug_data.epk_addr = 0x3C0C8E8C;
+    let elf_reader = ElfReader::from_debug_data(debug_data);
+    let mut reg = Registry::new();
+    elf_reader.register_epk_addr_info(&mut reg, false, 0);
+    assert_eq!(reg.application.get_version(), "V_201");
 }

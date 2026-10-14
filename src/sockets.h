@@ -18,6 +18,10 @@
 |       socketStartup, socketCleanup, socketOpen (UDP only, TCP not supported),
 |       socketBind, socketShutdown, socketClose,
 |       socketRecvFrom, socketSendTo, socketSetTimeout
+|       Default: lwIP netconn API, SOCKET_HANDLE becomes struct netconn*,
+|         socketSendTo copies each datagram into a pbuf owned by lwIP
+|       + OPTION_FREERTOS_LWIP_SOCKET_API: lwIP socket API, SOCKET_HANDLE is the lwIP socket fd,
+|         zero copy transmit depending on the lwIP build options and the Ethernet driver
 |     OPTION_FREERTOS_LWIP not defined:
 |       All functions are error stubs — the caller must provide the implementation.
 |
@@ -64,9 +68,7 @@
 |       vectored I/O (socketSendToV/socketSendV), hardware timestamps,
 |       socketGetMAC, socketGetLocalAddr.
 |
-| Copyright (c) Vector Informatik GmbH. All rights reserved.
-| See LICENSE file in the project root for details.
-|
+| Code released into public domain, no attribution required
  ----------------------------------------------------------------------------*/
 
 #include "platform.h" // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex, spinlock
@@ -134,6 +136,12 @@ struct socket {
 typedef struct socket *SOCKET_HANDLE;
 #define INVALID_SOCKET_HANDLE NULL
 #define SOCKET_FD(s) ((s)->sock) // Extract the OS socket fd from a SOCKET_HANDLE
+#elif defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) && defined(OPTION_FREERTOS_LWIP) && !defined(OPTION_FREERTOS_LWIP_SOCKET_API)
+// FreeRTOS with the lwIP netconn API: SOCKET_HANDLE is the lwIP netconn
+// There is no socket fd, therefore SOCKET_FD() is deliberately not defined
+struct netconn;
+typedef struct netconn *SOCKET_HANDLE;
+#define INVALID_SOCKET_HANDLE NULL
 #else
 // Linux (without HW timestamps), FreeRTOS, macOS, QNX: SOCKET_HANDLE is the raw OS fd
 typedef SOCKET SOCKET_HANDLE;
@@ -285,6 +293,8 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, b
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
 
 // Send a UDP datagram to addr:port
+// Blocking call
+// buffer,bufferSize: must remain valid and unmodified until socketSendTo returns, and the transport must fully consume it before returning
 // time: optional send timestamp (NULL to skip)
 //       on Linux with HW timestamps: *time is set to 0; call socketGetSendTime() afterwards to retrieve it
 //       on other platforms: *time is set to the system clock at send time

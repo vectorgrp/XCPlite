@@ -12,7 +12,8 @@
 
 #include <stdlib.h> // for malloc, free
 #include <string.h> // for memset, memcpy, strerror, strncpy
-#if !defined(_WIN)
+// FreeRTOS uses lwip_close() instead of POSIX close(); bare-metal toolchains may lack unistd.h
+#if !defined(_WIN) && !defined(_FREE_RTOS)
 #include <unistd.h> // for close
 #endif
 
@@ -59,8 +60,270 @@ const char *socketGetErrorString(int32_t err) {
 #endif
 
 #if defined(OPTION_FREERTOS_LWIP)
-#include "lwip/errno.h"   // lwIP errno values mapped to POSIX codes
-#include "lwip/netif.h"   // netif_default, struct netif::mtu, for the segment size check in socketSendTo
+#include "lwip/errno.h" // lwIP errno values mapped to POSIX codes
+#include "lwip/netif.h" // netif_default, struct netif::mtu, for the segment size check in socketSendTo
+
+// lwIP does not block a UDP send for lack of memory (pbufs, heap or driver transmit buffers, e.g. on a
+// congested Wi-Fi link), it fails immediately with ERR_MEM. socketSendTo emulates a blocking send instead,
+// it polls every millisecond until lwIP accepts the datagram. As with a blocking sendto on other platforms,
+// the XCP transmit queue then fills up and DAQ events are dropped and counted at queue entry.
+// A stall is reported after SOCKET_LWIP_TX_STALL_WARNING_MS and then periodically, its end as well.
+
+// @@@@ TODO:
+// The transmit thread holds the transport layer counter mutex while blocked, so command responses wait as well.
+// This has impact on GET_DAQ_CLOCK latency
+// A stall which never ends, e.g. a permanently missing link, blocks a graceful XCP server shutdown.
+
+#define SOCKET_LWIP_TX_STALL_WARNING_MS 1000
+
+typedef struct {
+    uint64_t start;        // Time of the first ERR_MEM in ns, 0 if not stalled
+    uint64_t next_warning; // Time of the next stall warning in ns
+    bool warned;           // A stall warning was printed
+} tSocketTxStall;
+
+// Wait a millisecond for lwIP memory, report a long stall
+static void socketTxStallWait(tSocketTxStall *stall) {
+    uint64_t now = clockGetMonotonicNs();
+    if (stall->start == 0) {
+        stall->start = now;
+        stall->next_warning = now + SOCKET_LWIP_TX_STALL_WARNING_MS * 1000000ULL;
+    } else if (now >= stall->next_warning) {
+        stall->next_warning = now + SOCKET_LWIP_TX_STALL_WARNING_MS * 1000000ULL;
+        stall->warned = true;
+        DBG_PRINTF_WARNING("socketSendTo: lwIP out of memory, transmit blocked for %u ms\n", (unsigned)((now - stall->start) / 1000000ULL));
+    }
+    sleepMs(1);
+}
+
+// Report the end of a stall which was reported
+static void socketTxStallEnd(const tSocketTxStall *stall) {
+    if (stall->warned) {
+        DBG_PRINTF_WARNING("socketSendTo: transmit resumed after %u ms\n", (unsigned)((clockGetMonotonicNs() - stall->start) / 1000000ULL));
+    }
+}
+
+// lwIP sets no DF option - it has no IP_DONTFRAG - so unlike Linux, macOS/BSD, QNX and Windows
+// it does not refuse an oversized datagram: it fragments or drops it according to its own
+// IP_FRAG build setting, silently either way. That makes lwIP the one transport where an
+// OPTION_MTU larger than the link MTU degrades measurement without any diagnostic, so check it
+// here. netif->mtu is the IP MTU, so the 20 byte IPv4 and 8 byte UDP headers are added.
+//
+// Reported once, not per datagram: this is the DAQ transmit path. Best effort - the default
+// netif is not necessarily the one routing to dst on a multi homed target, so a false report
+// is possible there, and it costs one log line and nothing else.
+static void socketCheckSegmentSize(uint16_t bufferSize) {
+    if (netif_default != NULL && (uint32_t)bufferSize + 20u + 8u > (uint32_t)netif_default->mtu) {
+        static bool mtu_reported = false;
+        if (!mtu_reported) {
+            mtu_reported = true;
+            DBG_PRINTF_WARNING("socketSendTo: segment of %u bytes does not fit the link MTU of %u and lwIP will\n"
+                               "  fragment or drop it. Reduce OPTION_MTU (currently %u, giving XCPTL_MAX_SEGMENT_SIZE=%u).\n",
+                               (unsigned)bufferSize, (unsigned)netif_default->mtu, (unsigned)OPTION_MTU, (unsigned)XCPTL_MAX_SEGMENT_SIZE);
+        }
+    }
+}
+#endif
+
+#if defined(OPTION_FREERTOS_LWIP) && !defined(OPTION_FREERTOS_LWIP_SOCKET_API)
+
+//--------------------------------------------------------------------------
+// lwIP netconn API
+//
+// socketSendTo copies the datagram into a PBUF_RAM pbuf which lwIP allocates and reference counts.
+// The Ethernet driver may keep that pbuf beyond the call, for an asynchronous DMA transfer, until
+// transmit completion. The caller's buffer is no longer referenced when socketSendTo returns,
+// regardless of LWIP_NETIF_TX_SINGLE_PBUF and of how the driver handles PBUF_REF pbufs.
+
+#include "lwip/api.h"   // netconn_new, netconn_bind, netconn_recv, netconn_sendto, netconn_delete, netbuf_alloc, netbuf_copy
+#include "lwip/ip.h"    // ip_set_option, SOF_REUSEADDR
+#include "lwip/tcpip.h" // LOCK_TCPIP_CORE, UNLOCK_TCPIP_CORE
+#if LWIP_CHECKSUM_ON_COPY
+#include "lwip/inet_chksum.h" // LWIP_CHKSUM_COPY
+#endif
+
+#if !LWIP_SO_RCVTIMEO
+#error "XCPlite needs the lwIP receive timeout (socketSetTimeout), build lwIP with LWIP_SO_RCVTIMEO=1"
+#endif
+
+// socketStartup: lwIP networking is initialised by the application (e.g. tcpip_init) — no-op here
+bool socketStartup(void) { return true; }
+
+// socketCleanup: no teardown required for lwIP
+void socketCleanup(void) {}
+
+// Create a UDP netconn (TCP not supported: OPTION_ENABLE_TCP must not be defined)
+bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
+    assert(socketp != NULL);
+    assert(!(flags & SOCKET_MODE_TCP)); // TCP not supported on FreeRTOS/lwIP
+
+    struct netconn *conn = netconn_new(NETCONN_UDP);
+    if (conn == NULL) {
+        errno = ENOMEM;
+        DBG_PRINT_ERROR("socketOpen: netconn_new failed\n");
+        return false;
+    }
+    if (flags & SOCKET_MODE_REUSEADDR) {
+#if SO_REUSE
+        LOCK_TCPIP_CORE();
+        ip_set_option(conn->pcb.ip, SOF_REUSEADDR);
+        UNLOCK_TCPIP_CORE();
+#else
+        DBG_PRINT_WARNING("socketOpen: SO_REUSEADDR not available, lwIP is built with SO_REUSE=0\n");
+#endif
+    }
+    *socketp = conn;
+    DBG_PRINT5("socketOpen: lwIP UDP netconn opened\n");
+    return true;
+}
+
+// Bind to a local address and port
+// addr: network-byte-order IPv4 address; NULL or 0.x.x.x binds to INADDR_ANY
+bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
+    assert(socket != INVALID_SOCKET_HANDLE);
+    ip_addr_t a;
+    if (addr != NULL && addr[0] != 0) {
+        IP_ADDR4(&a, addr[0], addr[1], addr[2], addr[3]);
+    } else {
+        ip_addr_copy(a, *IP4_ADDR_ANY);
+    }
+    err_t err = netconn_bind(socket, &a, port);
+    if (err != ERR_OK) {
+        errno = err_to_errno(err);
+        DBG_PRINTF_ERROR("socketBind: netconn_bind failed (err=%d,%s) on port %u\n", err, socketGetErrorString(errno), port);
+        return false;
+    }
+    DBG_PRINTF5("socketBind: bound to port %u\n", port);
+    return true;
+}
+
+// Shutdown - lwIP can not shut down a UDP netconn, the socket API returns EOPNOTSUPP in this case as well
+// A thread blocked in socketRecvFrom returns with the receive timeout set by socketSetTimeout
+bool socketShutdown(SOCKET_HANDLE socket) {
+    (void)socket;
+    return true;
+}
+
+// Close and free the netconn
+bool socketClose(SOCKET_HANDLE *socketp) {
+    assert(socketp != NULL);
+    if (*socketp != INVALID_SOCKET_HANDLE) {
+        netconn_delete(*socketp);
+        *socketp = INVALID_SOCKET_HANDLE;
+    }
+    return true;
+}
+
+// Receive a UDP datagram (blocking, with the timeout set by socketSetTimeout)
+// A datagram larger than bufferSize is truncated, as with recvfrom
+// Returns: > 0 bytes received, 0 on timeout, -1 on error (errno set)
+int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time) {
+    assert(socket != INVALID_SOCKET_HANDLE);
+    struct netbuf *buf = NULL;
+    err_t err = netconn_recv(socket, &buf);
+    if (err == ERR_TIMEOUT) {
+        return 0; // Timeout — caller loops and does background work
+    }
+    if (err != ERR_OK) {
+        errno = err_to_errno(err);
+        DBG_PRINTF_ERROR("socketRecvFrom: netconn_recv failed (err=%d,%s)\n", err, socketGetErrorString(errno));
+        return -1;
+    }
+    u16_t n = netbuf_copy(buf, buffer, bufferSize);
+    if (srcAddr != NULL) {
+        uint32_t a = ip4_addr_get_u32(ip_2_ip4(netbuf_fromaddr(buf))); // network byte order
+        memcpy(srcAddr, &a, 4);
+    }
+    if (srcPort != NULL) {
+        *srcPort = netbuf_fromport(buf); // host byte order
+    }
+    netbuf_delete(buf);
+    if (time != NULL) {
+        *time = clockGet(); // No hardware timestamps on lwIP; use XCP clock
+    }
+    return (int16_t)n;
+}
+
+// Copy a datagram into a new lwIP PBUF_RAM pbuf and send it
+static err_t socketSendCopy(struct netconn *conn, const uint8_t *buffer, uint16_t bufferSize, const ip_addr_t *dst, uint16_t port) {
+    struct netbuf buf;
+    memset(&buf, 0, sizeof(buf));
+    void *payload = netbuf_alloc(&buf, bufferSize); // PBUF_RAM with headroom for the UDP, IP and link headers
+    if (payload == NULL) {
+        return ERR_MEM;
+    }
+#if LWIP_CHECKSUM_ON_COPY
+    netbuf_set_chksum(&buf, LWIP_CHKSUM_COPY(payload, buffer, bufferSize));
+#else
+    memcpy(payload, buffer, bufferSize);
+#endif
+    err_t err = netconn_sendto(conn, &buf, dst, port);
+    netbuf_free(&buf); // Drops our reference, a driver still transmitting the pbuf holds its own
+    return err;
+}
+
+// Send a UDP datagram to addr:port
+// Blocking call
+// buffer,bufferSize: must remain valid and unmodified until socketSendTo returns, and the transport must fully consume it before returning
+// Blocks while lwIP is out of memory, see SOCKET_LWIP_TX_STALL_WARNING_MS
+// Returns: bytes sent, 0 on closed socket, -1 on error (errno set)
+int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time) {
+    assert(socket != INVALID_SOCKET_HANDLE);
+    assert(addr != NULL);
+    if (time != NULL) {
+        *time = clockGet(); // No hardware timestamps on lwIP; use XCP clock at send time
+    }
+    socketCheckSegmentSize(bufferSize);
+
+    ip_addr_t dst;
+    IP_ADDR4(&dst, addr[0], addr[1], addr[2], addr[3]);
+    err_t err;
+    tSocketTxStall stall = {0, 0, false};
+    while ((err = socketSendCopy(socket, buffer, bufferSize, &dst, port)) == ERR_MEM) {
+        socketTxStallWait(&stall);
+    }
+    socketTxStallEnd(&stall);
+    if (err != ERR_OK) {
+        errno = err_to_errno(err);
+        if (socketIsClosed(errno)) {
+            return 0; // Socket closed
+        }
+        DBG_PRINTF_ERROR("socketSendTo: netconn_sendto failed (err=%d,%s)\n", err, socketGetErrorString(errno));
+        return -1;
+    }
+    return (int16_t)bufferSize;
+}
+
+// Set the receive timeout
+// timeoutMs == 0 restores infinite blocking
+bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
+    assert(socket != INVALID_SOCKET_HANDLE);
+    netconn_set_recvtimeout(socket, timeoutMs);
+    DBG_PRINTF5("socketSetTimeout: set to %u ms\n", timeoutMs);
+    return true;
+}
+
+#else // lwIP socket API (OPTION_FREERTOS_LWIP_SOCKET_API) or no IP stack
+
+//--------------------------------------------------------------------------
+// lwIP socket API
+//
+// lwip_sendto passes the caller's buffer to the Ethernet driver as a PBUF_REF pbuf (zero copy), when
+// lwIP is built with LWIP_NETIF_TX_SINGLE_PBUF=0. The driver must then have finished reading it, or have
+// copied it, before lwip_sendto returns, and keep it coherent with its DMA (CPU cache).
+// Otherwise use the netconn API above, the default.
+
+// Drivers which skip cache maintenance for PBUF_REF payloads (e.g. TI CPSW lwipif) will do it for PBUF_RAM.
+// The socket API (OPTION_FREERTOS_LWIP_SOCKET_API) would pass the caller's buffer as PBUF_REF, when lwIP
+// is built with LWIP_NETIF_TX_SINGLE_PBUF=0.
+
+#if !defined(LWIP_NETIF_TX_SINGLE_PBUF) || LWIP_NETIF_TX_SINGLE_PBUF == 0
+#error "FREE_RTOS: LWIP_NETIF_TX_SINGLE_PBUF==0"
+#endif
+
+// @@@@ TODO: Eventually remove the socket API version
+
+#if defined(OPTION_FREERTOS_LWIP)
 #include "lwip/sockets.h" // lwip_socket, lwip_bind, lwip_sendto, lwip_recvfrom, lwip_close, lwip_shutdown, lwip_setsockopt
 #endif
 
@@ -198,6 +461,9 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
 }
 
 // Send a UDP datagram to addr:port
+// Blocking call
+// buffer,bufferSize: must remain valid and unmodified until socketSendTo returns, and the transport must fully consume it before returning
+// Blocks while lwIP is out of memory, see SOCKET_LWIP_TX_STALL_WARNING_MS
 // Returns: bytes sent, 0 on closed socket, -1 on error
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time) {
 #if defined(OPTION_FREERTOS_LWIP)
@@ -211,27 +477,14 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t buffe
     if (time != NULL) {
         *time = clockGet(); // No hardware timestamps on lwIP; use XCP clock at send time
     }
+    socketCheckSegmentSize(bufferSize);
 
-    // lwIP sets no DF option - it has no IP_DONTFRAG - so unlike Linux, macOS/BSD, QNX and Windows
-    // it does not refuse an oversized datagram: it fragments or drops it according to its own
-    // IP_FRAG build setting, silently either way. That makes lwIP the one transport where an
-    // OPTION_MTU larger than the link MTU degrades measurement without any diagnostic, so check it
-    // here. netif->mtu is the IP MTU, so the 20 byte IPv4 and 8 byte UDP headers are added.
-    //
-    // Reported once, not per datagram: this is the DAQ transmit path. Best effort - the default
-    // netif is not necessarily the one routing to dst on a multi homed target, so a false report
-    // is possible there, and it costs one log line and nothing else.
-    if (netif_default != NULL && (uint32_t)bufferSize + 20u + 8u > (uint32_t)netif_default->mtu) {
-        static bool mtu_reported = false;
-        if (!mtu_reported) {
-            mtu_reported = true;
-            DBG_PRINTF_WARNING("socketSendTo: segment of %u bytes does not fit the link MTU of %u and lwIP will\n"
-                               "  fragment or drop it. Reduce OPTION_MTU (currently %u, giving XCPTL_MAX_SEGMENT_SIZE=%u).\n",
-                               (unsigned)bufferSize, (unsigned)netif_default->mtu, (unsigned)OPTION_MTU, (unsigned)XCPTL_MAX_SEGMENT_SIZE);
-        }
+    int16_t n;
+    tSocketTxStall stall = {0, 0, false};
+    while ((n = (int16_t)lwip_sendto(socket, buffer, bufferSize, 0, (struct sockaddr *)&dst, sizeof(dst))) < 0 && errno == ENOMEM) {
+        socketTxStallWait(&stall);
     }
-
-    int16_t n = (int16_t)lwip_sendto(socket, buffer, bufferSize, 0, (struct sockaddr *)&dst, sizeof(dst));
+    socketTxStallEnd(&stall);
     if (n < 0) {
         int32_t err = errno;
         if (socketIsClosed(err)) {
@@ -266,6 +519,8 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
     return true;
 #endif
 }
+
+#endif // lwIP socket API
 
 #else
 
@@ -1324,12 +1579,13 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
 #endif // OPTION_ENABLE_TCP
 
 // Send datagram on UDP socket
-// Returns number of bytes sent or -1 on error
+// Blocking call
+// buffer,bufferSize: must remain valid and unmodified until socketSendTo returns, and the transport must fully consume it before returning
+// Returns total number of bytes sent, 0 on socket closed or -1 on error
 // Requests and may returns optional send time if (time != NULL)
 // Support hardware timestamps if enabled on the socket and with OPTION_SOCKET_HW_TIMESTAMPS defined, otherwise system time is used
 // If *time = 0 on return, no timestamp is available yet, but can be obtained with socketGetSendTime()
 // On non-Linux platforms, *time is set to system time at send
-// Returns total number of bytes sent, 0 on socket closed or -1 on error
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size, const uint8_t *addr, uint16_t port, uint64_t *time) {
 
     assert(socket != INVALID_SOCKET_HANDLE);

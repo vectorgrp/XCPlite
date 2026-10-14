@@ -1,0 +1,12 @@
+// WiFi credentials
+//
+// Copy this file to src/wlan.h and fill in your network. src/wlan.h is
+// gitignored so credentials never reach the repository.
+//
+// Alternatively define WIFI_SSID and WIFI_PASSWORD as platformio.ini build
+// flags; wlan.h is then not included at all.
+
+#pragma once
+
+#define WIFI_SSID "your-ssid"
+#define WIFI_PASSWORD "your-password"

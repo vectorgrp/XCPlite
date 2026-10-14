@@ -184,7 +184,11 @@ uint64_t xcpClock(void) {
     int64_t offset = params->offset;
     int32_t drift = params->drift;
     int32_t drift_drift = params->drift_drift;
+#ifdef OPTION_CAL_RCU_REFCOUNT
+    XcpUnlockCalSeg(gClockParameters, params);
+#else
     XcpUnlockCalSeg(gClockParameters);
+#endif
 
     uint64_t system_clock = systemClock();
     uint64_t xcp_raw_clock;
@@ -382,7 +386,11 @@ int main(int argc, char *argv[]) {
                 gClockJitterLast = params->jitter;
             }
 
+#ifdef OPTION_CAL_RCU_REFCOUNT
+            XcpUnlockCalSeg(gClockParameters, params);
+#else
             XcpUnlockCalSeg(gClockParameters);
+#endif
 
             // Update the clock synchronizers anchor (just use the last pair it generated in this loop)
             // Must be done regularly to avoid integer overflows in the interpolation function

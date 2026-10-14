@@ -35,7 +35,7 @@ The code is layered top down:
 An ELF file carries two kinds of information which are used here:
 
   1. Sections and the symbol table (.symtab). This is the linker's view: flat lists of named byte ranges (sections) and
-     named addresses (symbols). Used for the XCPlite marker sections (xcp_evts, xcp_epk, xcp_meta), for the address of a
+     named addresses (symbols). Used for the XCPlite marker sections (xcp_evts, xcp_cals, xcp_epk, xcp_meta), for the address of a
      variable when the DWARF information has none, and for the mangled names of C++ symbols.
   2. DWARF debug information (.debug_info and the other .debug_* sections). This is the compiler's view: a tree of
      "debugging information entries" (DIEs) per compilation unit (one .c/.cpp file), describing every function, scope,
@@ -45,11 +45,12 @@ An ELF file carries two kinds of information which are used here:
 
 Marker variables, emitted by the macros in inc/xcplib.h and found by their name in the DWARF variable list:
 
-  calseg__<name>, calblk__<name>   calibration segment or block descriptor, CalSegCreate/CalBlkCreate  (register_segments)
-  evt__<name>                      event descriptor in the xcp_evts section, DaqCreateEvent            (register_events)
-  trg__<modes>__<name>             event trigger point in a function, DaqTriggerEvent                  (register_event_locations)
+  calseg__<name>, calblk__<name>   calibration segment or block descriptor, CalSegCreate/CalBlkCreate   (register_segments)
+  evt__<name>                      event descriptor in the xcp_evts section, DaqCreateEvent             (register_events)
+  trg__<modes>__<name>             event trigger point in a function, DaqTriggerEvent                   (register_event_locations)
   xcp_meta__<kind>__<name>         XCP_COMMENT, XCP_UNIT, XCP_LIMITS, XCP_READ_WRITE, xcp_meta section  (register_metadata)
-  XCPLITE__<signature>             addressing mode signature of the target build                       (get_target_signature)
+  xcp_epk__                        From XcpDeclEpk(string)
+  XCPLITE__<signature>             addressing mode signature of the target build                        (get_target_signature)
 
 The order of the register_* calls matters: events before event locations (a trigger refers to its event), segments and
 events before variables (a variable gets its event and its segment), variables before metadata (metadata is attached to
@@ -69,7 +70,6 @@ Useful tools to look at an ELF file while debugging this code (the GNU or LLVM v
 #![allow(clippy::collapsible_else_if)]
 
 use indexmap::IndexMap;
-use regex::Regex;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
@@ -125,10 +125,33 @@ Possible future improvements:
 mod debuginfo;
 use debuginfo::{DbgDataType, DebugData, FrameBase, TypeInfo, VarInfo};
 
+// The compilation unit and variable name selection from the command line (--elf-unit-limit, --elf-unit-filter, --elf-var-filter)
+mod filter;
+pub use filter::ElfFilter;
+
 // The name of the variable a capture struct member was copied from: the macro appends one underscore to it, so exactly one
 // trailing underscore is removed here, and a variable which ends with an underscore itself keeps it
 fn capture_member_variable_name(member_name: &str) -> &str {
     member_name.strip_suffix('_').unwrap_or(member_name)
+}
+
+// EPK of the target, see XCP_EPK_MAX_LENGTH and XCP_ADDR_EPK in src/xcp_cfg.h
+// The target keeps its own copy of the EPK string given to XcpInit, the epk calibration segment and the EPK upload use this copy, not
+// the xcp_epk__ string of XcpCreateEpk. Its address is not known from the ELF file, ADDR_EPK is the address the target maps to it
+const XCP_EPK_MAX_LENGTH: usize = 31;
+const XCP_ADDR_EPK_ABS: u32 = 0xFFFFFF00; // Absolute addressing (ACSDD) or no epk segment, XcpSetMta maps it to the EPK
+const XCP_ADDR_EPK_SEG: u32 = 0x80000000; // Segment relative addressing (CASDD) with epk segment, segment 0 offset 0
+
+// The EPK as the target sees it: XcpSetEpk truncates the string given to XcpInit to XCP_EPK_MAX_LENGTH bytes and replaces space, tab
+// and colon with an underscore
+fn normalize_epk(epk: &str) -> String {
+    let bytes = &epk.as_bytes()[..epk.len().min(XCP_EPK_MAX_LENGTH)];
+    String::from_utf8_lossy(bytes).replace([' ', '\t', ':'], "_")
+}
+
+// ADDR_EPK, the address the target maps to its EPK
+fn epk_addr(segment_relative: bool, has_epk_segment: bool) -> u32 {
+    if segment_relative && has_epk_segment { XCP_ADDR_EPK_SEG } else { XCP_ADDR_EPK_ABS }
 }
 
 // Variable which transport information for the A2L creator
@@ -139,13 +162,25 @@ pub fn is_a2l_variable(name: &str) -> bool {
         || name.starts_with("trg__")
         || name.starts_with("cap__")
         || name.starts_with("xcp_meta__")
+        || name.starts_with("xcp_epk__")
         || name.starts_with("XCPLITE__")
 }
 
 // Variables which never become A2L objects: the internals of the compiler and of the standard library, XCPlite internals and the A2L creator markers
-// variables and the marker variables of the sections and macros (see the module comment)
+// variables and the marker variables of the sections and macros (see the module comment).
+// calseg_id_<segment> and calblk_id_<block> are the segment index variables of CalSegDecl, CalBlkDecl and CalSegDeclRef (inc/xcplib.h, inc/xcplib.hpp)
 pub fn is_internal_variable(name: &str) -> bool {
-    name.starts_with("__") || name.starts_with("gXcp") || name.starts_with("gA2l") || is_a2l_variable(name)
+    name.starts_with("__") || name.starts_with("gXcp") || name.starts_with("gA2l") || name.starts_with("calseg_id_") || name.starts_with("calblk_id_") || is_a2l_variable(name)
+}
+
+// Variables which the XCPlite instrumentation macros generate in the code of the application, not variables the user wrote.
+// A problem with the location of such a variable is never the user's business, so it is not reported.
+// evt_id_<event> (DaqCreateEvent, see inc/xcplib.h) is deliberately not in is_internal_variable: it is a normal static
+// variable and it is registered as a measurement when it has an address, the freertos demo A2L files contain it.
+// The capture struct cap__<event> is in here as well: register_captures only needs its type and its function, the target
+// passes the address of the struct at runtime, so its own location is irrelevant
+pub fn is_generated_variable(name: &str) -> bool {
+    is_internal_variable(name) || name.starts_with("evt_id_")
 }
 
 // XCP address extension of the captured variables: the first dynamic base address (XCP_ADDR_EXT_DYN + 1 in src/xcp_cfg.h),
@@ -165,9 +200,10 @@ pub(crate) struct ElfReader {
 impl ElfReader {
     // Load debug information from the ELF file
     // The error message describes why the file can not be used (not found, not an ELF file, no DWARF debug information, ...)
-    pub fn new(file_name: &str, verbose: usize, unit_idx_limit: (usize, usize)) -> Result<ElfReader, String> {
-        info!("Loading debug information from ELF file: {}", file_name);
-        let debug_data = DebugData::load_dwarf(OsStr::new(file_name), verbose, unit_idx_limit)?;
+    // filter is the compilation unit and variable name selection from the command line, it is moved into the DebugData and
+    // everything which has to know it reads it from there, see ElfFilter
+    pub fn new(file_name: &str, verbose: usize, filter: ElfFilter) -> Result<ElfReader, String> {
+        let debug_data = DebugData::load_dwarf(OsStr::new(file_name), verbose, filter)?;
         Ok(ElfReader::from_debug_data(debug_data))
     }
 
@@ -363,16 +399,28 @@ impl ElfReader {
         }
     }
 
-    // Get the EPK string and address from debug_data and set it in the registry application version information, if available
-    pub fn register_epk_addr_info(&self, reg: &mut Registry, verbose: usize) {
+    // Get the EPK string from debug_data and set it in the registry application version information, if available
+    // ADDR_EPK is the address the target maps to its EPK (XCP_ADDR_EPK), not the address of the xcp_epk__ string, see XCP_ADDR_EPK_ABS
+    // Must be called after register_segments, the address depends on the epk segment
+    pub fn register_epk_addr_info(&self, reg: &mut Registry, segment_relative: bool, verbose: usize) {
         info!("===============================================================");
-        if self.debug_data.epk_addr > 0 {
-            info!("EPK segment memory section found at address = 0x{:08X}", self.debug_data.epk_addr);
-            let epk = self.debug_data.epk_string.clone().unwrap_or_else(|| "<unknown>".to_string());
-            info!("EPK string: '{}'", epk);
-            reg.application.set_version(epk, self.debug_data.epk_addr.try_into().unwrap());
+        if let Some(epk_string) = self.debug_data.epk_string.as_ref() {
+            info!("EPK string '{}' found at address 0x{:08X}", epk_string, self.debug_data.epk_addr);
+            let epk = normalize_epk(epk_string);
+            if epk != *epk_string {
+                warn!(
+                    "The target changes the EPK '{}' to '{}': XcpInit truncates it to {} characters and replaces space, tab and colon with an underscore. \
+                     The A2L file gets '{}', use an EPK string without these characters",
+                    epk_string, epk, XCP_EPK_MAX_LENGTH, epk
+                );
+            }
+            let epk_addr = epk_addr(segment_relative, reg.cal_seg_list.find_cal_seg("epk").is_some());
+            if verbose >= 1 {
+                println!("  EPK '{}', ADDR_EPK = 0x{:08X}", epk, epk_addr);
+            }
+            reg.application.set_version(epk, epk_addr);
         } else {
-            warn!("EPK segment memory section not found in ELF file");
+            warn!("No EPK in ELF file, the A2L file gets no EPK and ADDR_EPK");
         }
     }
 
@@ -409,13 +457,47 @@ impl ElfReader {
                 seg_definitions.push((seg_name.to_string(), var_infos, seg_descr_addr, seg_number));
             }
         }
-        seg_definitions.sort_by_key(|x| x.2);
+        // The EPK segment is always number 0 (created first in XcpInit), the others are sorted by descriptor address, which is
+        // their position in the xcp_cals section. Without the section all addresses are 0 and the order of the debug information
+        // (compilation unit and declaration order) is kept, the EPK segment must still come first
+        seg_definitions.sort_by_key(|x| (x.0 != "epk", x.2));
         // Calculate the segment numbers for calseg, calblk doues not have a number
         let mut seg_number: u8 = 0;
         for i in 0..seg_definitions.len() {
             if let Some(0) = seg_definitions[i].3 {
                 seg_definitions[i].3 = Some(seg_number);
                 seg_number += 1;
+            }
+        }
+
+        // Without section registration (no xcp_cals section and no linker boundary symbols), the target creates the segments at
+        // runtime, in the order in which the CalSegCreate calls are executed. Report what can not be derived from the ELF file
+        let has_cal_section = self.debug_data.sections.contains_key("xcp_cals") || self.debug_data.symbol_addresses.contains_key("__start_xcp_cals");
+        if !has_cal_section {
+            // A descriptor at file scope comes from CalSegDecl, CalBlkDecl or CalSegDeclRef (CalSegCreate contains a statement or a
+            // lambda, so its descriptor is always in a function). These segments are only created by the xcp_cals section scan in XcpInit
+            let is_file_scope_decl = |seg_name: &str, var_infos: &Vec<VarInfo>| seg_name != "epk" && var_infos.iter().all(|v| v.function.is_none());
+            for (seg_name, var_infos, _, _) in &seg_definitions {
+                if is_file_scope_decl(seg_name, var_infos) {
+                    warn!(
+                        "Calibration segment '{}' is declared at file scope with CalSegDecl, CalBlkDecl or CalSegDeclRef, but the ELF file has no \
+                         xcp_cals section: without OPTION_SECTION_REGISTRATION the target never creates this segment, calibration of it has no \
+                         effect. Use CalSegCreate/CalBlkCreate, or build with OPTION_SECTION_REGISTRATION",
+                        seg_name
+                    );
+                }
+            }
+            // The EPK segment and one more are always numbered correctly, with more the creation order at runtime is unknown here,
+            // unless the segments are already in the registry from the XCP server (connected mode)
+            let user_segments: Vec<&str> = seg_definitions.iter().filter(|x| x.3.is_some() && x.0 != "epk" && !is_file_scope_decl(&x.0, x.1)).map(|x| x.0.as_str()).collect();
+            if user_segments.len() >= 2 && user_segments.iter().any(|name| reg.cal_seg_list.find_cal_seg(name).is_none()) {
+                warn!(
+                    "No xcp_cals section: the calibration segment numbers ({}) are assumed in the order of the debug information. The target \
+                     numbers them in the order in which CalSegCreate is executed at runtime. If this order differs, the A2L file has wrong segment \
+                     numbers. Create the segments in this order at startup, connect xcpclient to the target to get the numbers from it, or build \
+                     with OPTION_SECTION_REGISTRATION",
+                    user_segments.join(", ")
+                );
             }
         }
 
@@ -445,13 +527,15 @@ impl ElfReader {
             let seg_length: u16;
             let seg_addr: u64;
 
-            // Special case for EPK segment, which does not have a reference page variable, but the segment address and length may be stored in the debug data from the EPK section
+            // Special case for EPK segment, which does not have a reference page variable
+            // The target creates it in XcpInit with its own copy of the EPK string (XCP_EPK_MAX_LENGTH + 1 bytes), whose address is not known
+            // from the ELF file. In absolute addressing mode, the address of the xcp_epk__ string is used instead, it has the same content
             if seg_name == "epk" {
-                if let Some(epk_str) = self.debug_data.epk_string.as_ref() {
-                    seg_length = epk_str.len().try_into().expect("EPK string length exceeds 64K");
+                if self.debug_data.epk_string.is_some() {
+                    seg_length = (XCP_EPK_MAX_LENGTH + 1) as u16;
                     seg_addr = self.debug_data.epk_addr;
                 } else {
-                    error!("No EPK segment memory section in ELF file, segment '{}' skipped", seg_name);
+                    error!("No EPK in ELF file (section xcp_epk or variable xcp_epk__), segment '{}' skipped", seg_name);
                     continue; // skip this variable
                 }
             }
@@ -496,14 +580,14 @@ impl ElfReader {
                 // Determine segment length
                 seg_length = {
                     if let Some(type_info) = self.debug_data.types.get(&seg_var_info.typeref) {
-                        println!(
+                        log::debug!(
                             "Calibration segment '{}' type information found, type={}, size = {}",
                             seg_name,
                             type_info.name.as_ref().map_or("<unnamed>", |s| s.as_str()),
                             type_info.get_size()
                         );
                         if verbose >= 2 {
-                            println!("  type = {}", type_info);
+                            log::debug!("  type = {}", type_info);
                         }
                         type_info.get_size().try_into().expect("segment size exceeds 64K")
                     } else {
@@ -546,7 +630,17 @@ impl ElfReader {
                 // Segment absolute addressing mode
                 else {
                     // Check if address and length match
-                    if reg_seg.addr as u64 != seg_addr {
+                    // The target reports the address of its own copy of the EPK string for the epk segment, it is not the xcp_epk__ string
+                    if seg_name == "epk" {
+                        if reg_seg.size != seg_length as u32 {
+                            warn!(
+                                "Calibration segment 'epk' length does not match the target, reg = {} vs. {}, check XCP_EPK_MAX_LENGTH",
+                                reg_seg.size, seg_length
+                            );
+                        } else {
+                            info!("Calibration segment 'epk' of the target {}:0x{:08X} used", reg_seg.addr_ext, reg_seg.addr);
+                        }
+                    } else if reg_seg.addr as u64 != seg_addr {
                         warn!(
                             "Calibration segment '{}' address does not match existing registry entry, reg = {:08X} vs. {:08X}",
                             seg_name, reg_seg.addr, seg_addr
@@ -557,6 +651,8 @@ impl ElfReader {
                             seg_name, reg_seg.size, seg_length
                         );
                     } else {
+                        // Set the memory address for the lookup of the calibration variables in this segment, as for a new segment below
+                        reg_seg.set_mem_addr(seg_addr);
                         info!("Calibration segment '{}' matches existing registry entry", seg_name);
                     }
                 } // absolute addressing mode
@@ -843,16 +939,7 @@ impl ElfReader {
     //     and add the instance to the registry
     //
     // default_event: event assigned to global variables and to static variables in functions without an event trigger, None for no event
-    pub fn register_variables(
-        &self,
-        reg: &mut Registry,
-        seg_relative: bool,
-        verbose: usize,
-        unit_idx_limit: (usize, usize),
-        name_filter: &str,
-        unit_filter: &str,
-        default_event: Option<u16>,
-    ) -> Result<(), Box<dyn Error>> {
+    pub fn register_variables(&self, reg: &mut Registry, seg_relative: bool, verbose: usize, default_event: Option<u16>) -> Result<(), Box<dyn Error>> {
         // Load debug information from the ELF file
         info!("===============================================================");
         info!("Registering variables:");
@@ -872,35 +959,9 @@ impl ElfReader {
             }
         }
 
-        // Compile name filter regex if specified
-        let name_regex: Option<Regex> = if name_filter.is_empty() {
-            None
-        } else {
-            match Regex::new(name_filter) {
-                Ok(re) => {
-                    info!("Variable name filter: '{}'", name_filter);
-                    Some(re)
-                }
-                Err(e) => {
-                    return Err(format!("Invalid --elf-var-filter regex '{}': {}", name_filter, e).into());
-                }
-            }
-        };
-
-        // Compile compilation unit filter regex if specified
-        let unit_regex: Option<Regex> = if unit_filter.is_empty() {
-            None
-        } else {
-            match Regex::new(unit_filter) {
-                Ok(re) => {
-                    info!("Compilation unit filter: '{}'", unit_filter);
-                    Some(re)
-                }
-                Err(e) => {
-                    return Err(format!("Invalid --elf-unit-filter regex '{}': {}", unit_filter, e).into());
-                }
-            }
-        };
+        // The compilation unit and variable name selection from the command line, see ElfFilter
+        let filter = &self.debug_data.filter;
+        filter.log();
 
         // Local variables which their function captures at an event trigger are registered from the capture struct in
         // register_captures, the stack variable of the same name is not registered a second time
@@ -913,27 +974,28 @@ impl ElfReader {
                 continue;
             }
 
-            // Apply name filter
-            if let Some(ref re) = name_regex {
-                if !re.is_match(var_name) {
-                    continue;
-                }
+            // Apply the variable name filter (--elf-var-filter)
+            if !filter.var_is_selected(var_name) {
+                continue;
             }
 
             if var_infos.is_empty() {
                 warn!("Variable '{}' has no variable info", var_name);
             }
 
-            let mut a2l_name = var_name.to_string();
+            let mut a2l_name: String;
             let mut xcp_event_id: Option<u16>;
             // Count the definitions of this name within the compilation unit limit (--elf-unit-limit), including definitions without
-            // an address. More than one definition means the A2L name has to be qualified to be unique
-            let count = var_infos.iter().filter(|v| v.unit_idx >= unit_idx_limit.0 && v.unit_idx <= unit_idx_limit.1).count();
+            // an address. More than one definition means the A2L name has to be qualified to be unique.
+            // Note this counts over the unit limit only, not over the --elf-unit-filter: a name which the filter reduces to a single
+            // definition is still qualified. Qualifying too much is harmless, changing it would rename objects in existing A2L files
+            // @@@@ TODO: Consider if we need to further qualify the A2L name based on the count and defined_count
+            let count = var_infos.iter().filter(|v| filter.unit_in_range(v.unit_idx)).count();
             // Count the distinct global or static variables with this name by their address
             // (declarations of the same variable in several compilation units resolve to the same address, local variables have no address)
             let mut addresses: Vec<u64> = var_infos
                 .iter()
-                .filter(|v| v.unit_idx >= unit_idx_limit.0 && v.unit_idx <= unit_idx_limit.1 && v.address.0 == 0 && v.address.1 != 0)
+                .filter(|v| filter.unit_in_range(v.unit_idx) && v.address.0 == 0 && v.address.1 != 0)
                 .map(|v| v.address.1)
                 .collect();
             addresses.sort_unstable();
@@ -942,17 +1004,10 @@ impl ElfReader {
 
             // Process all variables with this name in different scopes and namespaces
             for var_info in var_infos {
-                // @@@@ TODO: Create only variables from specified compilation unit
-                if var_info.unit_idx < unit_idx_limit.0 || var_info.unit_idx > unit_idx_limit.1 {
+                // Apply the compilation unit limit and filter (--elf-unit-limit, --elf-unit-filter). This is the same decision
+                // the DWARF reader used to pick the log level for problems with this variable, see ElfFilter::unit_is_selected
+                if !self.debug_data.unit_is_selected(var_info.unit_idx) {
                     continue;
-                }
-
-                // Apply compilation unit filter
-                if let Some(ref re) = unit_regex {
-                    let cu_name = self.debug_data.make_simple_unit_name(var_info.unit_idx).unwrap_or_else(|| format!("{}", var_info.unit_idx));
-                    if !re.is_match(&cu_name) {
-                        continue;
-                    }
                 }
 
                 let var_function = var_info.function.as_ref().map(|f| f.as_str());
@@ -963,7 +1018,38 @@ impl ElfReader {
                 let mem_addr: u64 = if mem_addr_ext == 0 {
                     // Encode absolute addressing mode
                     if var_info.address.1 == 0 {
-                        debug!("Variable '{}' not registered, no address", var_name);
+                        // The debug information has no DW_AT_location for this variable and there is no symbol for it either,
+                        // so the location expression parser never saw it and reported nothing.
+                        //
+                        // One known cause, seen with clang 14 -O1 on the aggregate locals (struct, array) of no_a2l_demo's foo():
+                        // the variable is not in the executable at all, not even as a stack slot, so there is nothing to describe.
+                        // Clang initializes a local of aggregate type with a memcpy from a constant, and marks that memcpy volatile
+                        // for a volatile variable (llvm.memcpy(..., i1 true)), while a scalar becomes a plain 'store volatile'.
+                        // InstCombine then folds away an alloca whose only write is a memcpy from a constant without honoring the
+                        // volatile flag, so the aggregate disappears and the scalars of the same function survive. Declaring the
+                        // variable volatile does not help, which is why this warning gives no advice. What does help:
+                        //   - a newer compiler, clang 20 keeps the volatile memcpy and the alloca at -O1
+                        //   - letting the address of the variable escape (DaqTriggerEventExt, the capture macros), the variable
+                        //     then has one contiguous location again
+                        //   - assigning the fields one by one instead of using an aggregate initializer, every field becomes a
+                        //     'store volatile' and survives - but SROA splits the variable into one alloca per field, so the
+                        //     location becomes DW_OP_piece slices instead (see evaluate_exprloc in dwarf/attributes.rs)
+                        //   - building without optimization
+                        // @@@@ TODO: Other causes are not investigated, and nothing is done about this one yet
+                        //
+                        // A global without an address is usually just a declaration of a variable defined in another ELF file,
+                        // and a captured local is measurable through the capture struct, see register_captures
+                        if let Some(function) = var_function
+                            && !is_generated_variable(var_name)
+                            && !captured.contains(&(var_info.unit_idx, function, var_name.as_str()))
+                        {
+                            warn!(
+                                "Local variable '{}' in function '{}' not registered, it has no location in the debug information, not implemented yet",
+                                var_name, function
+                            );
+                        } else {
+                            debug!("Variable '{}' not registered, no address", var_name);
+                        }
                         continue; // skip this variable
                     } else if var_info.address.1 >= 0xFFFFFFFF {
                         warn!(
@@ -989,17 +1075,15 @@ impl ElfReader {
                             xcp_event_id = default_event;
                         }
 
-                        // Multiple variables with this name: local static variables are prefixed with the function name,
-                        // global variables defined in several namespaces with their namespace (motor_control.input, valve_control.input)
-                        if count > 1 {
-                            if let Some(f) = var_function {
-                                a2l_name = format!("{}.{}", f, var_name);
-                            } else if defined_count > 1 && !var_info.namespaces.is_empty() {
-                                a2l_name = format!("{}.{}", var_info.namespaces.join("."), var_name);
-                            } else {
-                                a2l_name = var_name.to_string();
-                            }
-                        }
+                        // Static variables in functions are always prefixed with the function name (foo.counter), the name does not
+                        // depend on other variables of the same name and a metadata marker in the function refers to it (see register_metadata).
+                        // Except the default page of a calibration segment declared in a function, which keeps the name of its segment.
+                        // Global variables defined in several namespaces are prefixed with their namespace (motor_control.input, valve_control.input)
+                        a2l_name = match var_function {
+                            Some(f) if reg.cal_seg_list.find_cal_seg(var_name).is_none() => format!("{}.{}", f, var_name),
+                            None if count > 1 && defined_count > 1 && !var_info.namespaces.is_empty() => format!("{}.{}", var_info.namespaces.join("."), var_name),
+                            _ => var_name.to_string(),
+                        };
                         var_info.address.1
                     }
                 } else if mem_addr_ext == 2 {
@@ -1460,8 +1544,8 @@ impl ElfReader {
 
                     // Path B — direct instance metadata (simple variable or flattened typedef)
                     // The instance with exactly this name first: a marker in a function refers to a variable of this function only,
-                    // the qualified candidate covers a prefixed static local (foo.static_counter), the exact path an unprefixed one
-                    // (static_counter) or an explicit prefix (foo__counter). A marker at file scope names the global variable
+                    // the qualified candidate covers a static local, which is always prefixed (foo.static_counter), the exact path an
+                    // explicit prefix (foo__counter). A marker at file scope names the global variable
                     // (counter) and not the local variables of the same name in functions (foo.counter, task.counter).
                     let escaped = path.replace('.', "\\.");
                     let mut names: Vec<String> = reg.instance_list.find_instances_regex(&format!(r"^{escaped}$"), McObjectType::Unspecified, None);
@@ -1557,7 +1641,7 @@ fn apply_field_metadata(
 
     match reg.set_instance_field_support_data(instance_name, field_path, support_data) {
         Ok(()) => {
-            info!("  Metadata {} applied to typedef field '{}.{}'", var_name, instance_name, field_path);
+            info!("Metadata {} applied to typedef field '{}.{}'", var_name, instance_name, field_path);
             true
         }
         Err(RegistryError::NotFound(_)) => false, // no such instance or field — not an error, Path B will try

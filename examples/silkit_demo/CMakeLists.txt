@@ -1,44 +1,97 @@
 # CMakeLists.txt for the SilKit demo example
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.14)
 
-project(silkit_demo VERSION 1.0.0 LANGUAGES CXX)
+project(silkit_demo VERSION 1.0.0 LANGUAGES C CXX)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# ---------------------------------------------------------------------------
-# Find SilKit
-#
-# Point CMake to your SilKit installation via one of:
-#   cmake -DSilKit_DIR=<path>/SilKit -B build
-#   cmake -DCMAKE_PREFIX_PATH=<path-containing-SilKit-dir> -B build
-#
-# When building against the sil-kit git repo build tree use:
-#   cmake -DSilKit_DIR=<repo>/_build/debug/SilKit -B build
-# ---------------------------------------------------------------------------
-find_package(SilKit REQUIRED)
+include(FetchContent)
 
 # ---------------------------------------------------------------------------
-# Find xcplite
+# SIL Kit and xcplite are both built from source via CMake FetchContent.
+# No installed SIL Kit or xcplite is needed. CMake clones the repositories at configure time
+# into build/_deps/<name>-src, adds them as subdirectories and builds them together with the demo.
 #
-# Point CMake to your xcplite installation via one of:
-#   cmake -Dxcplite_DIR=<path>/lib/cmake/xcplite -B build
-#   cmake -DCMAKE_PREFIX_PATH=<path-to-xcplite-install-root> -B build
+# Requires: CMake >= 3.14, git, network access on the first configure.
+#
+# For local development against checked-out source trees, bypass the git clone with
+#   cmake -B build -S . -DFETCHCONTENT_SOURCE_DIR_XCPLITE=../..
+#   cmake -B build -S . -DFETCHCONTENT_SOURCE_DIR_SILKIT=<path>/sil-kit
+# (a local sil-kit checkout needs its submodules: git submodule update --init --recursive)
 # ---------------------------------------------------------------------------
-find_package(xcplite REQUIRED)
 
-# Verify the installed xcplite was compiled with the shm configuration,
-# which is required for silkit_demo (shared-memory multi-application mode).
-# Remove this to be able to compile the participants with individual XCP servers by using the standard library build
-if(NOT XCPLITE_CONFIGURATION_INSTALLED STREQUAL "shm")
-    message(FATAL_ERROR
-        "silkit_demo requires xcplite compiled with the 'shm' configuration "
-        "(XCPLITE_CONFIGURATION=shm), but the installed library reports "
-        "'${XCPLITE_CONFIGURATION_INSTALLED}'. "
-        "Rebuild and reinstall xcplite: ./build.sh shm lib install"
-    )
+# ---------------------------------------------------------------------------
+# SIL Kit
+#
+# SIL Kit has no dedicated FetchContent documentation, but its build tree defines the alias target
+# SilKit::SilKit, the same name the installed package exports, so it can be consumed with add_subdirectory.
+# Its build options are option()s, which honor normal variables from the parent project (policy CMP0077,
+# sil-kit requires CMake >= 3.13). The third party dependencies asio, fmt and spdlog are git submodules.
+# The submodules googletest (SILKIT_BUILD_TESTS) and oatpp (SILKIT_BUILD_DASHBOARD) are not needed and not cloned.
+#
+# The utilities (sil-kit-registry, sil-kit-system-controller, sil-kit-monitor) are needed to run the demo.
+# SIL Kit places its library and the utilities in build/<CONFIG>/, e.g. build/Debug/sil-kit-registry.
+# ---------------------------------------------------------------------------
+set(SILKIT_GIT_REPOSITORY "https://github.com/vectorgrp/sil-kit" CACHE STRING "SIL Kit git repository")
+set(SILKIT_GIT_TAG        "v5.0.7"                               CACHE STRING "SIL Kit git tag, branch or commit")
+
+FetchContent_Declare(silkit
+    GIT_REPOSITORY ${SILKIT_GIT_REPOSITORY}
+    GIT_TAG        ${SILKIT_GIT_TAG}
+    GIT_SHALLOW    TRUE
+    GIT_SUBMODULES ThirdParty/asio ThirdParty/fmt ThirdParty/spdlog
+)
+
+set(SILKIT_BUILD_DEMOS     OFF)
+set(SILKIT_BUILD_TESTS     OFF)
+set(SILKIT_BUILD_DOCS      OFF)
+set(SILKIT_BUILD_DASHBOARD OFF)
+set(SILKIT_BUILD_UTILITIES ON)
+
+# ---------------------------------------------------------------------------
+# xcplite
+#
+# silkit_demo requires the 'shm' configuration (shared-memory multi-application mode).
+# Use "default" to compile the participants with individual XCP servers.
+# The xcplite build options must be set before FetchContent_MakeAvailable(), see examples/fetchcontent_example.
+# XCPLITE_BUILD_TOOLS adds the shm tools, shmtool is used by the demo scripts.
+# ---------------------------------------------------------------------------
+# Release:
+# Needs a release later than V2.2.2. The demo creates and triggers events in different scopes (name lookup),
+# which does not compile with V2.2.2, where section registration (OPTION_SECTION_REGISTRATION) is always on.
+#set(XCPLITE_GIT_REPOSITORY "https://github.com/vectorgrp/XCPlite" CACHE STRING "xcplite git repository")
+#set(XCPLITE_GIT_TAG        "V2.2.3"                               CACHE STRING "xcplite git tag, branch or commit")
+# Dev:
+set(XCPLITE_GIT_REPOSITORY "https://github.com/RainerZ/XCPlite.git" CACHE STRING "xcplite git repository")
+set(XCPLITE_GIT_TAG        "dev-2.3.2"                              CACHE STRING "xcplite git tag, branch or commit")
+
+FetchContent_Declare(xcplite
+    GIT_REPOSITORY ${XCPLITE_GIT_REPOSITORY}
+    GIT_TAG        ${XCPLITE_GIT_TAG}
+    GIT_SHALLOW    TRUE
+)
+
+set(XCPLITE_CONFIGURATION  "shm")
+set(XCPLITE_BUILD_EXAMPLES OFF)
+set(XCPLITE_BUILD_TESTS    OFF)
+set(XCPLITE_BUILD_TOOLS    ON)
+
+FetchContent_MakeAvailable(silkit xcplite)
+
+# Place shmtool next to the demo executables in build/
+# xcpdaemon is not needed, the demo has its own XCP server participant (cmake --build build --target xcpdaemon)
+if(TARGET shmtool)
+    set_target_properties(shmtool PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+endif()
+if(TARGET xcpdaemon)
+    set_target_properties(xcpdaemon PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -97,5 +150,8 @@ elseif(MSVC)
     target_compile_options(SilKitDemoSubscriber PRIVATE /W3)
 endif()
 
-message(STATUS "silkit_demo: SilKit version  : ${SilKit_VERSION}")
-message(STATUS "silkit_demo: xcplite version : ${xcplite_VERSION}")
+message(STATUS "Building silkit_demo")
+message(STATUS "  SIL Kit source: ${silkit_SOURCE_DIR} (${SILKIT_GIT_TAG})")
+message(STATUS "  xcplite source: ${xcplite_SOURCE_DIR}")
+message(STATUS "  xcplite configuration: ${XCPLITE_CONFIGURATION}")
+message(STATUS "  build type: ${CMAKE_BUILD_TYPE}")

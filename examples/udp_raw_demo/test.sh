@@ -192,7 +192,7 @@ if [ $TEST_FAILED -eq 0 ]; then
 echo "========================================================================================================"
 echo "Test measurement"
 echo "========================================================================================================"
-$XCPCLIENT --log-level=2 --dest-addr=$TARGET_IP:$TARGET_PORT --udp --a2l "$A2LFILE"  --mea counter --time 2 --verbose 2
+$XCPCLIENT --log-level=2 --dest-addr=$TARGET_IP:$TARGET_PORT --udp --a2l "$A2LFILE"  --mea counter --time 2
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcpclient measurement"
     TEST_FAILED=1

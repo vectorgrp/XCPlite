@@ -21,6 +21,7 @@ The library has **mutually exclusive build configurations** selected via `XCPLIT
 | `rtos` | `build-rtos/` | `xcplib_rtos_cfg.h` | FreeRTOS embedded targets: reduced footprint, no filesystem, 32-bit |
 | `raw` | `build-raw/` | `xcplib_raw_cfg.h` | Raw Ethernet transport: UDP/IPv4 inside xcplib, no TCP/IP stack (Linux only) |
 
+
 Each `src/xcplib_<name>_cfg.h` header documents the exact overrides applied on top of the defaults in `src/xcplib_cfg.h`.
 
 > **Use a separate build directory per configuration.** Configurations apply different compile definitions to the library object files; mixing them in one build directory produces incorrect results.
@@ -78,8 +79,11 @@ Within a chosen configuration, the following options control what gets built:
 These examples have their own `CMakeLists.txt` and consume xcplite either from an installed package (`find_package(xcplite)`) or directly from source (`FetchContent`). They are not built from the root CMake project:
 
 - **`examples/fetchcontent_example/`** — Minimal C/C++ consumer example using `FetchContent`. Clones and builds xcplite from git as part of the example's own build; no install step needed. See `examples/fetchcontent_example/README.md` and [Using xcplite via FetchContent](#using-xcplite-via-fetchcontent).
-- **`examples/silkit_demo/`** — Requires [SilKit](https://github.com/vectorgrp/sil-kit) and an installed xcplite (shm configuration recommended). See `examples/silkit_demo/README.md`.
+
+- **`examples/silkit_demo/`** — [SIL Kit](https://github.com/vectorgrp/sil-kit) multi-participant demo in SHM mode. Consumes both SIL Kit and xcplite (`shm` configuration, with `shmtool`) via `FetchContent`; no install step needed. See `examples/silkit_demo/README.md`.
+
 - **`examples/external_example/`** — Minimal C/C++ consumer example. Shows how to use xcplite from an installed package. See `examples/external_example/README.md`.
+
 - **`examples/esp32_freertos_demo/`** — ESP32 FreeRTOS target. Uses the same `xcplib_rtos_cfg.h` override as the `rtos` CMake configuration, but is built with [PlatformIO](https://platformio.org/). Not a CMake project. The CMake `rtos` configuration builds `freertos_emu_demo` instead, which runs the same FreeRTOS xcplite code on a POSIX simulator for host-side testing (Linux/macOS only).
 
 ## Quick Build
@@ -343,7 +347,7 @@ See `examples/fetchcontent_example/` for a complete standalone project.
 
 ### Building Standalone Examples Against the Installed Library
 
-`silkit_demo` and `external_example` are standalone projects that consume an installed xcplite:
+`external_example` is a standalone projects that consume an installed xcplite:
 
 ```bash
 # external_example (any configuration)
@@ -351,15 +355,7 @@ cd examples/external_example
 cmake -B build -S . -DCMAKE_PREFIX_PATH=../../build/install
 cmake --build build --parallel
 
-# silkit_demo (shm configuration recommended; also requires SilKit)
-cd examples/silkit_demo
-cmake -B build -S . \
-    -DCMAKE_PREFIX_PATH=../../build-shm/install \
-    -DSilKit_DIR=/path/to/SilKit/lib/cmake/SilKit
-cmake --build build --parallel
-```
-
-See `examples/external_example/README.md` and `examples/silkit_demo/README.md` for details.
+See `examples/external_example/README.md` for details.
 
 ## Troubleshooting Compilation Issues
 

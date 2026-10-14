@@ -15,18 +15,19 @@
 // XCP parameters
 
 constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp"; // Project name, used to build the A2L and BIN file name
-constexpr const char OPTION_PROJECT_VERSION[] = "109";        // EPK version string
+constexpr const char OPTION_PROJECT_VERSION[] = "V2.3";       // EPK version string
 constexpr bool OPTION_USE_TCP = false;                        // TCP or UDP
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};        // Bind addr, 0.0.0.0 = ANY
 constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
 constexpr uint32_t OPTION_QUEUE_SIZE = (1024 * 32);           // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
-constexpr int OPTION_LOG_LEVEL = 3;                           // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+constexpr int OPTION_LOG_LEVEL = 4;                           // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // XCP mode:
 #ifdef OPTION_SHM_MODE
 constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_SHM_AUTO); // XCP multi application mode, leader becomes XCP server
 #else
 constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL); // XCP single application server mode
+// constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_DEACTIVATE); // XCP disabled
 #endif
 
 // A2L generation mode:
@@ -59,9 +60,6 @@ const ParametersT kParameters = {.delay_us = 1000,
                                  .curve = {0, 10, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500},
                                  .axis = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}};
 
-#define OPTION_ENABLE_CALIBRATION // Enable parameter tuning in the code below
-#ifdef OPTION_ENABLE_CALIBRATION
-
 // Create a global calibration parameter segment for struct 'ParametersT' to provide safe and consistent access to the calibration parameters
 // Initialized in main(), after XCP initialization
 
@@ -76,14 +74,6 @@ std::optional<xcp::CalSeg<ParametersT>> gCalSeg;
 // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
 // It supports XCP/ECU page switching, but can not be explicitly controlled via XCP commands
 // std::optional<xcp::CalBlk<ParametersT>> gCalSeg;
-
-#else
-
-// Option 3:
-// Calibration disabled
-// const ParametersT *params = &kParameters; // Direct access to the calibration parameters constants
-
-#endif
 
 uint32_t kDelayUs = 1000; // Loop delay in microseconds
 
@@ -162,10 +152,9 @@ FloatingAverage::FloatingAverage() : samples_{}, current_index_(0), sample_count
     static unsigned int seed{12345};
     seed = seed * 1103515245 + 12345;
 
-// Acquire access to calibration parameters with RAII guard "params", this is thread-safe, lock-free and reentrant
-#ifdef OPTION_ENABLE_CALIBRATION
+    // Acquire access to calibration parameters with RAII guard "params", this is thread-safe, lock-free and reentrant
     auto params = gCalSeg->lock();
-#endif
+
     double random = params->min + ((seed / 65536) % 32768) / 32768.0 * (params->max - params->min);
     return random;
 };
@@ -209,7 +198,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-#ifdef OPTION_ENABLE_CALIBRATION
     // Register the enum
     A2lCreateEnumConversion(CounterState, "3 0 \"OFF\" 1 \"ON\" 2 \"STANDBY\"");
 
@@ -230,7 +218,6 @@ int main(int argc, char *argv[]) {
     // Initialize the global calibration wrapper for the struct 'ParametersT' and set the default values in constant 'kParameters' as reference page (FLASH)
     gCalSeg.emplace("params", &kParameters);
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Demo calibration parameters for hello_xcp_cpp example");
-#endif
 
     // Create a simple arithmetic local variable
     uint16_t counter{0};
@@ -247,9 +234,8 @@ int main(int argc, char *argv[]) {
     while (gRun) {
         global_counter++;
         {
-#ifdef OPTION_ENABLE_CALIBRATION
+
             auto params = gCalSeg->lock(); // Don't keep the calibration parameters locked for longer than necessary, to minimize delays of XCP write access from the tool
-#endif
 
             kDelayUs = params->delay_us; // Get the delay_us calibration value
 
@@ -257,6 +243,7 @@ int main(int argc, char *argv[]) {
                 counter++;
                 if (counter > params->counter_max) { // Get the counter_max calibration value and reset counter
                     counter = 0;
+                    // printf("Counter reset to 0 at %u\n", params->counter_max);
                 }
             }
         }
@@ -269,7 +256,6 @@ int main(int argc, char *argv[]) {
         // Events may be disabled and enabled, to filter out a particular instance to observe (DaqEventEnable(calcAvg), DaqEventDisable(calcAvg))
         average_voltage = average_filter.calc(input_voltage); // Offset input to differentiate from average_filter2
         // On heap
-        // average_voltage = average_filter->calc(input_voltage);
         // average_voltage = average_filter->calc(input_voltage);
 
         // Trigger data acquisition event "mainloop", once register event, global and local variables, and heap instance measurements

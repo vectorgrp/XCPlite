@@ -39,10 +39,12 @@ impl XcpClient {
                     size: instance.value_size(),
                     encoding: instance.value_type().into(),
                 };
-                let a2l_limits: A2lLimits = A2lLimits {
-                    lower: instance.get_min().unwrap(),
-                    upper: instance.get_max().unwrap(),
+                // Instances of a typedef (struct) have no limits, xcp_client supports only basic type instances
+                let (Some(lower), Some(upper)) = (instance.get_min(), instance.get_max()) else {
+                    error!("Characteristic {} is not a basic type value", name);
+                    return Err(Box::new(XcpError::new(ERROR_NOT_FOUND, 0)) as Box<dyn Error>);
                 };
+                let a2l_limits: A2lLimits = A2lLimits { lower, upper };
                 let mut o = XcpClientCalibrationObject::new(instance.get_name(), a2l_addr, a2l_type, a2l_limits);
                 let size = o.get_type.size;
                 assert!(size < 256, "xcp_client currently supports only <256 byte values");
@@ -318,5 +320,61 @@ impl XcpClient {
         info!("Successfully saved {} segment(s) to {}", cal_seg_desc.len(), bin_path.as_ref().display());
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use xcp_registry::{McAddress, McDimType, McObjectType, McSupportData, McValueType, Registry};
+
+    // Registry as created from an ELF file (--elf): a calibration segment struct is one instance of a typedef
+    fn struct_characteristic_registry() -> Registry {
+        let mut reg = Registry::new();
+        let cal = McSupportData::new(McObjectType::Characteristic);
+        reg.add_typedef("parameters", 8).unwrap();
+        reg.add_typedef_field("parameters", "period_ms", McDimType::new(McValueType::Ulong, 1, 1), cal.clone(), 0)
+            .unwrap();
+        reg.add_typedef_field("parameters", "counter_max", McDimType::new(McValueType::Uword, 1, 1), cal.clone(), 4)
+            .unwrap();
+        reg.instance_list
+            .add_instance(
+                "parameters",
+                McDimType::new(McValueType::new_typedef("parameters"), 1, 1),
+                cal,
+                McAddress::new_a2l(0x1000, 0),
+            )
+            .unwrap();
+        reg
+    }
+
+    fn new_client(reg: Registry) -> XcpClient {
+        let addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let mut client = XcpClient::new("UDP", addr, addr, 0);
+        client.set_registry(reg);
+        client
+    }
+
+    // A typedef instance is not a basic type value, this is an error, not a panic
+    #[tokio::test]
+    async fn create_calibration_object_of_struct_instance_fails() {
+        let mut client = new_client(struct_characteristic_registry());
+        assert_eq!(client.find_characteristics(".*"), vec!["parameters".to_string()]);
+        assert!(client.create_calibration_object("parameters").await.is_err());
+    }
+
+    // The flattened registry (main.rs flattens it after the A2L file is written) has the struct members as basic type values
+    #[tokio::test]
+    async fn create_calibration_object_of_flattened_struct_member() {
+        let mut reg = struct_characteristic_registry();
+        reg.flatten_typedefs();
+        let mut client = new_client(reg);
+        let mut names = client.find_characteristics(".*");
+        names.sort();
+        assert_eq!(names, vec!["parameters.counter_max".to_string(), "parameters.period_ms".to_string()]);
+        let h = client.create_calibration_object("parameters.counter_max").await.unwrap();
+        let o = client.get_calibration_object(h);
+        assert_eq!(o.get_a2l_addr().addr, 0x1004);
+        assert_eq!(o.get_a2l_type().size, 2);
     }
 }

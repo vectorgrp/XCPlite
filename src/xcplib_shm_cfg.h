@@ -31,7 +31,8 @@
 // One application is the XCP server, could be the first one running (XCP leader) or a dedicated application (XCP daemon)
 // Requires a POSIX-compliant platform (Linux / macOS / QNX).  Not supported on Windows.
 
-// Experimental, work in progress, not fully tested yet, may change or be removed without major version change, use with caution
-
-// #undef OPTION_SHM_MODE
+// Experimental, work in progress, demonstrated in silkit_demo
 #define OPTION_SHM_MODE
+
+// Linker section based event and calibration segment registration not supported
+#undef OPTION_SECTION_REGISTRATION

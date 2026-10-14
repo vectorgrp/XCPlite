@@ -364,12 +364,12 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 #define XCP_ENABLE_DAQ_ADDREXT
 
 // Static allocated memory for DAQ tables
-// Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable) needs 5 bytes, each DAQ list 12 bytes and
+// Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable) needs 6 bytes, each DAQ list 12 bytes and
 // each ODT 8 bytes
 #ifdef OPTION_DAQ_MEM_SIZE
 #define XCP_DAQ_MEM_SIZE OPTION_DAQ_MEM_SIZE
 #else
-#define XCP_DAQ_MEM_SIZE (1024 * 6) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable or memory block) needs 5 bytes
+#define XCP_DAQ_MEM_SIZE (1024 * 6) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable or memory block) needs 6 bytes
 #endif
 
 // Enable DAQ resume mode, requires XCP_ENABLE_DAQ_EVENT_LIST
@@ -402,6 +402,13 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 
 // Timeout for acquiring a free calibration segment page
 #define XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT 500 // 500 ms timeout
+
+// Number of RCU pages per calibration segment for OPTION_CAL_RCU_REFCOUNT (writer page, published page and reclamation candidates)
+// 3 is the structural minimum and needs the same memory as the lock count algorithm
+// Each additional page tolerates one more reader which never unlocks and improves the publish rate under a bursting writer, 6 is the maximum
+#ifndef XCP_CALSEG_RCU_PAGES
+#define XCP_CALSEG_RCU_PAGES 3
+#endif
 
 #endif // XCP_ENABLE_CALSEG_LIST
 

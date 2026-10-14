@@ -8,6 +8,8 @@ Terminology: a *calibration segment* is a calibration parameter block which repr
 
 Chapter 2 is the complete user contract. Chapters 4 and 5 are the technical background and are not required to use the API.
 
+XCPlite has two RCU algorithms for calibration segments, selected at compile time with `OPTION_CAL_RCU_REFCOUNT` in `xcplib_cfg.h` (default: undefined, lock count algorithm; per page reference counting is only enabled for special needs). The reader API and the user contract are identical for both, chapter 3 lists where they differ.
+
 Contents:
 1. Functional overview
 2. User contract
@@ -32,8 +34,8 @@ Contents:
 C API (`xcplib.h`):
 
 - `XcpLockCalSeg(index)` returns a pointer to the active page of the segment (working page or reference page, as selected by the XCP tool). The pointer is valid until the matching unlock.
-- `XcpUnlockCalSeg(index)` releases the lock and returns the lock count before the unlock.
-- The macros `CalSegLock(name)`/`CalSegUnlock(name)` and `CalBlkLock(name)`/`CalBlkUnlock(name)` are typed wrappers, which also handle passive mode (see 2.1).
+- `XcpUnlockCalSeg(index)` releases the lock. With `OPTION_CAL_RCU_REFCOUNT` the signature is `XcpUnlockCalSeg(index, page)`, `page` is the pointer returned by the matching lock.
+- The macros `CalSegLock(name)`/`CalSegUnlock(name)` and `CalBlkLock(name)`/`CalBlkUnlock(name)` (`CalSegUnlock(name, ptr)`/`CalBlkUnlock(name, ptr)` with `OPTION_CAL_RCU_REFCOUNT`) are typed wrappers, which also handle passive mode (see 2.1).
 
 C++ API (`xcplib.hpp`): `xcp::CalSeg<T>`, `xcp::CalBlk<T>` and `xcp::CalSegRef<T>` provide `lock()`, which returns a RAII guard `CalSegGuard` with pointer semantics. The guard releases the lock in its destructor and is not copyable.
 
@@ -78,75 +80,98 @@ This chapter is the complete list of rules the application has to follow. All gu
 ### 2.3 Reader locking rules
 
 7. The pointer returned by a lock is valid until the matching unlock. It must not be stored beyond the unlock and calibration data must not be written through it.
-8. Every lock is released exactly once, by the thread which acquired it. Locks are balanced per thread, like the read side of a rwlock.
+8. Every lock is released exactly once, with the pointer it returned, by the thread which acquired it. Locks are balanced per thread, like the read side of a rwlock. The pointer is the reader's handle to its lock, there is no thread local state in the library.
 9. Locks may be nested (recursive) and may be held by any number of threads at the same time, up to a total of 65535 locks per segment. There is no owner tracking.
 10. A nested lock is not guaranteed to return the same snapshot as the outer lock: every lock returns a pointer to a valid and consistent page, but a nested lock may return the next published page.
-11. Lock and unlock are wait-free and may be called from any thread at any priority, including realtime threads. Critical sections should be short: calibration changes become visible to all readers only when the lock count of the segment returns to zero (see 3.2).
+11. Lock and unlock are wait-free and may be called from any thread at any priority, including real-time threads. Critical sections should be short: calibration changes become visible to all readers only when the lock count of the segment returns to zero (see 3.2).
 12. C++: `CalSegGuard` is not copyable and must be held in a scope. Pass the pointer or the reference down, not the guard.
 
 ### 2.4 Contract violations and their consequences
 
 - Direct `XcpLockCalSeg()`/`XcpUnlockCalSeg()` calls before `XcpInit()`, in passive mode or with an invalid index: assertion in debug builds, undefined behavior in release builds.
 - `XcpDeinit()` while a lock is held: assertion in debug builds. In release builds the lock is leaked (see below).
-- **Leaked lock**: a lock which is never released, because the thread was terminated or cancelled inside its critical section, because of an early return between `CalSegLock()` and `CalSegUnlock()`, or because the thread blocks forever inside the section. The consequences are contained: the readers of the segment are not affected, lock and unlock keep working wait-free, memory safety is intact and nothing is ever reclaimed. But the ECU page of the segment is frozen, no calibration change becomes visible anymore. The writer sees this as permanently pending writes: in lazy mode `XcpCalSegWriteMemory` still returns `CRC_CMD_OK` to the tool and a read-back shows the written value, while `XcpBackgroundTasks()` retries forever and logs a warning. At the end of an atomic transaction and in `XcpDisconnect()` the writer stalls for `XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT` (500 ms) per pending segment and then returns `CRC_ACCESS_DENIED`. In SHM mode the lock count is in shared memory, a leak from a crashed process persists until the shared memory is cleared with `shmtool` (@@@@ TODO).
-- **Unbalanced release**: an unlock without a matching lock, for example by copying a guard, or by unlocking after a direct `XcpLockCalSeg()` call which returned NULL. This is **not contained**: it can bring the lock count to zero while another reader is inside its critical section, and the page this reader is using can then be handed to the writer and overwritten. This is why `CalSegGuard` is not copyable and why the C macros must be paired in the same scope.
-- More than 65535 locks on one segment: the lock count wraps, with the same consequences as an unbalanced release.
+- **Leaked lock**: a lock which is never released, because the thread was terminated or cancelled inside its critical section, because of an early return between `CalSegLock()` and `CalSegUnlock()`, or because the thread blocks forever inside the section. The consequences are contained: the readers of the segment are not affected, lock and unlock keep working, memory safety is intact and nothing is ever reclaimed. But publishing stops: with the lock count algorithm immediately, with reference counting when the pinned page is the only remaining candidate (immediately with 3 pages, after one more leaked reader per additional page). The readers keep the last published page, no further calibration change becomes visible. The writer sees this as permanently pending writes: in lazy mode `XcpCalSegWriteMemory` still returns `CRC_CMD_OK` to the tool and a read-back shows the written value, while `XcpBackgroundTasks()` retries forever and logs a warning. At the end of an atomic transaction and in `XcpDisconnect()` the writer stalls for `XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT` (500 ms) per pending segment and then returns `CRC_ACCESS_DENIED`. In SHM mode the lock count is in shared memory, a leak from a crashed process persists until the shared memory is cleared with `shmtool` (@@@@ TODO).
+- **Unbalanced release**: an unlock without a matching lock or with a wrong page pointer, for example by copying a guard, or by unlocking after a direct `XcpLockCalSeg()` call which returned NULL. This is **not contained**: it can bring the lock count to zero while another reader is inside its critical section, and the page this reader is using can then be handed to the writer and overwritten. This is why `CalSegGuard` is not copyable and why the C macros must be paired in the same scope.
+- More than 65535 locks on one segment (lock count algorithm) or on one page (reference counting): the count wraps, with the same consequences as an unbalanced release.
 
 ### 2.5 How the contract is checked
 
-The contract checks (activation state, index range, unlock without lock, locks held in `XcpDeinit()`) are `assert()` statements with diagnostic output, compiled out with `NDEBUG` (Release and RelWithDebInfo builds). They add no cost to release builds. The memory ordering of the algorithm (chapter 5) is not a check, it is part of the mechanism and always active.
+The contract checks (activation state, index range, unlock without lock or with a wrong page pointer, locks held in `XcpDeinit()`) are `assert()` statements with diagnostic output, compiled out with `NDEBUG` (Release and RelWithDebInfo builds). They add no cost to release builds. The memory ordering of the algorithm (chapter 5) is not a check, it is part of the mechanism and always active.
 
 There is no runtime detection of leaked locks or unbalanced releases in release builds. The implementation has no thread identity, a lock count of two is indistinguishable from two threads or one nested lock. How the XCP tool can be informed about a stalled segment is an open topic (@@@@ TODO see 8.5).
 
 
 ## 3. Guarantees and compromises
 
+The two RCU algorithms:
+
+- **Per page reference counting** (`OPTION_CAL_RCU_REFCOUNT` defined, not default, for special needs): each RCU page has a reference count. A reader pins the published page for the duration of its lock, the writer publishes into any page which is neither the published page nor pinned. Publishing is independent of reader progress. `XCP_CALSEG_RCU_PAGES` pages, 3 to 6.
+- **Lock count and page hand-over** (`OPTION_CAL_RCU_REFCOUNT` undefined, default): one lock count per segment. The reader which takes the first lock takes a published page over and hands the old page back to the writer, the next first lock confirms it as unused. Publishing depends on the lock count returning to zero. 3 pages.
+
+Both were derived from the same requirements, the second one is the original XCPlite implementation. The reader API and the user contract are identical, chapter 4 describes both algorithms.
+
 ### 3.1 Guarantees
 
-Under the contract of chapter 2, the implementation guarantees:
+Under the contract of chapter 2, both algorithms guarantee:
 
 - **Memory safety**: a reader holding a lock reads a page which is not modified concurrently. Torn reads are impossible.
 - **Consistency**: every lock returns a snapshot which respects atomic transactions. Either all writes of a transaction are visible in a snapshot, or none of them.
-- **Wait-free readers**: lock and unlock are one atomic read-modify-write each, plus a few loads and stores. No loop, no blocking, no dependency on the progress of other threads. A reader is never delayed by the writer or by other readers.
-- **Bounded memory**: three RCU pages per segment, independent of the number of reader threads. Classic RCU implementations need memory proportional to the number of readers.
+- **Readers never wait for another thread.** With the lock count algorithm, lock and unlock are wait-free: one atomic read-modify-write each, plus a few loads and stores. With reference counting the unlock is wait-free and the lock is lock-free: it retries when a publish lands between its two loads of the published page index, a window of a few nanoseconds. Publishes on one segment are separated by at least one XCP command or one background cycle, so in practice a lock retries at most once.
+- **Bounded memory**: 3 pages (lock count) or `XCP_CALSEG_RCU_PAGES` pages (reference counting) per segment, independent of the number of reader threads. Classic RCU implementations need memory proportional to the number of readers.
 - **Data is never lost**: a write which is acknowledged to the tool stays in the writer page until it is published. A stalled publish delays the visibility, it does not lose the data.
 
 ### 3.2 Compromises
 
-The writer side accepts the following compromises in exchange for the wait-free readers:
+Common to both algorithms:
 
 1. **Exactly one writer thread.**
-2. **Visibility needs reader progress.** A published change becomes visible to the readers with the next first level lock (a lock which brings the lock count from 0 to 1). Publishing itself needs a free page which is confirmed as unused, and this confirmation is also done by a first level lock. So a write becomes visible with the first or with the second first level lock after the write, depending on whether the previous hand-over was already confirmed. In lazy mode, the publish of a delayed write happens with the next `XcpBackgroundTasks()` cycle.
-3. **Visibility delay is non deterministic under contention.** Publishing is only possible when the lock count of the segment returns to zero. While there is always at least one reader inside its critical section, or when the segment is locked rarely, pending changes accumulate in the writer page and are published together (not sequentially) as soon as a free page is available. In lazy mode (`XCP_ENABLE_CALSEG_LAZY_WRITE`, the default) the writer retries in `XcpBackgroundTasks()`. In blocking mode, every write waits for the publish.
-4. **Publishing may starve and time out.** A segment which is never locked accepts exactly one publish, afterwards its writes stay pending. A blocking publish times out after `XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT` (500 ms) per segment and returns `CRC_ACCESS_DENIED`, which delays the XCP command response by that time. Blocking publishes happen at the end of an atomic transaction, in `XcpDisconnect()`, and for every write when lazy mode is disabled.
-5. **Acknowledge before visibility.** In lazy mode a write is acknowledged to the tool (`CRC_CMD_OK`) before it is visible to the readers. `XcpCalSegReadMemory` reads from the writer page, so a read-back verifies the written value even while it is still pending. There is no risk of failure after the acknowledge, see 3.1.
-6. **Creation uses a mutex.** Registration of a new segment is protected by a mutex to keep the segment list consistent between threads. This is a one time cost per segment, not on the reader path.
-7. **Memory.** Each segment needs a 64 byte header plus three pages (working page, writer page and swap page) when the default page has static lifetime (`XCP_ENABLE_ABS_ADDRESSING` with `XCP_ADDR_EXT_ABS == 0`), otherwise plus four pages, including a copy of the default page, which is mandatory in SHM mode. The page size is rounded up to 8 bytes. The segment name is limited to `XCP_MAX_CALSEG_NAME` characters (23 on 64 bit, 27 on 32 bit platforms), because the header is padded to exactly 64 bytes.
-8. **Background processing.** Lazy publishing needs `XcpBackgroundTasks()` to be called cyclically in the writer thread. With blocking sockets this requires a receive timeout (`SO_RCVTIMEO`), which was difficult to abstract over all platforms. Non blocking sockets with a waitable event would be a better approach (@@@@ TODO postponed, currently only macOS/BSG has a more theoretical with WAITALL timeout behaviour, see regression tests).
-9. **Nested locks are not coherent.** See contract rule 10.
+2. **Publishing may be delayed and may time out.** When no page is available, changes accumulate in the writer page and are published together (not sequentially) as soon as a page is available. In lazy mode (`XCP_ENABLE_CALSEG_LAZY_WRITE`, the default) the writer retries in `XcpBackgroundTasks()`. A blocking publish (end of an atomic transaction, `XcpDisconnect()`, every write without lazy mode) waits up to `XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT` (500 ms) per segment and returns `CRC_ACCESS_DENIED`, which delays the XCP command response by that time.
+3. **Acknowledge before visibility.** In lazy mode a write is acknowledged to the tool (`CRC_CMD_OK`) before it is visible to the readers. `XcpCalSegReadMemory` reads from the writer page, so a read-back verifies the written value even while it is still pending. There is no risk of failure after the acknowledge, see 3.1.
+4. **Creation uses a mutex.** Registration of a new segment is protected by a mutex to keep the segment list consistent between threads. This is a one time cost per segment, not on the reader path.
+5. **Memory.** Each segment needs a 64 byte header plus its RCU pages (3, or `XCP_CALSEG_RCU_PAGES`), plus a copy of the default page unless the default page has static lifetime (`XCP_ENABLE_ABS_ADDRESSING` with `XCP_ADDR_EXT_ABS == 0`). The copy is mandatory in SHM mode. The page size is rounded up to 8 bytes. The segment name is limited to `XCP_MAX_CALSEG_NAME` characters (23 on 64 bit, 27 on 32 bit platforms), because the header is padded to exactly 64 bytes.
+6. **Background processing.** Lazy publishing needs `XcpBackgroundTasks()` to be called cyclically in the writer thread. With blocking sockets this requires a receive timeout (`SO_RCVTIMEO`), which was difficult to abstract over all platforms. Non blocking sockets with a waitable event would be a better approach.
+7. **Nested locks are not coherent.** See contract rule 10. This is the price for not needing thread local reader state.
+
+The two algorithms differ in when they can publish and when a change becomes visible:
+
+| | Lock count and page hand-over | Per page reference counting |
+|---|---|---|
+| Publishing is possible when | a free page exists and is confirmed as unused, which needs two first level locks (lock count 0 to 1) since the previous publish: one hands the page over, the next one confirms it | a candidate page is not pinned, which means no reader still holds a page published before the previous publish. With 3 pages: no reader holds the page before the current one |
+| A published change is visible | with the next first level lock. Together with the confirmation above, a write becomes visible with the first or the second first level lock after it | with the next lock, on any thread, regardless of locks held by other threads |
+| Readers delay publishing | while any lock is held on the segment, including readers which entered after the publish and read the current page | only readers which still hold the previously published page |
+| Segment which is never locked | accepts exactly one publish, afterwards its writes stay pending and blocking publishes time out | publishes without limit |
+| Leaked lock (contract violation) | publishing stops permanently | the pinned page is retired. With 3 pages publishing stops, each additional page tolerates one more leaked reader |
+| Reader lock | wait-free | lock-free, see 3.1 |
+| Memory | 64 bytes + 3 pages | 64 bytes + `XCP_CALSEG_RCU_PAGES` pages, the header is the same size |
 
 
-## 4. Algorithm
+## 4. Algorithms
 
 ### 4.1 Pages and shared state
 
-Each segment has three RCU pages, in addition to the default (reference) page:
+Each segment has RCU pages in addition to the default (reference) page. Pages are stored as offsets into the segment memory, not as pointers, so a segment can be placed in shared memory and used by several processes. All state is in the 64 byte segment header, one cache line, and the RCU state of both algorithms occupies the same 16 bytes of it.
 
-1. `ecu_page` - the page the readers currently use
-2. `xcp_page` - the private page of the writer, it accumulates all changes
-3. `free_page` - the swap page, handed from the readers to the writer
+Common to both algorithms:
 
-The algorithm is an RCU pattern with exactly one element in its memory reclamation list, the free page. Without a free page, changes simply accumulate in the writer page. This is also how atomic transactions are implemented: while a transaction is open, publishing is suspended and the writer page collects all writes.
+- `xcp_page` - the private page of the writer, it accumulates all changes. Writer private, like `xcp_access` and `write_pending`.
+- `ecu_access` (atomic) - selects the working page or the immutable default page for the readers, written by the writer on `XcpCalSegSetCalPage`.
 
-All state is in the 64 byte segment header, which is one cache line:
+Lock count and page hand-over:
 
-- Shared between writer and readers: `ecu_page_next` (atomic), `free_page` (atomic), `ecu_access` (atomic), `free_page_hazard` (plain bool, ordered through `free_page`, see 5.3).
-- Shared between readers: `lock_count` (atomic, 16 bit), `ecu_page` (atomic).
-- Private to the writer: `xcp_page`, `xcp_access`, `write_pending`.
+- `ecu_page` (atomic) - the page the readers currently use, written by the reader which takes the first lock
+- `ecu_page_next` (atomic) - the page published by the writer, taken over into `ecu_page` by the first lock
+- `free_page` (atomic) - the page handed back by the readers, the reclamation list with exactly one element
+- `lock_count` (atomic, 16 bit) - number of locks held on the segment by all readers
+- `free_page_hazard` (plain bool, ordered through `free_page`, see 5.3) - the free page is not confirmed as unused yet
 
-Pages are stored as offsets into the segment memory, not as pointers, so a segment can be placed in shared memory and used by several processes.
+Per page reference counting:
 
-### 4.2 Pseudo code
+- `published_page` (atomic) - index of the published page, written by the writer only. RCU page 0 is the writer page, it is never published.
+- `page_refs[XCP_CALSEG_RCU_PAGES]` (atomic, 16 bit each) - number of readers pinning each page
+
+### 4.2 Lock count and page hand-over
+
+Three RCU pages: `ecu_page`, `xcp_page` and `free_page`. The algorithm is an RCU pattern with exactly one element in its memory reclamation list, the free page. Without a free page, changes simply accumulate in the writer page. This is also how atomic transactions are implemented: while a transaction is open, publishing is suspended and the writer page collects all writes.
 
 ```
 // Multithreaded lock, wait-free
@@ -168,26 +193,14 @@ function lock(segment) {
 }
 
 // Multithreaded unlock, wait-free
-function unlock(segment) {
-    lock_count.fetch_sub(1, release)
-}
-
-// Single threaded write
-function write(segment, offset, data[]) {
-    xcp_page[offset] = data
-    write_pending = true
-    if (!transaction_open) {
-        try_publish(segment, wait = !lazy_mode)
-    }
+function unlock(segment, page) {
+    lock_count.fetch_sub(1, release)                  // The page is not needed, the lock count is per segment
 }
 
 // Single threaded publish
 // Returns true when the changes in xcp_page have been published, they become visible with the next first level lock
-function try_publish(segment, wait) -> bool {
+function try_publish(segment) -> bool {
     page = free_page.load(acquire)
-    if (wait) {
-        wait up to 500 ms for (page != NULL && !free_page_hazard)
-    }
     if (page == NULL || free_page_hazard) {
         return false                                  // No free page or not yet confirmed, the changes stay pending in xcp_page
     }
@@ -195,33 +208,82 @@ function try_publish(segment, wait) -> bool {
     memcpy(page, xcp_page)                            // The new writer page starts with the current content
     old = xcp_page
     xcp_page = page
-    write_pending = false
     ecu_page_next.store(old, release)                 // Publish
     return true
 }
 ```
 
-### 4.3 Hand-over sequence
-
-Starting from a quiet state (`ecu_page == ecu_page_next`, a confirmed free page):
+Hand-over sequence, starting from a quiet state (`ecu_page == ecu_page_next`, a confirmed free page):
 
 1. The writer writes into `xcp_page` and publishes: the free page becomes the new `xcp_page`, the old `xcp_page` is announced in `ecu_page_next`.
 2. The next first level lock sees `ecu_page != ecu_page_next`, takes the new page over and hands the old ECU page to `free_page`. It sets `free_page_hazard`, because a reader which locked concurrently (lock count already 1, before the hand-over stores) may still use the old page. This lock and all following locks return the new page: the change is visible.
 3. The next first level lock sees `ecu_page == ecu_page_next` and clears `free_page_hazard`. The lock count was zero, so every reader of the old page has released its lock. The free page is confirmed and the writer may publish again.
 
-Step 3 is the reason for the "second lock" in compromise 2: a write which arrives between step 2 and step 3 cannot be published until step 3 has happened.
+Step 3 is the reason for the "second lock" in the table of 3.2: a write which arrives between step 2 and step 3 cannot be published until step 3 has happened.
+
+### 4.3 Per page reference counting
+
+`XCP_CALSEG_RCU_PAGES` RCU pages: page 0 is the writer page and is never published, one page is published, the others are reclamation candidates. Reclamation is driven by the reference count of each page instead of by reader progress.
+
+```
+// Multithreaded lock, lock-free
+function lock(segment) {
+    if (ecu_access == default_page) return default_page       // The default page is immutable, no pin needed
+    loop {
+        idx = published_page.load(seq_cst)
+        page_refs[idx].fetch_add(1, seq_cst)                  // Pin
+        if (published_page.load(seq_cst) == idx) {            // Still published: the page is complete and the writer will not target it
+            return page(idx)
+        }
+        page_refs[idx].fetch_sub(1, seq_cst)                  // A publish landed in between, unpin and retry
+    }
+}
+
+// Multithreaded unlock, wait-free
+function unlock(segment, page) {
+    if (page == default_page) return                          // Nothing was pinned
+    page_refs[index_of(page)].fetch_sub(1, seq_cst)           // Unpin, the page pointer identifies the pinned page
+}
+
+// Single threaded publish
+// Returns true when the changes in xcp_page have been published, they are visible with the next lock
+function try_publish(segment) -> bool {
+    cur = published_page.load(seq_cst)
+    target = NONE
+    for idx in candidates after cur, round robin, skipping page 0 and cur {   // A retired page is not reused before the other candidates
+        if (page_refs[idx].load(seq_cst) == 0) { target = idx; break }
+    }
+    if (target == NONE) return false                          // Every candidate is pinned, the changes stay pending in xcp_page
+    memcpy(page(target), xcp_page)                            // Copy first ...
+    published_page.store(target, seq_cst)                     // ... then announce
+    return true
+}
+```
+
+Why it is correct:
+
+- The writer never selects the published page as a target, and it announces a page only after the copy into it is complete.
+- A reader uses a page only after re-validating that it is still the published page. If the validation reads an old publication of the page, the reader's pin precedes the writer's reference count check in the total order of the sequentially consistent operations, so the writer sees the pin and does not select the page. If it reads a new publication, the copy is complete. See 5.6 for the ordering argument and for why no generation counter is needed.
+- The reader's handle to its pin is the page pointer it received, so no thread local state is needed. Nested locks pin independently, they may return different pages (contract rule 10).
+- With 3 pages the memory is the same as for the lock count algorithm. Each additional page tolerates one more reader which never unlocks and one more concurrently pinned page.
 
 ### 4.4 Lazy mode, blocking mode and atomic transactions
+
+Common to both algorithms:
 
 - **Lazy mode** (`XCP_ENABLE_CALSEG_LAZY_WRITE`, default): `XcpCalSegWriteMemory` tries a non blocking publish and returns `CRC_CMD_OK` in any case. A failed publish leaves the segment marked `write_pending`, and `XcpBackgroundTasks()` retries in every cycle. A warning is logged when a publish stays pending for more than 200 ms.
 - **Blocking mode**: every write waits for its publish, up to the timeout, and returns `CRC_ACCESS_DENIED` on timeout.
 - **Atomic transactions**: `XcpCalSegBeginAtomicTransaction` suspends publishing, all following writes accumulate in the writer pages. `XcpCalSegEndAtomicTransaction` publishes all segments with pending writes, blocking with the timeout per segment. Changes from earlier writes which were still pending when the transaction began stay pending and are published together with the transaction.
 - **`XcpDisconnect()`** publishes all pending writes, blocking.
 
+In `cal.c` the two algorithms are the functions `CalSegRcuReset`, `CalSegRcuInit`, `CalSegRcuLock`, `CalSegRcuUnlock`, `CalSegRcuTryPublish` and `CalSegRcuIsUnlocked`, everything else is common.
+
 
 ## 5. Memory ordering
 
-The algorithm has two independent synchronization relations: between the readers (who is the last reader of a page) and between the writer and the readers (page content and page hand-over). Both need the ordering described here. The cost is one acquire load and the ordered flavour of two atomic read-modify-write operations per lock/unlock pair, there is no barrier instruction in the reader path.
+Sections 5.1 to 5.5 describe the lock count algorithm, 5.6 the reference counting algorithm, 5.7 the preconditions on microcontrollers with FreeRTOS SMP.
+
+The lock count algorithm has two independent synchronization relations: between the readers (who is the last reader of a page) and between the writer and the readers (page content and page hand-over). Both need the ordering described here. The cost is one acquire load and the ordered flavour of two atomic read-modify-write operations per lock/unlock pair, there is no barrier instruction in the reader path.
 
 ### 5.1 lock_count
 
@@ -285,11 +347,64 @@ This is a statement about the CPU, not about the compiler. The compiler is free 
 The general lesson: dependency ordering is real on hardware and unusable in portable C. The standard's answer is `memory_order_consume`, every compiler implements it as acquire, and so the practical rule is to write the acquire.
 
 
+### 5.6 Per page reference counting: sequential consistency
+
+The four operations which couple readers and writer are sequentially consistent: the reader's pin (`fetch_add` on the reference count), its validation load of `published_page`, the writer's load of the reference count and its announcement store to `published_page`. The correctness argument needs a single total order S over them, which acquire/release does not provide.
+
+Take a reader R whose validation load returns page P, so R pins P. Either that load read an old publication of P or a new one:
+
+- Old (the value from before the writer retired P by announcing another page Q): in S, `R.validate < W.store(Q)`. The writer only selects P as a target after retiring it, so `W.store(Q) < W.load_refs(P)`. For the writer to have read a reference count of zero, R's pin must come after that load: `W.load_refs(P) < R.pin`. And `R.pin < R.validate` by program order. The chain `R.validate < W.store(Q) < W.load_refs(P) < R.pin < R.validate` is a contradiction, so the writer cannot have seen zero and cannot be copying into P.
+- New (the value from a re-publication of P, after the writer copied into it): `W.store(P) <= R.validate` in S, the copy completed before the store, and R's page reads happen after the validation load, so R reads complete data. Any later writer check of the reference count of P comes after the writer's next announcement (it has to un-publish P first), which comes after `R.validate` (otherwise R's load would have returned that newer value), which comes after `R.pin`. So the writer sees the pin.
+
+In both cases R holds a complete page which the writer will not touch until R releases it. Acquire/release alone does not order `W.load_refs(P)` against `R.pin` and `R.validate` against `W.store(Q)` in one consistent order, which is what closes the first case.
+
+This is the store buffering (SB) litmus shape: each side writes its own variable and then reads the other's (reader: pin `page_refs[P]`, then load `published_page`; writer: store `published_page`, then load `page_refs[P]`). The forbidden outcome, both loads missing the other side's store, is allowed by acquire/release and by a hardware store buffer, and excluded by `seq_cst` or a full fence. Its classic instance is the entry protocol of Dekker's mutual exclusion algorithm (E. W. Dijkstra, *Cooperating Sequential Processes*, EWD123, 1965), and S. V. Adve, K. Gharachorloo, *Shared Memory Consistency Models: A Tutorial* (WRL Research Report 95/7, 1995) uses it to show how write buffers break sequential consistency. The Linux kernel memory model has it as `tools/memory-model/litmus-tests/SB+fencembonceonces.litmus`. The reader protocol, pin and re-validate with a store-load fence in between, is structurally the hazard pointer protocol, with a reference count per page instead of a hazard pointer per thread (M. M. Michael, *Hazard Pointers: Safe Memory Reclamation for Lock-Free Objects*, IEEE TPDS 15(6), 2004; C++26 `<hazard_pointer>`, proposals P0233 and P2530).
+
+No generation counter is needed in `published_page` to protect against the ABA case (P retired and re-published under the same index while a slow reader validates): that case is the second branch above, the reader simply gets the later generation of P, which is a valid and monotonic snapshot. A generation counter would only make the reader retry and then pin the same page.
+
+Cost on the reader path: a `seq_cst` load is a plain load on x86 and `LDAR` on AArch64, a `seq_cst` read-modify-write is `lock xadd` on x86 (like any atomic read-modify-write) and `LDADDAL` on AArch64 with LSE. There is no barrier instruction. The difference to the acquire/release pairing of 5.1 is the `AL` flavour of the same instruction, which was not measurable in the test of chapter 6. As in 5.4, the cost of both algorithms is dominated by the two atomic read-modify-writes on a shared cache line per lock/unlock pair.
+
+### 5.7 Microcontrollers and FreeRTOS SMP
+
+The orderings of 5.1 to 5.6 are guarantees of the C11 memory model, which the compiler implements for the target. FreeRTOS does not change them, XCPlite uses the compiler's `<stdatomic.h>` on FreeRTOS as on any other platform. The guarantee holds for all cores in one cache coherent shared memory domain, which is the configuration FreeRTOS SMP (`configNUMBER_OF_CORES > 1`) requires.
+
+**Cache coherence, definition.** A memory system is coherent if, for every single memory location:
+
+1. All writes to the location are serialized: there is one total order of these writes (the coherence order) on which all cores agree, consistent with the program order of each core.
+2. Every write eventually becomes visible to all cores (write propagation).
+3. Every read returns a value from that order, and a core never observes an older value of the location after it has observed a newer one.
+
+In hardware terms (single writer, multiple readers invariant): at any time a location is either writable by exactly one core or readable by any number of cores, and a read sees the value of the last write. C11 states the same for each atomic object as its modification order and the four coherence rules (write-write, read-read, read-write, write-read). Coherence is a property per location. It says nothing about the order in which writes to different locations become visible, for example the page content and the published page index. That is the memory consistency model, and what the memory orders of the atomics control.
+
+**Ordering, not coherence.** A release or `seq_cst` store does not flush or clean any cache, neither completely nor by address range. Cache coherence is a hardware property, on SMP microprocessors (x86, Cortex-A) as well as on SMP microcontrollers: on SMP capable microcontrollers there is either no data cache in front of the shared SRAM or the caches are kept coherent by hardware. What remains is the ordering of a core's own accesses, which store buffers, write buffers and the bus may reorder. The compiler handles this with a barrier instruction which waits until the core's outstanding accesses have completed, a few cycles on in-order microcontroller cores, tens of cycles on Cortex-M7 with AXI. A cache clean would be orders of magnitude more expensive.
+
+Typical code generation (GCC/Clang):
+
+| Core | release store | acquire load | `seq_cst` store / load | atomic read-modify-write |
+|---|---|---|---|---|
+| ARMv7-M (Cortex-M3/M4/M7) | `DMB; STR` | `LDR; DMB` | `DMB; STR; DMB` / `LDR; DMB` | `DMB; LDREX/STREX` loop`; DMB`, same for acq_rel and `seq_cst` |
+| ARMv8-M Mainline (Cortex-M33/M55/M85) | `STL` | `LDA` | `STL` / `LDA` | `LDAEX/STLEX` loop |
+| Xtensa LX6/LX7 (ESP32, ESP32-S3) | `MEMW; S32I` | `L32I; MEMW` | same | `MEMW; S32C1I` compare-and-swap loop, 8/16 bit emulated inline on the 32 bit word |
+| RISC-V RVWMO with A extension | `fence rw,w; sw` | `lw; fence r,rw` | adds a leading `fence rw,rw` to the load | `amoadd.w.aqrl` |
+
+The store-load ordering which the reference counting algorithm needs (5.6) is exactly what a store buffer breaks. `seq_cst` emits the full barrier for it (the trailing `DMB`, `MEMW` or `fence rw,rw`), on most microcontroller cores the same instruction as for acquire/release.
+
+**Preconditions.** The build checks the first one, the others are the responsibility of the integration:
+
+1. The 8, 16 and 32 bit atomics must be lock-free. `cal.h` asserts `ATOMIC_CHAR/SHORT/INT/LONG_LOCK_FREE == 2`. Cores without exclusive access instructions, such as Cortex-M0+ (ARMv6-M, RP2040), fall back to `__atomic_*` library calls. The default single core implementation of these disables interrupts, which is not multicore safe. A multicore safe implementation based on hardware spinlocks exists for RP2040 (pico-sdk `pico_atomic`), but it is not wait-free, so the lock count algorithm loses its wait-free guarantee there. Such targets fail to build.
+2. Calibration segments must be located in shared, coherent memory: not in core private memory such as the DTCM of Cortex-M7/R5 if the reader tasks may run on more than one core, and not in external RAM behind a non-coherent cache. Check the vendor documentation for atomic operations on external RAM, for example PSRAM on ESP32.
+3. All reader tasks and the XCP server task run under the same FreeRTOS SMP kernel instance.
+
+**FreeRTOS principles.** FreeRTOS defines no memory model of its own. The SMP kernel assumes identical cores sharing one coherent memory. Its critical sections disable interrupts on the local core and take a spinlock (`portGET_TASK_LOCK`, `portGET_ISR_LOCK`), which the port implements with hardware atomics and barriers, so a critical section is a full barrier. Kernel objects (queues, semaphores, task notifications) are synchronization points because they go through these critical sections. ESP-IDF ships its own SMP variant with explicit spinlock arguments (`taskENTER_CRITICAL(&mux)`), the principle is the same. The FreeRTOS `atomic.h` functions are based on critical sections and depend on the port for multicore safety, XCPlite uses the compiler atomics instead.
+
+**Not supported: asymmetric multicore (AMP).** Parts such as STM32H7 dual core (Cortex-M7 + M4), i.MX RT1170 or Cortex-R5 in split mode run one FreeRTOS instance per core, the cores are not cache coherent with each other, and exclusive accesses across cores need a global exclusive monitor in the interconnect, which is often missing (hence hardware semaphores such as the STM32 HSEM). C11 atomics give no guarantee across such cores and the compiler emits no cache maintenance. FreeRTOS handles AMP with message or stream buffers in shared memory, inter-core interrupts and explicit cache handling (non-cacheable MPU regions or maintenance by address). Calibration segments shared across AMP cores would need the same: the writer cleans the page by address before the publish store, the reader invalidates it before reading, and pages must be cache line aligned and padded, otherwise an invalidate destroys neighbouring dirty data. XCPlite does not implement this. Run XCPlite and all tasks which access its calibration segments within one kernel instance.
+
+
 ## 6. Test results
 
 The test application `test/cal_test` creates multiple reader threads on a shared calibration segment. The writer thread updates the segment with a pattern, mixing single writes and atomic transactions, and the reader threads check every snapshot for consistency and count the changes they observe. The lock duration is measured and shown as a histogram.
 
-Test parameters are compile time constants in `test/cal_test/src/main.cpp`:
+Test parameters are compile-time constants in `test/cal_test/src/main.cpp`:
 
 - `TEST_THREAD_COUNT`: number of reader threads, default 4
 - `TEST_WRITE_COUNT`: number of writes by the writer thread, default 10000
@@ -303,7 +418,7 @@ Test parameters are compile time constants in `test/cal_test/src/main.cpp`:
 
 The share of reads which observe a change depends on the ratio of the reader loop delay to the writer loop delay, it is not comparable between runs with different parameters. A result of 10000 changes per thread means that every write was observed by every thread.
 
-### 6.1 V2.3, MacBook Pro M2, default parameters
+### 6.1 V2.3, lock count and page hand-over, MacBook Pro M2, default parameters
 
 ```
 Final Statistics:
@@ -357,9 +472,65 @@ Lock time histogram (94123 events):
   20000-40000ns                  2    0.00%
 ```
 
-### 6.2 V2.2, MacBook Pro M3 and Raspberry Pi 5, TEST_TASK_LOOP_DELAY_US = 100
+### 6.2 V2.3, per page reference counting, MacBook Pro M2, default parameters
 
-Measured with the implementation before the V2.3 changes (relaxed lock count, plain `ecu_page`) and a reader loop delay of 100 us. The lock time histogram is comparable to 6.1, the share of observed changes is not.
+Same machine and build type (Debug) as 6.1, `OPTION_CAL_RCU_REFCOUNT` with 3 pages. In a Release build the average lock time is 0.06 us for both algorithms.
+
+```
+Final Statistics:
+===========================================================
+Test parameters:
+TEST_WRITE_COUNT = 10000
+TEST_THREAD_COUNT = 4
+TEST_CALBLK = OFF
+TEST_ATOMIC_CAL = ON
+TEST_TASK_LOOP_DELAY_US = 50
+TEST_TASK_LOCK_DELAY_US = 0
+TEST_MAIN_LOOP_DELAY_US = 100
+TEST_DATA_SIZE = 8
+Thread 0: reads=24973, changes=9983, avg_time=0.13us, max_time=17.67us
+Thread 1: reads=24976, changes=9983, avg_time=0.13us, max_time=26.71us
+Thread 2: reads=24964, changes=9982, avg_time=0.13us, max_time=27.46us
+Thread 3: reads=24992, changes=9990, avg_time=0.13us, max_time=27.96us
+Total Results:
+  Total writes: 10000
+  Total atomic writes: 1000
+  Total reads: 99905
+  Total changes observed: 39938 (40.0%)
+  Total errors: 0
+  Average lock time: 0.13 us
+  Maximum lock time: 27.96 us
+Producer acquire lock time statistics:
+  count=95332  max=27943ns  avg=115ns (cal=16ns)
+Lock time histogram (95332 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  20-40ns                     2789    2.93%  ##
+  40-80ns                    36327   38.11%  ###########################
+  80-120ns                   39169   41.09%  ##############################
+  120-160ns                  11131   11.68%  ########
+  160-200ns                   2539    2.66%  #
+  200-300ns                   2034    2.13%  #
+  300-400ns                    483    0.51%
+  400-500ns                    293    0.31%
+  500-600ns                     91    0.10%
+  600-800ns                    165    0.17%
+  800-1000ns                    93    0.10%
+  1000-1500ns                   87    0.09%
+  1500-2000ns                   43    0.05%
+  2000-3000ns                   15    0.02%
+  3000-4000ns                    6    0.01%
+  4000-6000ns                    7    0.01%
+  6000-8000ns                    8    0.01%
+  8000-10000ns                  20    0.02%
+  10000-20000ns                 27    0.03%
+  20000-40000ns                  5    0.01%
+SUCCESS: No errors occurred during the test
+```
+
+### 6.3 V2.2, MacBook Pro M3 and Raspberry Pi 5, TEST_TASK_LOOP_DELAY_US = 100
+
+Measured with the lock count algorithm before the V2.3 changes (relaxed lock count, plain `ecu_page`) and a reader loop delay of 100 us. The lock time histogram is comparable to 6.1 and 6.2, the share of observed changes is not.
 
 MacBook Pro M3:
 ```
@@ -454,10 +625,12 @@ Remaining after the V2.3 changes. Items which are consequences of the design are
 5. **Stalled publishes are invisible to the tool.** In lazy mode a write is acknowledged with `CRC_CMD_OK`, and a read-back shows the written value from the writer page. A segment whose publishes stall (a leaked lock, a segment which is never locked) is only reported by a warning in the log. See 8.5.
 6. **Blocking publish stalls the command thread.** The end of an atomic transaction and `XcpDisconnect()` wait up to 500 ms **per pending segment** in the XCP command thread, which delays all command responses accordingly.
 7. **Atomic transactions do not flush first.** Pending changes from earlier writes are not published before a transaction begins, they are published together with the transaction when it ends.
-8. **Nested lock coherence.** A nested lock may return a newer page than the outer lock (contract rule 10). Closing this window needs per thread state.
-9. **free_page_hazard is a plain bool.** Intentional (see 5.3), but thread sanitizers report it.
-10. **Never locked segments.** A segment which is never locked accepts one publish only (compromise 4).
-11. **No runtime diagnostics for contract violations.** Leaked locks and unbalanced releases are not detectable without thread identity. In SHM mode leaked lock counts persist across process restarts, and the `XcpDeinit()` lock check is not possible because other processes may legitimately hold locks.
+8. **Nested lock coherence.** A nested lock may return a newer page than the outer lock (contract rule 10). Closing this window needs per thread state, see the note in 8.1.
+9. **free_page_hazard is a plain bool.** Lock count algorithm, intentional (see 5.3), but thread sanitizers report it.
+10. **Never locked segments.** Lock count algorithm: a segment which is never locked accepts one publish only (table in 3.2).
+11. **No runtime diagnostics for contract violations.** Leaked locks are not detectable without thread identity, unbalanced releases only when the page's count is already zero. In SHM mode leaked counts persist across process restarts, and the `XcpDeinit()` lock check is not possible because other processes may legitimately hold locks.
+12. **`ptptool` holds a lock for its lifetime.** `ptp_master.c` and `ptp_observer.c` take an initial lock on their parameter segment at startup and release it at shutdown, to keep a stable pointer. With either algorithm this blocks publishing after the first publish: the lock count never returns to zero, or the pinned page is the only reclamation candidate with 3 pages. The periodic lock and copy in these tools therefore never sees a calibration change. To be fixed in the tool.
+13. **EPK segment update writes into the published page.** `XcpCalUpdateEpkSeg` writes the EPK directly into the ECU page from the writer thread while a reader may hold it. Marked in the code, to be checked.
 
 
 ## 8. Proposals for improvement
@@ -466,6 +639,29 @@ Remaining after the V2.3 changes. Items which are consequences of the design are
 
 Replace the single free page by per page reference counting with a list of pages, so that publishing is driven by the writer and not by reader progress. This would remove the second lock visibility delay, the starvation of never locked segments and the coupling between readers.  
 
+Replace the single free page by per page reference counting with a list of pages, so that publishing is driven by the writer and not by reader progress. This would remove the second lock visibility delay, the starvation of never locked segments and the coupling between readers. An analysis and a design in the style of this document is in [rcu_improvements/CAL_RCU_IMPROVEMENT.md](rcu_improvements/CAL_RCU_IMPROVEMENT.md).
+
+Status: implemented in V2.3 as the per page reference counting algorithm (`OPTION_CAL_RCU_REFCOUNT`, chapter 4.3), without thread local state. Differences to the analysis document: the reader's handle is the page pointer it received, so there is no per thread nesting depth and nested locks pin independently (contract rule 10, the coherence of nested locks was not adopted); the publication stamp has no generation counter (5.6); the page count is `XCP_CALSEG_RCU_PAGES`, default 3. With three pages the memory is the same as for the lock count algorithm and the header is smaller. Pages beyond three are a tuning option: each one tolerates one more reader which never releases and improves the publish rate under a bursting writer, which shifts the probability of a stall by a leaked lock but does not establish a contract. The outermost lock is lock-free instead of wait-free (3.1). Thread local storage was not taken because of the concerns below.
+
+The all `seq_cst` memory ordering of that design is not a cost argument against it: on x86 a `seq_cst` load is a plain load and every atomic read-modify-write is a full barrier anyway, on AArch64 the difference to acquire/release is the `LDADDAL` flavour of the same instruction. The reader cost of both designs is dominated by the two atomic read-modify-writes on a shared cache line, which are identical. The generation counter in the publication stamp of the analysis document is not needed either, the re-validation of the published page index after the pin is sufficient, and the implementation in `rcu.h` dropped it.
+
+**Note on thread local storage on POSIX systems.** The reader state (`depth`, `pinned`) must be per thread and per segment. On ELF platforms this means a TLS variable with a *model* chosen at compile time, and the model trades three properties against each other, of which a shared library can have two:
+
+- `initial-exec`/`local-exec` (proposed in the analysis document): fixed offset in the static TLS block, fast, allocated at thread creation, no lazy allocation. But a shared object with this model can only be loaded after program start if it fits into the loader's static TLS surplus (glibc: 1-2 KB, tunable with `GLIBC_TUNABLES=glibc.rtld.optional_static_tls`, musl: not supported at all). Otherwise `dlopen()` fails with "cannot allocate memory in static TLS block". This affects every host which loads `libxcplite.so` at runtime: Python (`ctypes`, PyO3), JNI, LabVIEW, Simulink, plugin architectures, the Rust crate as a `cdylib`.
+- `general-dynamic` (the default for shared objects): safe for `dlopen()`, but every access goes through `__tls_get_addr` (TLSDESC fast path on AArch64), and the first access per thread and module allocates the TLS block of the module inside the dynamic linker. This is neither real-time safe nor async-signal safe, and it happens in the thread which locks first, the real-time reader. Mitigation is to touch the variable once at thread start, a rule the application has to know.
+- Static linking (the XCPlite default, `BUILD_SHARED_LIBS` is off): the TLS is in the executable's own static block, `local-exec`, no surplus problem. The concern moves to the application: when the application itself is a `dlopen()`ed module, its TLS is dynamic TLS again.
+
+Further concerns:
+
+- In glibc the static TLS block is placed inside the thread's stack allocation, within the requested stack size. `pthread_create()` fails with `EINVAL` when the stack size is smaller than guard page plus static TLS plus a minimum, otherwise the usable stack shrinks. The memory growth comes out of the stack budget of every thread, including the threads which never lock, and tightly sized real-time threads are where it shows.
+- A `thread_local` defined in a header (template static or `inline`) is one variable per DSO when the symbol has hidden visibility. A segment locked in one DSO and released in another would use two different `depth` counters, which is an unbalanced release by construction. The reader state needs default visibility or a single definition inside the library.
+- A C++ `thread_local` with dynamic initialization carries a guard check on every access, one with a destructor registers `__cxa_thread_atexit`, which prevents `dlclose()` until all threads have exited. The reader state must stay POD and constant initialized.
+- macOS allocates thread local variables lazily on first access per thread (dyld TLV, malloc) in every model. QNX supports ELF TLS with the same static/dynamic split and its own static TLS surplus, the limit depends on the SDP version.
+- Only threads with a TLS block may run the code. All POSIX threads have one, threads created with a raw `clone()` do not.
+
+XCPlite already depends on TLS in this shape: the public header macros for per thread event instances and the A2L once pattern declare `static THREAD_LOCAL` variables (`a2l.h`, `xcplib.h`), and `util.c` has one inside the library. All concerns above apply to these today, the reader state would add a variable of the same kind.
+
+The algorithm itself does not need TLS. `Rcu` in `rcu.h` takes the reader state as a parameter, only the convenience layer which makes nested locks coherent without passing a handle needs it. An API where the caller owns the reader state (a stack object per outermost critical section, or a member of the application's per thread context) has none of these concerns. Nested locks with independent reader states remain safe, they pin independently, which is the nesting caveat of contract rule 10.
 
 ### 8.2 Owned calibration segments
 
@@ -554,7 +750,7 @@ Use non blocking sockets and a waitable event for the XCP server thread, so that
 
 ### 8.5 Diagnostics for stalled segments
 
-Report a segment whose publishes stall to the tool and the user: expose the lock count and the pending state of each segment, detect on the writer side that a segment has been pending for longer than a threshold while its lock count did not return to zero, and stop acknowledging writes to such a segment with `CRC_CMD_OK`. Whether and how the XCP tool should be informed is an open discussion.
+Report a segment whose publishes stall to the tool and the user: expose the lock count and the pending state of each segment as measurement signals, detect on the writer side that a segment has been pending for longer than a threshold while its lock count did not return to zero, and stop acknowledging writes to such a segment with `CRC_CMD_OK`. Whether and how the XCP tool should be informed is an open discussion.
 
 ### 8.6 Scope guard for the C API
 
@@ -583,5 +779,8 @@ Contract and API changes:
 7. Passive mode (`XCP_MODE_DEACTIVATE`) is handled in the `CalSegLock`/`CalBlkLock` macros and in the C++ wrappers, they return the default page without calling the library. Before, the C macros called `XcpLockCalSeg` with `XCP_UNDEFINED_CALSEG` in passive mode, which asserted and returned NULL.
 8. The C++ `CalSegGuard` classes are not copyable. A copy released the lock twice.
 9. `XcpDeinit()` asserts in debug builds that no segment is locked (not in SHM mode).
+10. `XcpUnlockCalSeg(index, page)` takes the page pointer returned by the matching lock and returns `void`. `CalSegUnlock(name, ptr)`/`CalBlkUnlock(name, ptr)` accordingly. The C++ guards are unchanged for the user. This is a breaking change for direct C API users, an unlock which does not know its page cannot be implemented for the reference counting algorithm. Only with `OPTION_CAL_RCU_REFCOUNT`, the default lock count algorithm keeps `XcpUnlockCalSeg(index)`.
+11. Per page reference counting added as second RCU algorithm (chapter 4.3), selected with `OPTION_CAL_RCU_REFCOUNT` (not default) in `xcplib_cfg.h` and `XCP_CALSEG_RCU_PAGES` in `xcp_cfg.h`. The RCU specific code in `cal.c` is confined to the `CalSegRcu*` functions, the lock count algorithm remains available.
+12. `cal.h` asserts at compile time that the 8, 16 and 32 bit atomics are lock-free (not with `OPTION_ATOMIC_EMULATION`). Targets which would fall back to `__atomic_*` library calls, such as Cortex-M0+, fail to build (chapter 5.7).
 
 

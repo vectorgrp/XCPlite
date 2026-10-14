@@ -20,8 +20,14 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEMO_BIN="${SCRIPT_DIR}/build"
 
-# SilKit utility binaries – adjust if your build/install location differs
-SILKIT_BIN="${SILKIT_BIN:-/Users/Rainer.Zaiser/git/sil-kit/_build/debug/Debug}"
+# SilKit utility binaries – built together with the demo in build/<CONFIG>/ (see CMakeLists.txt)
+# Set SILKIT_BIN to use the utilities from another SIL Kit build or installation
+if [[ -z "${SILKIT_BIN:-}" ]]; then
+    SILKIT_BIN="${DEMO_BIN}/Debug"
+    for cfg in Debug Release RelWithDebInfo; do
+        [[ -x "${DEMO_BIN}/${cfg}/sil-kit-registry" ]] && SILKIT_BIN="${DEMO_BIN}/${cfg}" && break
+    done
+fi
 
 REGISTRY="${SILKIT_BIN}/sil-kit-registry"
 SYSCTRL="${SILKIT_BIN}/sil-kit-system-controller"

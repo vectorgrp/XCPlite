@@ -30,7 +30,3 @@ bool XcpEthTlHandleCommands(void); // Handle incoming XCP commands
 void XcpEthTlSendMulticastCrm(const uint8_t *data, uint16_t n, const uint8_t *addr, uint16_t port); // Send multicast command response
 void XcpEthTlSetClusterId(uint16_t clusterId);                                                      // Set cluster id for GET_DAQ_CLOCK_MULTICAST reception
 #endif
-
-#ifdef TEST_ENABLE_DBG_METRICS
-void XcpEthTlPrintStatistics(void);
-#endif

@@ -94,7 +94,11 @@ int main(int argc, char *argv[]) {
     const params_t *p = CalSegLock(params);
     CHECK(p == &params, "CalSegLock() returns the default (reference) page pointer");
     CHECK(p->delay_us == params.delay_us && p->counter_max == params.counter_max && p->flow_rate == params.flow_rate, "Default page holds the initial default values");
+#ifdef OPTION_CAL_RCU_REFCOUNT
+    CalSegUnlock(params, p);
+#else
     CalSegUnlock(params);
+#endif
 
     // XCP: Run a few mainloop iterations with event triggering - all must be passive and must not assert
     printf("Measurement events:\n");
@@ -106,7 +110,11 @@ int main(int argc, char *argv[]) {
         heat_energy += 0.001;
         uint32_t delay_us = pp->delay_us;
         (void)delay_us;
+#ifdef OPTION_CAL_RCU_REFCOUNT
+        CalSegUnlock(params, pp);
+#else
         CalSegUnlock(params);
+#endif
 
         // Combined create/register/trigger event - passive when XCP is deactivated
         DaqEventVar(mainloop,                                                //

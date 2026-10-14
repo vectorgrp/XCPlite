@@ -111,6 +111,14 @@ static_assert(sizeof(atomic_uint_least32_t) == 4, "atomic_uint_least32_t must be
 #if !defined(PLATFORM_64BIT) || defined(_WIN)
 #error "This implementation requires a 64 Bit Posix platform"
 #endif
+
+// The head/tail cursors are atomic_uint_fast64_t. This queue is only correct if 64-bit atomics are
+// genuinely lock-free: libatomic may satisfy __atomic_* calls from an address-hashed lock table on
+// targets without native lock-free 64-bit atomics, which silently turns this into a lock-based queue
+// (worse than the purpose-built mutex queue32.c). Fail the build instead; such a target must opt into
+// queue32.c explicitly via OPTION_ATOMIC_EMULATION (as Windows does). ATOMIC_LLONG_LOCK_FREE == 2
+// means "always lock-free" and is a compile-time constant, unlike the runtime atomic_is_lock_free().
+static_assert(ATOMIC_LLONG_LOCK_FREE == 2, "64-bit atomics are not unconditionally lock-free on this target; select the mutex-based queue32.c via OPTION_ATOMIC_EMULATION");
 static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platform");
 
 // Check for atomic support

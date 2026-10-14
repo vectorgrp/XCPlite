@@ -52,6 +52,17 @@
 #endif
 
 /****************************************************************************/
+// Metrics
+/****************************************************************************/
+
+#ifdef TEST_ENABLE_TL_METRICS
+uint32_t gXcpTxPacketCount = 0;
+uint32_t gXcpTxMessageCount = 0;
+uint32_t gXcpTxIoVectorCount = 0;
+uint32_t gXcpRxPacketCount = 0;
+#endif
+
+/****************************************************************************/
 /* XCP command transfer transport layer message message                     */
 /****************************************************************************/
 
@@ -141,7 +152,7 @@ static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr
     (void)has_headroom; // unused unless the zero copy transmit path is enabled
     DBG_PRINTF5("XcpEthTlSend: msg_len = %u\n", size);
 
-#ifdef TEST_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_TL_METRICS
     gXcpTxPacketCount++;
 #endif
 
@@ -206,7 +217,7 @@ static bool XcpEthTlSendV(tQueueBuffer buffers[], uint16_t count) {
     gBufferCountHistogram[count - 1]++;
 #endif
 
-#ifdef TEST_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_TL_METRICS
     gXcpTxMessageCount++;
     gXcpTxIoVectorCount += count;
 #endif
@@ -478,7 +489,7 @@ bool XcpEthTlHandleCommands(void) {
                     DBG_PRINTF_ERROR("XcpEthTlHandleCommands: expected %u bytes, received %u bytes, closing connection\n", msgBuf.dlc, n);
                     goto socket_closed;
                 }
-#ifdef TEST_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_TL_METRICS
                 gXcpRxPacketCount++;
 #endif
                 return handleXcpCommand(&msgBuf, NULL, 0);
@@ -515,12 +526,11 @@ bool XcpEthTlHandleCommands(void) {
 
         // n > 0, Ok, data received
         else {
-#ifdef TEST_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_TL_METRICS
             gXcpRxPacketCount++;
 #endif
             // Check the received size before reading header fields or dispatching the command.
-            if ((n < (XCPTL_TRANSPORT_LAYER_HEADER_SIZE + 1)) || (n > (int16_t)sizeof(msgBuf.msg)) ||
-                (msgBuf.msg.dlc != (n - XCPTL_TRANSPORT_LAYER_HEADER_SIZE))) {
+            if ((n < (XCPTL_TRANSPORT_LAYER_HEADER_SIZE + 1)) || (n > (int16_t)sizeof(msgBuf.msg)) || (msgBuf.msg.dlc != (n - XCPTL_TRANSPORT_LAYER_HEADER_SIZE))) {
                 DBG_PRINT_ERROR("XcpEthTlHandleCommands: Corrupt message received!\n");
                 return true; // Drop this datagram and keep serving.
             }
@@ -1024,17 +1034,3 @@ bool XcpTlWaitForTransmitQueueEmpty(uint16_t timeout_ms) {
 // Get the next transmit message counter
 // For queue32.c and queue32m.c
 uint16_t XcpTlGetCtr(void) { return gXcpTl.ctr++; }
-
-//-------------------------------------------------------------------------------------------------------
-
-#ifdef TEST_ENABLE_DBG_METRICS
-void XcpEthTlPrintStatistics(void) {
-    printf("  Total write pending: %u\n", gXcpWritePendingCount);
-    printf("  Total publish all:   %u\n", gXcpCalSegPublishAllCount);
-    printf("  Total DAQ events:    %u\n", gXcpDaqEventCount);
-    printf("  Total TX packets:    %u\n", gXcpTxPacketCount);
-    printf("  Total TX messages:   %u\n", gXcpTxMessageCount);
-    printf("  Total TX iovecs:     %u\n", gXcpTxIoVectorCount);
-    printf("  Total RX packets:    %u\n", gXcpRxPacketCount);
-}
-#endif

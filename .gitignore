@@ -1,8 +1,7 @@
 
 build*
+!build.sh
 clang_tidy
-TODO.md
-
 
 # CANape artefacts
 *.hex 
@@ -29,15 +28,17 @@ test_bintool
 *.pcap
 
 # Other
+TODO.md
 .vscode
 .claude
 .DS_Store
 /ptptool.obs
-/docs/CPP_TYPE_TRAITS_GUIDE.md
-/docs/SUBMODULE_GUIDE.md
 /shm_*.sh
 wlan.h
-/TODO_old.md
 /examples/freertos_demo/freertos_stm32_demo/CANape/CmpConfig.json
-/examples/freertos_demo/freertos_stm32_demo/CANape/D8F0.tmp.A2lPROJ
 /test.txt
+/docs/info/SUBMODULE_GUIDE.md
+/docs/info/CPP_TYPE_TRAITS_GUIDE.md
+/docs/rcu_improvements/CAL_RCU_IMPROVEMENT.md
+/docs/rcu_improvements/rcu.h
+/docs/rcu_improvements/review.md

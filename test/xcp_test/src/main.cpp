@@ -1,21 +1,32 @@
-// xcp_test - Sends an XCP CONNECT command to a XCP on UDP server and prints the response
-// Helpfull to initially test connectivity to a new XCP server and analyze/understand the XCP transport layer framing and CONNECT response structure.
+// xcp_test - XCP on UDP client test: command sequence, response decoding and command round trip latency
+//
+// Hermetic by default: starts an XCP on UDP server in process on 127.0.0.1 and runs the test against it.
+// With --server, the test probes an external XCP on UDP server instead, helpfull to initially test connectivity to a new XCP server
+// and analyze/understand the XCP transport layer framing and CONNECT response structure.
+//
+// Test sequence: CONNECT, GET_VERSION, GET_COMM_MODE_INFO (if supported), GET_STATUS latency measurement, DISCONNECT
+// The latency is measured back to back (steady state) and after idle time (includes the thread wake-up latency).
+// The test fails on any protocol error (timeout, negative response, unexpected PID, framing, counter) and when the
+// median back to back latency exceeds the limit. The after idle latency is only reported.
 //
 // Build:
 //   cmake -B build -S . -DXCPLITE_BUILD_TESTS=ON && cmake --build build --target xcp_test
-// Run (requires hello_xcp or similar running on UDP port 5555):
-//   ./build/xcp_test [server_ip] [timeout_ms|none]
+// Run:
+//   ./build/xcp_test [options]
 //
-// Arguments:
-//   server_ip        Optional. Target IPv4 address. Default: 192.168.0.207
-//   timeout_ms|none  Optional. Receive timeout in milliseconds.
-//                    Use 'none' or '0' to disable timeout for server-side debugging.
+// Options:
+//   --server <ip>         Probe an external XCP on UDP server instead of the in-process server
+//   --port <port>         External server port. Default: 5555
+//   --timeout <ms|none>   Receive timeout in milliseconds, 'none' or '0' disables the timeout (for server-side debugging). Default: 3000
+//   --count <n>           Number of back to back GET_STATUS commands for the latency measurement, '0' skips it. Default: 1000
+//   --max-latency <us>    Limit for the median back to back latency, '0' disables the check.
+//                         Default: 1000, or the value of the environment variable XCP_TEST_MAX_LATENCY_US
 //
 // Examples:
 //   ./build/xcp_test
-//   ./build/xcp_test 127.0.0.1
-//   ./build/xcp_test 192.168.0.207 10000
-//   ./build/xcp_test 192.168.0.207 none
+//   ./build/xcp_test --count 10000
+//   ./build/xcp_test --server 127.0.0.1
+//   ./build/xcp_test --server 192.168.0.207 --timeout none
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -35,6 +46,7 @@ typedef int socket_t;
 #define SOCKET_INVALID (-1)
 #endif
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <chrono>
@@ -43,9 +55,13 @@ typedef int socket_t;
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
+
+#include "xcplib.h" // for the in-process XCP server
 
 // ---------------------------------------------------------------------------
 // XCP transport-layer header (4 bytes)  +  payload
@@ -68,13 +84,45 @@ typedef int socket_t;
 //  Byte 7  transport_layer_version
 // ---------------------------------------------------------------------------
 
-static constexpr uint16_t XCP_SERVER_PORT = 5555;
-static constexpr const char *XCP_SERVER_ADDR = "127.0.0.1";
+static constexpr uint16_t XCP_SERVER_PORT = 5555;              // Default port of an external server
+static constexpr uint16_t LOCAL_SERVER_PORT = 5599;            // First port tried for the in-process server
+static constexpr int LOCAL_SERVER_PORT_TRIES = 20;             // Number of consecutive ports tried for the in-process server
+static constexpr uint32_t LOCAL_SERVER_QUEUE_SIZE = 64 * 1024; // Measurement queue size of the in-process server
+static constexpr uint8_t LOCAL_SERVER_LOG_LEVEL = 2;           // Warnings only, logging adds latency to every command
 static constexpr int RECV_TIMEOUT_MS = 3000;
+static constexpr int LATENCY_COUNT = 1000;      // Default number of back to back commands for the latency measurement
+static constexpr int LATENCY_WARMUP_COUNT = 10; // Back to back commands not included in the statistics
+static constexpr int LATENCY_IDLE_COUNT = 20;   // Number of commands for the latency measurement after idle time
+static constexpr int LATENCY_IDLE_MS = 10;      // Idle time before each command
+static constexpr int MAX_LATENCY_US = 1000;     // Default limit for the median back to back latency
 
 static constexpr uint8_t CC_CONNECT = 0xFF;
+static constexpr uint8_t CC_DISCONNECT = 0xFE;
+static constexpr uint8_t CC_GET_STATUS = 0xFD;
 static constexpr uint8_t CC_GET_COMM_MODE_INFO = 0xFB;
 static constexpr uint8_t CC_GET_VERSION = 0xC0;
+
+static constexpr uint8_t PID_RES = 0xFF;
+static constexpr uint8_t PID_ERR = 0xFE;
+static constexpr uint8_t PID_EV = 0xFD;
+static constexpr uint8_t PID_SERV = 0xFC;
+
+struct Options {
+    const char *server_ip = nullptr; // nullptr: in-process server
+    uint16_t port = XCP_SERVER_PORT;
+    bool timeout_enabled = true;
+    int timeout_ms = RECV_TIMEOUT_MS;
+    int latency_count = LATENCY_COUNT;
+    int max_latency_us = MAX_LATENCY_US;
+};
+
+struct Client {
+    socket_t sock = SOCKET_INVALID;
+    sockaddr_in server{};
+    uint16_t tx_ctr = 0;
+    bool have_prev_rx_ctr = false;
+    uint16_t prev_rx_ctr = 0;
+};
 
 struct RxMessage {
     std::vector<uint8_t> payload;
@@ -82,20 +130,108 @@ struct RxMessage {
     uint16_t tl_ctr = 0;
 };
 
+// Number of errors, the test fails if not zero
+static int gErrors = 0;
+
+static void fail(const std::string &msg) {
+    std::cerr << "[ERROR] " << msg << '\n';
+    gErrors++;
+}
+
 static void print_usage(const char *exe) {
     std::cout << "Usage:\n";
-    std::cout << "  " << exe << " [server_ip] [timeout_ms|none]\n\n";
-    std::cout << "Arguments:\n";
-    std::cout << "  server_ip        Optional target IPv4 address.\n";
-    std::cout << "                   Default: " << XCP_SERVER_ADDR << "\n";
-    std::cout << "  timeout_ms|none  Optional receive timeout.\n";
-    std::cout << "                   Integer milliseconds, or 'none'/'0' to disable timeout.\n";
-    std::cout << "                   Default: " << RECV_TIMEOUT_MS << " ms\n\n";
+    std::cout << "  " << exe << " [options]\n\n";
+    std::cout << "Without --server, an XCP on UDP server is started in process on 127.0.0.1 (hermetic self-check).\n\n";
+    std::cout << "Options:\n";
+    std::cout << "  --server <ip>        Probe an external XCP on UDP server instead of the in-process server\n";
+    std::cout << "  --port <port>        External server port. Default: " << XCP_SERVER_PORT << "\n";
+    std::cout << "  --timeout <ms|none>  Receive timeout in milliseconds, 'none' or '0' disables the timeout. Default: " << RECV_TIMEOUT_MS << "\n";
+    std::cout << "  --count <n>          Number of back to back GET_STATUS commands for the latency measurement, '0' skips it. Default: " << LATENCY_COUNT << "\n";
+    std::cout << "  --max-latency <us>   Limit for the median back to back latency, '0' disables the check.\n";
+    std::cout << "                       Default: " << MAX_LATENCY_US << ", or the environment variable XCP_TEST_MAX_LATENCY_US\n\n";
     std::cout << "Examples:\n";
     std::cout << "  " << exe << "\n";
-    std::cout << "  " << exe << " 127.0.0.1\n";
-    std::cout << "  " << exe << " 192.168.0.207 10000\n";
-    std::cout << "  " << exe << " 192.168.0.207 none\n";
+    std::cout << "  " << exe << " --count 10000\n";
+    std::cout << "  " << exe << " --server 127.0.0.1\n";
+    std::cout << "  " << exe << " --server 192.168.0.207 --timeout none\n";
+}
+
+// Parse an integer argument in [min,max], returns false if invalid
+static bool parse_int(const char *s, long min, long max, long &value) {
+    char *end_ptr = nullptr;
+    long parsed = std::strtol(s, &end_ptr, 10);
+    if (end_ptr == s || *end_ptr != '\0' || parsed < min || parsed > max) {
+        return false;
+    }
+    value = parsed;
+    return true;
+}
+
+// Returns 0 on success, 1 on invalid arguments, -1 if help was printed
+static int parse_args(int argc, char **argv, Options &opt) {
+    const char *exe = (argc > 0 && argv[0] != nullptr) ? argv[0] : "xcp_test";
+
+    const char *env = std::getenv("XCP_TEST_MAX_LATENCY_US");
+    if (env != nullptr && env[0] != '\0') {
+        long v = 0;
+        if (!parse_int(env, 0, 10000000L, v)) {
+            std::cerr << "Invalid XCP_TEST_MAX_LATENCY_US '" << env << "'\n";
+            return 1;
+        }
+        opt.max_latency_us = static_cast<int>(v);
+    }
+
+    for (int i = 1; i < argc; i++) {
+        const char *arg = argv[i];
+        if (std::strcmp(arg, "-h") == 0 || std::strcmp(arg, "--help") == 0) {
+            print_usage(exe);
+            return -1;
+        }
+        if (i + 1 >= argc) {
+            std::cerr << "Missing value or unknown option '" << arg << "'\n";
+            print_usage(exe);
+            return 1;
+        }
+        const char *val = argv[++i];
+        long v = 0;
+        if (std::strcmp(arg, "--server") == 0) {
+            opt.server_ip = val;
+        } else if (std::strcmp(arg, "--port") == 0) {
+            if (!parse_int(val, 1, 65535, v)) {
+                std::cerr << "Invalid port '" << val << "'\n";
+                return 1;
+            }
+            opt.port = static_cast<uint16_t>(v);
+        } else if (std::strcmp(arg, "--timeout") == 0) {
+            if (std::strcmp(val, "none") == 0) {
+                opt.timeout_enabled = false;
+            } else {
+                if (!parse_int(val, 0, 2147483647L, v)) {
+                    std::cerr << "Invalid timeout '" << val << "'. Use milliseconds or 'none'.\n";
+                    return 1;
+                }
+                opt.timeout_ms = static_cast<int>(v);
+                opt.timeout_enabled = (opt.timeout_ms > 0);
+            }
+        } else if (std::strcmp(arg, "--count") == 0) {
+            if (!parse_int(val, 0, 1000000L, v)) {
+                std::cerr << "Invalid count '" << val << "'. Use 0..1000000.\n";
+                return 1;
+            }
+            opt.latency_count = static_cast<int>(v);
+        } else if (std::strcmp(arg, "--max-latency") == 0) {
+            if (!parse_int(val, 0, 10000000L, v)) {
+                std::cerr << "Invalid max latency '" << val << "'\n";
+                return 1;
+            }
+            opt.max_latency_us = static_cast<int>(v);
+        } else {
+            std::cerr << "Unknown option '" << arg << "'\n";
+            print_usage(exe);
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static std::vector<uint8_t> build_xcp_packet(uint16_t ctr, const std::vector<uint8_t> &payload) {
@@ -119,84 +255,147 @@ static void print_hex(const uint8_t *data, int len) {
     std::cout << std::dec << '\n';
 }
 
-static bool receive_xcp_response(socket_t sock, RxMessage &rx, bool timeout_enabled, int timeout_ms) {
-    uint8_t buf[256]{};
-    sockaddr_in from{};
-#ifdef _WIN32
-    int from_len = sizeof(from);
-#else
-    socklen_t from_len = sizeof(from);
-#endif
-
-    int received = static_cast<int>(recvfrom(sock, reinterpret_cast<char *>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr *>(&from), &from_len));
-    if (received <= 0) {
-        if (timeout_enabled) {
-            std::cerr << "recvfrom() failed or timeout (no response within " << timeout_ms << " ms)\n";
-        } else {
-            std::cerr << "recvfrom() failed\n";
+// Check that the transport layer counter increments by 1 with each message received
+static void check_counter(Client &c, uint16_t ctr, bool verbose) {
+    if (c.have_prev_rx_ctr) {
+        const uint16_t expected = static_cast<uint16_t>(c.prev_rx_ctr + 1);
+        if (ctr != expected) {
+            fail("Unexpected transport layer counter (prev=" + std::to_string(c.prev_rx_ctr) + ", current=" + std::to_string(ctr) + ", expected=" + std::to_string(expected) + ")");
+        } else if (verbose) {
+            std::cout << "Counter check: OK (" << c.prev_rx_ctr << " -> " << ctr << ")\n";
         }
+    } else if (verbose) {
+        std::cout << "Counter check: first response counter = " << ctr << "\n";
+    }
+    c.prev_rx_ctr = ctr;
+    c.have_prev_rx_ctr = true;
+}
+
+// Send a command and receive its response (PID 0xFF or 0xFE)
+// EVENT and SERV messages are skipped, multiple messages in one UDP datagram are supported
+// verbose prints the raw bytes and the transport layer header, the latency measurement runs without any output
+// Returns false on socket errors and timeouts, the caller checks the PID
+static bool send_command(Client &c, const std::vector<uint8_t> &cmd, RxMessage &rx, bool verbose) {
+    const auto pkt = build_xcp_packet(c.tx_ctr, cmd);
+    if (verbose) {
+        std::cout << "TX raw bytes: ";
+        print_hex(pkt.data(), static_cast<int>(pkt.size()));
+    }
+    c.tx_ctr = static_cast<uint16_t>(c.tx_ctr + 1);
+
+    int sent = static_cast<int>(
+        sendto(c.sock, reinterpret_cast<const char *>(pkt.data()), static_cast<int>(pkt.size()), 0, reinterpret_cast<const sockaddr *>(&c.server), sizeof(c.server)));
+    if (sent != static_cast<int>(pkt.size())) {
+        fail("sendto() failed (sent=" + std::to_string(sent) + ")");
         return false;
     }
 
-    std::cout << "RX raw bytes (" << received << " bytes): ";
-    print_hex(buf, received);
+    for (;;) {
+        uint8_t buf[512];
+        int received = static_cast<int>(recvfrom(c.sock, reinterpret_cast<char *>(buf), sizeof(buf), 0, nullptr, nullptr));
+        if (received <= 0) {
+            fail("recvfrom() failed or timeout, no response");
+            return false;
+        }
+        if (verbose) {
+            std::cout << "RX raw bytes (" << received << " bytes): ";
+            print_hex(buf, received);
+        }
 
-    if (received < 5) {
-        std::cerr << "Response too short to contain a valid XCP transport-layer header\n";
+        // Iterate the messages in the datagram
+        bool have_response = false;
+        int i = 0;
+        while (i < received) {
+            if (received - i < 5) {
+                fail("Datagram too short for a transport layer header and payload (" + std::to_string(received - i) + " bytes at offset " + std::to_string(i) + ")");
+                break;
+            }
+            const uint16_t len = static_cast<uint16_t>(buf[i]) | (static_cast<uint16_t>(buf[i + 1]) << 8);
+            const uint16_t ctr = static_cast<uint16_t>(buf[i + 2]) | (static_cast<uint16_t>(buf[i + 3]) << 8);
+            if (len == 0) {
+                if (verbose)
+                    std::cout << "Ignoring " << (received - i) << " fill bytes at offset " << i << "\n";
+                break;
+            }
+            if (len > received - i - 4) {
+                fail("Transport layer length " + std::to_string(len) + " exceeds the datagram (" + std::to_string(received - i - 4) + " bytes available)");
+                break;
+            }
+            if (verbose) {
+                std::cout << "Transport layer header: len=" << len << ", ctr=" << ctr << "\n";
+            }
+            check_counter(c, ctr, verbose);
+
+            const uint8_t pid = buf[i + 4];
+            if (pid == PID_RES || pid == PID_ERR) {
+                if (have_response) {
+                    fail("More than one response in one datagram");
+                } else {
+                    rx.tl_len = len;
+                    rx.tl_ctr = ctr;
+                    rx.payload.assign(buf + i + 4, buf + i + 4 + len);
+                    have_response = true;
+                }
+            } else if (pid == PID_EV || pid == PID_SERV) {
+                if (verbose)
+                    std::cout << "Skipping " << (pid == PID_EV ? "EVENT" : "SERV") << " message\n";
+            } else {
+                std::ostringstream m;
+                m << "Unexpected PID 0x" << std::hex << std::uppercase << static_cast<int>(pid) << " (DAQ data without DAQ running?)";
+                fail(m.str());
+            }
+            i += 4 + len;
+        }
+        if (have_response)
+            return true;
+    }
+}
+
+// Check for a positive response with at least min_len bytes
+static bool check_response(const char *name, const RxMessage &rx, size_t min_len) {
+    if (rx.payload.empty()) {
+        fail(std::string(name) + ": empty response");
         return false;
     }
-
-    rx.tl_len = static_cast<uint16_t>(buf[0]) | (static_cast<uint16_t>(buf[1]) << 8);
-    rx.tl_ctr = static_cast<uint16_t>(buf[2]) | (static_cast<uint16_t>(buf[3]) << 8);
-
-    const int udp_payload_len = received - 4;
-    std::cout << "Transport layer header:\n";
-    std::cout << "  payload_len : " << rx.tl_len << " bytes\n";
-    std::cout << "  counter     : " << rx.tl_ctr << " (0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0') << rx.tl_ctr << ")\n" << std::dec;
-    std::cout << "  udp_payload : " << udp_payload_len << " bytes\n";
-
-    if (udp_payload_len != static_cast<int>(rx.tl_len)) {
-        const int diff = udp_payload_len - static_cast<int>(rx.tl_len);
-        std::cout << "  [WARN] Header payload_len and UDP payload differ by " << diff << " byte(s), decoding with available minimum length\n";
+    if (rx.payload[0] == PID_ERR) {
+        std::ostringstream s;
+        s << name << ": negative response, error code 0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
+          << static_cast<int>(rx.payload.size() >= 2 ? rx.payload[1] : 0);
+        fail(s.str());
+        return false;
     }
-
-    int decode_len = udp_payload_len;
-    if (decode_len > static_cast<int>(rx.tl_len)) {
-        decode_len = static_cast<int>(rx.tl_len);
+    if (rx.payload.size() < min_len) {
+        fail(std::string(name) + ": response too short (" + std::to_string(rx.payload.size()) + " bytes, expected " + std::to_string(min_len) + ")");
+        return false;
     }
-    if (decode_len < 0) {
-        decode_len = 0;
-    }
-
-    rx.payload.assign(buf + 4, buf + 4 + decode_len);
     return true;
 }
 
-// Decode and print the CONNECT response payload (starts at byte 4 of the UDP datagram)
-static void decode_connect_response(const uint8_t *payload, int payload_len) {
-    if (payload_len < 1) {
-        std::cout << "  [ERROR] response payload too short\n";
-        return;
-    }
+// Print latency statistics, values in ns, returns the median
+static int64_t print_latency_statistics(const char *name, std::vector<int64_t> &samples) {
+    if (samples.empty())
+        return 0;
+    std::sort(samples.begin(), samples.end());
+    int64_t sum = 0;
+    for (int64_t s : samples)
+        sum += s;
+    auto us = [](double ns) { return ns / 1000.0; };
+    auto percentile = [&](double p) { return samples[std::min(samples.size() - 1, static_cast<size_t>(p * static_cast<double>(samples.size())))]; };
+    std::cout << std::fixed << std::setprecision(1);
+    std::cout << name << " (" << samples.size() << " samples):\n";
+    std::cout << "  min    : " << us(static_cast<double>(samples.front())) << " us\n";
+    std::cout << "  median : " << us(static_cast<double>(percentile(0.5))) << " us\n";
+    std::cout << "  avg    : " << us(static_cast<double>(sum) / static_cast<double>(samples.size())) << " us\n";
+    std::cout << "  p90    : " << us(static_cast<double>(percentile(0.9))) << " us\n";
+    std::cout << "  p99    : " << us(static_cast<double>(percentile(0.99))) << " us\n";
+    std::cout << "  max    : " << us(static_cast<double>(samples.back())) << " us\n";
+    std::cout.unsetf(std::ios::floatfield);
+    std::cout << std::setprecision(6);
+    return percentile(0.5);
+}
 
-    uint8_t pid = payload[0];
-    if (pid == 0xFE) {
-        // Negative response
-        uint8_t error_code = (payload_len >= 2) ? payload[1] : 0;
-        std::cout << "  PID          : 0xFE  (NEGATIVE_RESPONSE)\n";
-        std::cout << "  Error code   : 0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(error_code) << '\n';
-        return;
-    }
-
-    if (pid != 0xFF) {
-        std::cout << "  [ERROR] unexpected PID 0x" << std::hex << static_cast<int>(pid) << '\n';
-        return;
-    }
-    if (payload_len < 8) {
-        std::cout << "  [ERROR] CONNECT response too short (" << payload_len << " bytes)\n";
-        return;
-    }
-
+// Decode and print the CONNECT response payload
+static void decode_connect_response(const std::vector<uint8_t> &payload) {
     uint8_t resource = payload[1];
     uint8_t comm_mode = payload[2];
     uint8_t max_cto = payload[3];
@@ -238,7 +437,6 @@ static void decode_connect_response(const uint8_t *payload, int payload_len) {
         break;
     }
 
-    std::cout << "  PID                      : 0xFF  (POSITIVE_RESPONSE)\n";
     std::cout << "  resources                : 0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(resource) << "  (" << res_str << ")\n";
     std::cout << "  comm_mode_basic          : 0x" << std::setw(2) << static_cast<int>(comm_mode) << "  (byte_order=" << byte_order << ", addr_gran=" << gran_str << ")\n";
     std::cout << "  max_cto_size             : " << std::dec << static_cast<int>(max_cto) << " bytes\n";
@@ -248,57 +446,21 @@ static void decode_connect_response(const uint8_t *payload, int payload_len) {
     std::cout << std::dec;
 }
 
-static void decode_get_version_response(const uint8_t *payload, int payload_len) {
-    if (payload_len < 1) {
-        std::cout << "  [ERROR] response payload too short\n";
-        return;
-    }
-
-    const uint8_t pid = payload[0];
-    if (pid == 0xFE) {
-        const uint8_t error_code = (payload_len >= 2) ? payload[1] : 0;
-        std::cout << "  PID          : 0xFE  (NEGATIVE_RESPONSE)\n";
-        std::cout << "  Error code   : 0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(error_code) << '\n';
-        return;
-    }
-    if (pid != 0xFF || payload_len < 6) {
-        std::cout << "  [ERROR] invalid GET_VERSION response\n";
-        return;
-    }
-
+static void decode_get_version_response(const std::vector<uint8_t> &payload) {
     const uint16_t protocol_version = (static_cast<uint16_t>(payload[2]) << 8) | payload[3];
     const uint16_t transport_layer_version = (static_cast<uint16_t>(payload[4]) << 8) | payload[5];
-    std::cout << "  PID                      : 0xFF  (POSITIVE_RESPONSE)\n";
     std::cout << "  protocol_version         : 0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0') << protocol_version << '\n';
     std::cout << "  transport_layer_version  : 0x" << std::setw(4) << transport_layer_version << '\n';
     std::cout << std::dec;
 }
 
-static void decode_get_comm_mode_info_response(const uint8_t *payload, int payload_len) {
-    if (payload_len < 1) {
-        std::cout << "  [ERROR] response payload too short\n";
-        return;
-    }
-
-    const uint8_t pid = payload[0];
-    if (pid == 0xFE) {
-        const uint8_t error_code = (payload_len >= 2) ? payload[1] : 0;
-        std::cout << "  PID          : 0xFE  (NEGATIVE_RESPONSE)\n";
-        std::cout << "  Error code   : 0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(error_code) << '\n';
-        return;
-    }
-    if (pid != 0xFF || payload_len < 8) {
-        std::cout << "  [ERROR] invalid GET_COMM_MODE_INFO response\n";
-        return;
-    }
-
+static void decode_get_comm_mode_info_response(const std::vector<uint8_t> &payload) {
     const uint8_t comm_mode_optional = payload[2];
     const uint8_t max_bs = payload[3];
     const uint8_t min_st = payload[4];
     const uint8_t queue_size = payload[5];
     const uint8_t xcp_driver_version_number = payload[7];
 
-    std::cout << "  PID                      : 0xFF  (POSITIVE_RESPONSE)\n";
     std::cout << "  comm_mode_optional       : 0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(comm_mode_optional) << '\n';
     std::cout << "  max_bs                   : " << std::dec << static_cast<int>(max_bs) << '\n';
     std::cout << "  min_st                   : " << static_cast<int>(min_st) << '\n';
@@ -307,11 +469,137 @@ static void decode_get_comm_mode_info_response(const uint8_t *payload, int paylo
     std::cout << std::dec;
 }
 
-int main(int argc, char **argv) {
-    if (argc > 1 && argv[1] != nullptr && (std::strcmp(argv[1], "-h") == 0 || std::strcmp(argv[1], "--help") == 0)) {
-        print_usage((argc > 0 && argv[0] != nullptr) ? argv[0] : "xcp_test");
+// Run the test sequence, errors are counted in gErrors
+// Returns false if the sequence had to be aborted
+static bool run_test(Client &c, const Options &opt) {
+
+    // CONNECT
+    RxMessage rx;
+    std::cout << "\nSending XCP CONNECT\n";
+    if (!send_command(c, {CC_CONNECT, 0x00}, rx, true))
+        return false;
+    if (!check_response("CONNECT", rx, 8))
+        return false;
+    std::cout << "XCP CONNECT response decoded:\n";
+    decode_connect_response(rx.payload);
+    const uint8_t comm_mode_basic = rx.payload[2];
+
+    // GET_VERSION
+    std::cout << "\nSending XCP GET_VERSION\n";
+    if (!send_command(c, {CC_GET_VERSION, 0x00}, rx, true))
+        return false;
+    if (check_response("GET_VERSION", rx, 6)) {
+        std::cout << "XCP GET_VERSION response decoded:\n";
+        decode_get_version_response(rx.payload);
+    }
+
+    // GET_COMM_MODE_INFO, if supported
+    if ((comm_mode_basic & 0x80) != 0) {
+        std::cout << "\nSending XCP GET_COMM_MODE_INFO\n";
+        if (!send_command(c, {CC_GET_COMM_MODE_INFO, 0x00}, rx, true))
+            return false;
+        if (check_response("GET_COMM_MODE_INFO", rx, 8)) {
+            std::cout << "XCP GET_COMM_MODE_INFO response decoded:\n";
+            decode_get_comm_mode_info_response(rx.payload);
+        }
+    } else {
+        std::cout << "\nSkipping GET_COMM_MODE_INFO because CONNECT response indicates it is not supported (comm_mode_basic bit7 not set).\n";
+    }
+
+    // Command round trip latency measurement with GET_STATUS
+    // Back to back: steady state latency, all threads involved are awake
+    // After idle: includes the wake-up latency of the client and server threads, depends on OS power management, only reported
+    if (opt.latency_count > 0) {
+        std::cout << "\nLatency measurement with GET_STATUS:\n";
+        std::vector<int64_t> samples;
+        samples.reserve(static_cast<size_t>(opt.latency_count));
+        for (int i = 0; i < LATENCY_WARMUP_COUNT + opt.latency_count; i++) {
+            const auto t0 = std::chrono::steady_clock::now();
+            if (!send_command(c, {CC_GET_STATUS}, rx, false))
+                return false;
+            const auto t1 = std::chrono::steady_clock::now();
+            if (!check_response("GET_STATUS", rx, 6))
+                return false;
+            if (i >= LATENCY_WARMUP_COUNT)
+                samples.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count());
+        }
+        const int64_t median_ns = print_latency_statistics("Back to back", samples);
+
+        samples.clear();
+        for (int i = 0; i < LATENCY_IDLE_COUNT; i++) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(LATENCY_IDLE_MS));
+            const auto t0 = std::chrono::steady_clock::now();
+            if (!send_command(c, {CC_GET_STATUS}, rx, false))
+                return false;
+            const auto t1 = std::chrono::steady_clock::now();
+            if (!check_response("GET_STATUS", rx, 6))
+                return false;
+            samples.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count());
+        }
+        std::string name = "After " + std::to_string(LATENCY_IDLE_MS) + " ms idle";
+        print_latency_statistics(name.c_str(), samples);
+
+        if (opt.max_latency_us > 0) {
+            if (median_ns > static_cast<int64_t>(opt.max_latency_us) * 1000) {
+                fail("Median back to back latency " + std::to_string(median_ns / 1000) + " us exceeds the limit of " + std::to_string(opt.max_latency_us) + " us");
+            } else {
+                std::cout << "Median back to back latency within the limit of " << opt.max_latency_us << " us\n";
+            }
+        }
+    }
+
+    // DISCONNECT
+    std::cout << "\nSending XCP DISCONNECT\n";
+    if (!send_command(c, {CC_DISCONNECT}, rx, true))
+        return false;
+    check_response("DISCONNECT", rx, 1);
+    return true;
+}
+
+// Check that a UDP port on 127.0.0.1 is free, by binding a socket to it
+static bool udp_port_free(uint16_t port) {
+    socket_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s == SOCKET_INVALID)
+        return false;
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    a.sin_port = htons(port);
+    bool ok = bind(s, reinterpret_cast<sockaddr *>(&a), sizeof(a)) == 0;
+    CLOSE_SOCKET(s);
+    return ok;
+}
+
+// Start the in-process XCP server on 127.0.0.1, on the first free port from LOCAL_SERVER_PORT
+// Returns the port, 0 on failure
+static uint16_t start_local_server() {
+    uint16_t port = 0;
+    for (int i = 0; i < LOCAL_SERVER_PORT_TRIES; i++) {
+        if (udp_port_free(static_cast<uint16_t>(LOCAL_SERVER_PORT + i))) {
+            port = static_cast<uint16_t>(LOCAL_SERVER_PORT + i);
+            break;
+        }
+    }
+    if (port == 0) {
+        std::cerr << "No free UDP port in " << LOCAL_SERVER_PORT << ".." << (LOCAL_SERVER_PORT + LOCAL_SERVER_PORT_TRIES - 1) << "\n";
         return 0;
     }
+
+    XcpSetLogLevel(LOCAL_SERVER_LOG_LEVEL);
+    XcpInit("xcp_test", "V1.0", XCP_MODE_LOCAL);
+    const uint8_t addr[4] = {127, 0, 0, 1};
+    if (!XcpEthServerInit(addr, port, false, LOCAL_SERVER_QUEUE_SIZE)) {
+        std::cerr << "Failed to start the in-process XCP server on port " << port << "\n";
+        return 0;
+    }
+    return port;
+}
+
+int main(int argc, char **argv) {
+    Options opt;
+    int r = parse_args(argc, argv, opt);
+    if (r != 0)
+        return r < 0 ? 0 : 1;
 
 #ifdef _WIN32
     WSADATA wsa{};
@@ -321,9 +609,24 @@ int main(int argc, char **argv) {
     }
 #endif
 
+    // Start the in-process server, unless an external server is given
+    const bool local_server = (opt.server_ip == nullptr);
+    if (local_server) {
+        uint16_t port = start_local_server();
+        if (port == 0)
+            return 1;
+        opt.server_ip = "127.0.0.1";
+        opt.port = port;
+        std::cout << "Mode: hermetic self-check, in-process XCP on UDP server on 127.0.0.1:" << port << " (pass --server <ip> to probe an external server)\n";
+    } else {
+        std::cout << "Mode: probe external XCP on UDP server " << opt.server_ip << ":" << opt.port << "\n";
+    }
+
+    Client c;
+
     // Create UDP socket
-    socket_t sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (sock == SOCKET_INVALID) {
+    c.sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (c.sock == SOCKET_INVALID) {
         std::cerr << "socket() failed\n";
         return 1;
     }
@@ -333,9 +636,9 @@ int main(int argc, char **argv) {
     local.sin_family = AF_INET;
     local.sin_addr.s_addr = INADDR_ANY;
     local.sin_port = 0;
-    if (bind(sock, reinterpret_cast<sockaddr *>(&local), sizeof(local)) != 0) {
+    if (bind(c.sock, reinterpret_cast<sockaddr *>(&local), sizeof(local)) != 0) {
         std::cerr << "bind() failed\n";
-        CLOSE_SOCKET(sock);
+        CLOSE_SOCKET(c.sock);
         return 1;
     }
 
@@ -346,139 +649,55 @@ int main(int argc, char **argv) {
 #else
     socklen_t local_bound_len = sizeof(local_bound);
 #endif
-    if (getsockname(sock, reinterpret_cast<sockaddr *>(&local_bound), &local_bound_len) == 0) {
+    if (getsockname(c.sock, reinterpret_cast<sockaddr *>(&local_bound), &local_bound_len) == 0) {
         std::cout << "Client UDP source port: " << ntohs(local_bound.sin_port) << '\n';
     } else {
         std::cout << "Client UDP source port: unknown (getsockname failed)\n";
     }
 
-    // Server address (default can be overridden by first command-line argument)
-    const char *server_ip = (argc > 1 && argv[1] != nullptr && argv[1][0] != '\0') ? argv[1] : XCP_SERVER_ADDR;
-
-    // Optional timeout (second argument): milliseconds, or "none" / "0" to disable timeout.
-    bool timeout_enabled = true;
-    int timeout_ms = RECV_TIMEOUT_MS;
-    if (argc > 2 && argv[2] != nullptr && argv[2][0] != '\0') {
-        if (std::strcmp(argv[2], "none") == 0 || std::strcmp(argv[2], "0") == 0) {
-            timeout_enabled = false;
-        } else {
-            char *end_ptr = nullptr;
-            long parsed = std::strtol(argv[2], &end_ptr, 10);
-            if (end_ptr == argv[2] || *end_ptr != '\0' || parsed < 0 || parsed > 2147483647L) {
-                std::cerr << "Invalid timeout argument '" << argv[2] << "'. Use milliseconds or 'none'.\n";
-                CLOSE_SOCKET(sock);
-                return 1;
-            }
-            timeout_ms = static_cast<int>(parsed);
-            timeout_enabled = (timeout_ms > 0);
-        }
-    }
-
     // Set receive timeout (optional)
 #ifdef _WIN32
-    DWORD timeout_opt = timeout_enabled ? static_cast<DWORD>(timeout_ms) : 0;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char *>(&timeout_opt), sizeof(timeout_opt));
+    DWORD timeout_opt = opt.timeout_enabled ? static_cast<DWORD>(opt.timeout_ms) : 0;
+    setsockopt(c.sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char *>(&timeout_opt), sizeof(timeout_opt));
 #else
     timeval tv{};
-    if (timeout_enabled) {
-        tv.tv_sec = timeout_ms / 1000;
-        tv.tv_usec = (timeout_ms % 1000) * 1000;
-    } else {
-        tv.tv_sec = 0;
-        tv.tv_usec = 0;
+    if (opt.timeout_enabled) {
+        tv.tv_sec = opt.timeout_ms / 1000;
+        tv.tv_usec = (opt.timeout_ms % 1000) * 1000;
     }
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(c.sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 #endif
-    if (timeout_enabled) {
-        std::cout << "Receive timeout: " << timeout_ms << " ms\n";
+    if (opt.timeout_enabled) {
+        std::cout << "Receive timeout: " << opt.timeout_ms << " ms\n";
     } else {
         std::cout << "Receive timeout: disabled\n";
     }
 
-    sockaddr_in server{};
-    server.sin_family = AF_INET;
-    server.sin_port = htons(XCP_SERVER_PORT);
-    if (inet_pton(AF_INET, server_ip, &server.sin_addr) != 1) {
-        std::cerr << "inet_pton() failed for " << server_ip << '\n';
-        CLOSE_SOCKET(sock);
+    c.server.sin_family = AF_INET;
+    c.server.sin_port = htons(opt.port);
+    if (inet_pton(AF_INET, opt.server_ip, &c.server.sin_addr) != 1) {
+        std::cerr << "inet_pton() failed for " << opt.server_ip << '\n';
+        CLOSE_SOCKET(c.sock);
         return 1;
     }
 
-    uint16_t tx_ctr = 0;
-    bool have_prev_rx_ctr = false;
-    uint16_t prev_rx_ctr = 0;
-
-    auto send_command_and_receive = [&](const char *name, const std::vector<uint8_t> &payload, RxMessage &rx) -> bool {
-        const auto pkt = build_xcp_packet(tx_ctr, payload);
-        std::cout << "\nSending XCP " << name << " to " << server_ip << ":" << XCP_SERVER_PORT << " (UDP), tx_ctr=" << tx_ctr << "\n";
-        std::cout << "TX raw bytes: ";
-        print_hex(pkt.data(), static_cast<int>(pkt.size()));
-
-        int sent = static_cast<int>(
-            sendto(sock, reinterpret_cast<const char *>(pkt.data()), static_cast<int>(pkt.size()), 0, reinterpret_cast<const sockaddr *>(&server), sizeof(server)));
-        if (sent != static_cast<int>(pkt.size())) {
-            std::cerr << "sendto() failed (sent=" << sent << ")\n";
-            return false;
-        }
-
-        if (!receive_xcp_response(sock, rx, timeout_enabled, timeout_ms)) {
-            return false;
-        }
-
-        if (have_prev_rx_ctr) {
-            const uint16_t expected = static_cast<uint16_t>(prev_rx_ctr + 1);
-            if (rx.tl_ctr == expected) {
-                std::cout << "Counter check: OK (" << prev_rx_ctr << " -> " << rx.tl_ctr << ")\n";
-            } else {
-                std::cout << "Counter check: [WARN] unexpected jump (prev=" << prev_rx_ctr << ", current=" << rx.tl_ctr << ", expected=" << expected << ")\n";
-            }
-        } else {
-            std::cout << "Counter check: first response counter = " << rx.tl_ctr << "\n";
-        }
-        prev_rx_ctr = rx.tl_ctr;
-        have_prev_rx_ctr = true;
-
-        tx_ctr = static_cast<uint16_t>(tx_ctr + 1);
-        return true;
-    };
-
-    RxMessage connect_rx;
-    if (!send_command_and_receive("CONNECT", {CC_CONNECT, 0x00}, connect_rx)) {
-        CLOSE_SOCKET(sock);
-        return 1;
-    }
-    std::cout << "XCP CONNECT response decoded:\n";
-    decode_connect_response(connect_rx.payload.data(), static_cast<int>(connect_rx.payload.size()));
-
-    uint8_t comm_mode_basic = 0;
-    bool connect_positive = connect_rx.payload.size() >= 3 && connect_rx.payload[0] == 0xFF;
-    if (connect_positive) {
-        comm_mode_basic = connect_rx.payload[2];
+    if (!run_test(c, opt)) {
+        std::cerr << "Test sequence aborted\n";
     }
 
-    RxMessage get_version_rx;
-    if (!send_command_and_receive("GET_VERSION", {CC_GET_VERSION, 0x00}, get_version_rx)) {
-        CLOSE_SOCKET(sock);
-        return 1;
+    CLOSE_SOCKET(c.sock);
+    if (local_server) {
+        XcpDisconnect();
+        XcpEthServerShutdown();
     }
-    std::cout << "XCP GET_VERSION response decoded:\n";
-    decode_get_version_response(get_version_rx.payload.data(), static_cast<int>(get_version_rx.payload.size()));
-
-    if (connect_positive && ((comm_mode_basic & 0x80) != 0)) {
-        RxMessage get_comm_mode_info_rx;
-        if (!send_command_and_receive("GET_COMM_MODE_INFO", {CC_GET_COMM_MODE_INFO, 0x00}, get_comm_mode_info_rx)) {
-            CLOSE_SOCKET(sock);
-            return 1;
-        }
-        std::cout << "XCP GET_COMM_MODE_INFO response decoded:\n";
-        decode_get_comm_mode_info_response(get_comm_mode_info_rx.payload.data(), static_cast<int>(get_comm_mode_info_rx.payload.size()));
-    } else {
-        std::cout << "\nSkipping GET_COMM_MODE_INFO because CONNECT response indicates it is not supported (comm_mode_basic bit7 not set).\n";
-    }
-
-    CLOSE_SOCKET(sock);
 #ifdef _WIN32
     WSACleanup();
 #endif
+
+    if (gErrors > 0) {
+        std::cout << "\nFAILED: " << gErrors << " error(s)\n";
+        return 1;
+    }
+    std::cout << "\nPASSED\n";
     return 0;
 }

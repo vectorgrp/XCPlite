@@ -95,6 +95,20 @@ xcpclient --offline --udp --dest-addr 192.168.0.207 --elf build/Debug/STM32H753E
 xcpclient --offline --udp --dest-addr 127.0.0.1 --elf build-rtos/Debug/freertos_emu_demo --a2l examples/freertos_demo/freertos_emu_demo/CANape/freertos_demo.a2l --default-event=mainloop --elf-unit-filter xcp_demo
 ```
 
+The `--offline` commands above need section registration (`OPTION_SECTION_REGISTRATION`), which puts the event ids and calibration
+segment numbers into the ELF file. If the `rtos` configuration is built without it (`#undef OPTION_SECTION_REGISTRATION` in `src/xcplib_rtos_cfg.h`), the target numbers
+events and segments in the order of creation at runtime. The offline A2L file then has placeholder event ids, and most XCP tools use
+them as they are. Generate the A2L file with the running target instead, omit `--offline`, or correct the offline A2L file once with the
+running target:
+
+```bash
+xcpclient --udp --dest-addr <esp32-ip-address> --elf <elf-file> --a2l <a2l-file> --create-a2l --default-event=fastTask --elf-unit-filter xcp_demo
+xcpclient --udp --dest-addr <esp32-ip-address> --a2l <a2l-file> --fix-a2l
+```
+
+The creation order must be the same in every run: `xcp_demo.c` creates the calibration segment in `startXcpServer()` after `XcpInit()`,
+before the tasks start. See [docs/OFFLINE_A2L.md — Without section registration](../../docs/OFFLINE_A2L.md#without-section-registration).
+
 See below how to obtain the xcpclient tool.  
 
 
@@ -164,6 +178,15 @@ emits a `tXcpEventDescriptor` (name, cycle time, priority) into `xcp_evts`. xcpc
 **`xcp_cals` section** — every `CalSegDecl(name)` at file scope emits a `tXcpCalSegDescriptor`
 (name, default page address, size) into `xcp_cals`. xcpclient iterates this to discover all calibration segments.
 
+The linker has to keep both sections and provide the boundary symbols `__start_xcp_evts`/`__stop_xcp_evts` and
+`__start_xcp_cals`/`__stop_xcp_cals`, a custom linker script needs `KEEP` and the symbol definitions (see `freertos_esp32_demo/extra_linker_script.py`).
+Each event must be created in one place only. What else to consider and how to check that the registration works is described in
+[docs/OFFLINE_A2L.md — With section registration: requirements and checks](../../docs/OFFLINE_A2L.md#with-section-registration-requirements-and-checks).
+
+Both sections exist only with `OPTION_SECTION_REGISTRATION`. Without it, xcpclient finds the events and segments by the names of their
+descriptor variables in the DWARF, but not their numbers, and `CalSegDecl`/`CalSegDeclRef` are a compile-time error: `xcp_demo.c`
+then creates the segment with `CalSegCreate` after `XcpInit()`, see the `#ifdef OPTION_SECTION_REGISTRATION` there.
+
 **DWARF trigger point anchors** — every event trigger macro emits a named static variable (e.g. `trg__AAS__name`, `trg__AASD__name`) whose name encodes the active addressing modes.
 xcpclient finds this variable in the DWARF and walks all variables in the same lexical scope — those become the local measurements in the A2L.
 
@@ -197,7 +220,7 @@ FreeRTOS configuration overrides are in `xcplib_rtos_cfg.h`:
 | Option | Value | Reason |
 |---|---|---|
 | `OPTION_QUEUE_32` | set | Mandatory on Cortex-M4: no 64-bit atomic operations |
-| `OPTION_QUEUE_32_SEGMENT_COUNT` | 16 | Number of statically allocated transmit queue segments; minimum 2 |
+| `OPTION_QUEUE_32_SIZE` | 16 segments | Size of the statically allocated transmit queue, a multiple of `sizeof(tXcpSegmentBuffer)`; minimum 2 segments |
 | `OPTION_CLOCK_TICKS_1US` | set | `xTaskGetTickCount()`-based clock, 1 µs unit |
 | `OPTION_MTU` | 1500 | 1500 − 20-byte IPv4 header − 8-byte UDP header = 1472-byte maximum UDP payload |
 | `OPTION_CAL_MEM_SIZE` | 4 KB | Tune to available SRAM |
@@ -219,18 +242,28 @@ Init transport layer queue (queue32)
   buffer_size=23680, queue_size=16 (23680 Bytes)
 ```
 
-`queue32m.c` uses a fixed, statically allocated transmit queue sized by `OPTION_QUEUE_32_SEGMENT_COUNT`. It does not use the heap.
+`queue32m.c` uses a fixed, statically allocated transmit queue sized by `OPTION_QUEUE_32_SIZE`, the queue size parameter of `XcpEthServerInit` must be 0. It does not use the heap.
 
 With `configSUPPORT_STATIC_ALLOCATION=1`, XCPlite also uses static storage for its FreeRTOS mutexes, internal task control blocks and stacks. Otherwise, it uses the dynamic FreeRTOS creation APIs. This setting does not affect application- or kernel-owned objects.
 
-Each segment holds one UDP payload plus 8 bytes of metadata. With the default MTU of 1500, each segment occupies 1,480 bytes, so 16 segments require 23,680 bytes of static RAM. Adjust `OPTION_QUEUE_32_SEGMENT_COUNT` for DAQ burst capacity and RAM usage.
+Each segment holds one UDP payload plus 8 bytes of metadata. With the default MTU of 1500, each segment occupies 1,480 bytes, so 16 segments require 23,680 bytes of static RAM. Adjust the segment count in `OPTION_QUEUE_32_SIZE` for DAQ burst capacity and RAM usage.
 
-The queue state and buffer use the default `.dtcm` and `.noncacheable` sections on embedded targets. These sections may be overridden in `xcplib_rtos_cfg.h` to match the application linker script:
+The queue state and buffer are placed in ordinary RAM by default. They may be placed into dedicated sections of the application linker script, for example the queue state into zero wait state DTCM on STM32H7. The section must exist in the linker script, GNU ld places an unknown section somewhere without a diagnostic:
 
 ```c
-#define OPTION_QUEUE_32_ATTRIBUTE __attribute__((section(".queue")))
+#define OPTION_QUEUE_32_ATTRIBUTE __attribute__((section(".dtcm")))
 #define OPTION_QUEUE_32_BUFFER_ATTRIBUTE __attribute__((section(".queue_buffer")))
 ```
+
+### lwIP API and Ethernet DMA
+
+By default the XCP server uses the lwIP netconn API. Every transmitted datagram is copied into a `PBUF_RAM` pbuf owned by lwIP, so the XCP buffers are free again when the send returns, whatever the lwIP build options and the Ethernet driver do. This matters for drivers which transmit with asynchronous DMA directly from the pbuf and release it on transmit completion, and which do cache maintenance only for pbufs they consider their own: TI CPSW lwipif skips it for `PBUF_REF` payloads, the STM32H7 `ethernetif.c` relies on the lwIP heap being placed in non-cacheable RAM.
+
+`OPTION_FREERTOS_LWIP_SOCKET_API` selects the lwIP socket API instead. With `LWIP_NETIF_TX_SINGLE_PBUF=0`, `lwip_sendto` references the XCP transmit buffer as a `PBUF_REF` pbuf instead of copying it. This saves one copy per datagram, but is only correct when the Ethernet driver has finished reading the buffer, or has copied it, before `lwip_sendto` returns, and keeps it coherent with its DMA (CPU cache). Drivers which start an asynchronous DMA transfer and release the pbuf on transmit completion, like TI CPSW lwipif and the STM32H7 `ethernetif.c`, do not meet this. With `LWIP_NETIF_TX_SINGLE_PBUF=1` (e.g. ESP-IDF) lwIP copies in both cases.
+
+Both need the receive timeout, `LWIP_SO_RCVTIMEO=1`.
+
+lwIP does not block a UDP send when it is out of memory (pbufs, heap or driver transmit buffers, for example on a congested Wi-Fi link), it fails immediately. The XCP server emulates a blocking send instead and retries every millisecond until lwIP accepts the datagram. As on platforms with a blocking `sendto`, the transmit queue then fills up and DAQ events are dropped and counted at queue entry; increase `OPTION_QUEUE_32_SIZE` to handle longer bursts. A stall of more than one second is reported periodically, and when it ends. While blocked, command responses wait as well, and a stall which never ends, for example a permanently missing link, blocks a graceful server shutdown. The retry interval is at least one FreeRTOS tick, with a slow tick rate (e.g. 100 Hz) it limits the throughput under sustained overload.
 
 The memory size of static `tXcpData` depends on the configuration in `xcplib_cfg.h` and `xcplib_rtos_cfg.h`:
 - OPTION_CAL_SEGMENT_COUNT: Max number of calibration segments or blocks
