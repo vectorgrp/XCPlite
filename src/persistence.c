@@ -185,13 +185,15 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
 #ifdef OPTION_SHM_MODE // initialize app-id in calibration segment descriptor
     desc.app_id = seg->h.app_id;
 #endif // SHM_MODE
+    // Descriptor position, as load() records it: XcpBinFreezeCalSeg() writes at file_pos + sizeof(tBinCalSeg)
+    uint32_t desc_pos = (uint32_t)ftell(file);
     size_t written = fwrite(&desc, sizeof(tBinCalSeg), 1, file);
     if (written != 1) {
         DBG_PRINT_ERROR("Failed to write calibration segment descriptor to BIN file\n");
         return false;
     }
     // @@@@ TODO: Cast away const, improve design to avoid this
-    ((tXcpCalSeg *)seg)->h.file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file
+    ((tXcpCalSeg *)seg)->h.file_pos = desc_pos;
     DBG_PRINTF4("Writing calibration segment %u:'%s' size=%u %s page data:\n", calseg, seg->h.name, seg->h.size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
 #ifdef OPTION_ENABLE_DBG_PRINTS
     if (DBG_LEVEL >= 5)
