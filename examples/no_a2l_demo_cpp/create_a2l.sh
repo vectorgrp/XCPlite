@@ -48,7 +48,7 @@ CSVFILE="$REPO_ROOT/examples/no_a2l_demo_cpp/CANape/no_a2l_demo_cpp.csv"
 
 # Target connection details
 TARGET_USER="rainer"
-TARGET_HOST="192.168.8.135"
+TARGET_HOST="192.168.0.206"
 TARGET_PATH="~/XCPlite-Test"
 TARGET_BUILD_DIR="build-no_a2l"
 TARGET_BINARY="no_a2l_demo_cpp"
@@ -129,9 +129,10 @@ echo "==========================================================================
 echo ""
 # --log-level is program flow verbosity
 # --verbose is ELF information detail level
+# --embed-aml embeds the XCP_104.aml into the generaated A2L file
 # Remove the A2L file of a previous run, so a failed generation can not leave a stale A2L file behind
 rm -f "$A2LFILE"
-XCPCLIENT_ARGS=(--log-level=3 --verbose=1 --dest-addr="$TARGET_HOST" --udp --offline --elf "$ELFFILE" --elf-unit-filter main --create-a2l --a2l "$A2LFILE" --default-event=mainloop)
+XCPCLIENT_ARGS=(--log-level=3 --verbose=1 --dest-addr="$TARGET_HOST" --udp --offline --elf "$ELFFILE" --elf-unit-filter main --create-a2l --embed-aml --a2l "$A2LFILE" --default-event=mainloop)
 echo "Command: $XCPCLIENT ${XCPCLIENT_ARGS[*]}"
 "$XCPCLIENT" "${XCPCLIENT_ARGS[@]}" >> "$LOGFILE"
 if [ $? -ne 0 ] || [ ! -f "$A2LFILE" ]; then

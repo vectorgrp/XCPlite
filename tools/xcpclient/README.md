@@ -111,6 +111,9 @@ Options:
       --fix-a2l
           Correct the event ids and calibration segment numbers of the given A2L file with XCP server information and rewrite it, the original is kept as <file>.a2l.bak. Only for A2L files created by xcpclient (--elf and --create-a2l), typically generated offline without section registration. Requires that the XCP server supports the GET_EVENT_INFO and GET_SEGMENT_INFO commands
 
+      --embed-aml
+          Embed the XCP A2ML description into an A2L file created by xcpclient (--elf, --create-a2l, --create-a2l-template), instead of including XCP_104.aml. The A2L file is self-contained, XCP_104.aml is not needed next to it. --fix-a2l keeps an embedded A2ML description
+
       --upload-elf
           Upload ELF file from XCP server. Requires that the XCP server supports proprietary GET_ID ELF upload command
 

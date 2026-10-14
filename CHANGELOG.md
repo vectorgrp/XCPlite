@@ -41,6 +41,7 @@ All notable changes to XCPlite are documented in this file.
     - Bugfix: in online mode with absolute addressing, a calibration segment which the target reported was not used to find the calibration variables in it.
     - Bugfix: `--list-cal` and `--cal` with `--elf` panicked on a calibration segment struct. The registry created from the ELF file is now flattened like a loaded A2L file, the A2L file keeps the typedef structure.
     - `--test` collects GET_DAQ_CLOCK latency statistics
+    - New option `--embed-aml`
 
 
 

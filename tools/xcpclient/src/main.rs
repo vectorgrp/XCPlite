@@ -31,6 +31,7 @@ mod xcp_test_executor;
 
 mod a2l_fix;
 
+use xcp_registry::McA2mlMode;
 use xcp_registry::McEvent;
 use xcp_test_executor::test_executor;
 
@@ -214,6 +215,12 @@ struct Args {
     /// Requires that the XCP server supports the GET_EVENT_INFO and GET_SEGMENT_INFO commands.
     #[arg(long, default_value_t = false)]
     fix_a2l: bool,
+
+    // --embed-aml
+    /// Embed the XCP A2ML description into an A2L file created by xcpclient (--elf, --create-a2l, --create-a2l-template), instead of including XCP_104.aml.
+    /// The A2L file is self-contained, XCP_104.aml is not needed next to it. --fix-a2l keeps an embedded A2ML description.
+    #[arg(long, default_value_t = false)]
+    embed_aml: bool,
 
     // --upload-elf
     /// Upload ELF file from XCP server.
@@ -583,6 +590,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
         create_a2l,
         create_a2l_template,
         fix_a2l,
+        embed_aml,
         elf: elf_filename,
         upload_elf,
         elf_unit_limit_min,
@@ -702,6 +710,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
         }
         reg.set_flatten_typedefs_mode(false);
         reg.set_prefix_names_mode(false);
+        reg.set_a2ml_mode(if embed_aml { McA2mlMode::Embed } else { McA2mlMode::Include });
 
         // Set A2L file path to given command line argument 'a2l' or to GET_ID IDT_ASAM_NAME or IDT_ASCII
         let (mut a2l_path, a2l_asam_name) = if !a2l_filename.is_empty() {
@@ -1065,7 +1074,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                         std::net::IpAddr::V4(addr) if protocol == "TCP" || protocol == "UDP" => Some((protocol, addr, dest_addr.port())),
                         _ => None,
                     };
-                    a2l_fix::rewrite_a2l_file(&a2l_path, &event_mapping, &seg_mapping, tl_params)
+                    a2l_fix::rewrite_a2l_file(&a2l_path, &event_mapping, &seg_mapping, tl_params, embed_aml)
                         .map_err(|e| format!("Could not rewrite A2L file '{}': {}", a2l_path.display(), e))?;
                 }
             } else if !event_mapping.is_empty() || !seg_mapping.is_empty() {
@@ -1366,6 +1375,7 @@ struct ConfigFile {
     create_a2l: Option<bool>,
     create_a2l_template: Option<bool>,
     fix_a2l: Option<bool>,
+    embed_aml: Option<bool>,
     upload_elf: Option<bool>,
     elf: Option<String>,
     elf_unit_limit: Option<usize>,
@@ -1417,6 +1427,7 @@ fn merge_config(matches: &clap::ArgMatches, config: ConfigFile, args: &mut Args)
     apply!(create_a2l);
     apply!(create_a2l_template);
     apply!(fix_a2l);
+    apply!(embed_aml);
     apply!(upload_elf);
     apply!(elf);
     apply!(elf_unit_limit);

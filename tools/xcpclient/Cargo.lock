@@ -1054,8 +1054,8 @@ dependencies = [
 
 [[package]]
 name = "xcp_register_type_derive"
-version = "3.0.9"
-source = "git+https://github.com/vectorgrp/xcp-lite#6c65adab349bbceab4194ebf41058ee99eca8318"
+version = "3.0.10"
+source = "git+https://github.com/vectorgrp/xcp-lite#86c702ab605c0dabb429d1e80dd6e8e47d17926d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1064,8 +1064,8 @@ dependencies = [
 
 [[package]]
 name = "xcp_registry"
-version = "3.0.9"
-source = "git+https://github.com/vectorgrp/xcp-lite#6c65adab349bbceab4194ebf41058ee99eca8318"
+version = "3.0.10"
+source = "git+https://github.com/vectorgrp/xcp-lite#86c702ab605c0dabb429d1e80dd6e8e47d17926d"
 dependencies = [
  "a2lfile",
  "log",

@@ -15,7 +15,7 @@ use std::net::Ipv4Addr;
 use std::path::Path;
 
 use log::{info, warn};
-use xcp_registry::{McAddress, Registry};
+use xcp_registry::{McA2mlMode, McAddress, Registry};
 
 // XCPlite dynamic addressing, see src/xcp_cfg.h
 const XCP_ADDR_EXT_DYN_FIRST: u8 = 0x02;
@@ -144,11 +144,13 @@ pub fn apply_mappings(reg: &mut Registry, event_mapping: &HashMap<u16, u16>, seg
 // The file is loaded again without flattening the typedefs, so its structure is kept, the original is kept as <file>.bak
 // Only for A2L files created by xcpclient, see is_created_by_xcpclient
 // The transport layer parameters of the A2L file are kept, if the file has none, the ones of the current connection (tl_params) are used
+// The A2ML description is embedded if requested (embed_aml) or if it was embedded in the original file, otherwise XCP_104.aml is included
 pub fn rewrite_a2l_file(
     a2l_path: &Path,
     event_mapping: &HashMap<u16, u16>,
     seg_mapping: &HashMap<u16, u16>,
     tl_params: Option<(&'static str, Ipv4Addr, u16)>,
+    embed_aml: bool,
 ) -> Result<(), Box<dyn Error>> {
     let a2l_text = std::fs::read_to_string(a2l_path)?;
     assert!(is_created_by_xcpclient(&a2l_text));
@@ -158,6 +160,7 @@ pub fn rewrite_a2l_file(
     let mut reg = Registry::new();
     reg.set_flatten_typedefs_mode(false);
     reg.set_prefix_names_mode(false);
+    reg.set_a2ml_mode(if embed_aml || a2l_text.contains("/begin A2ML") { McA2mlMode::Embed } else { McA2mlMode::Include });
     reg.load_a2l(&a2l_path, false, true, false, false)?;
     apply_mappings(&mut reg, event_mapping, seg_mapping, project_no.as_deref());
 

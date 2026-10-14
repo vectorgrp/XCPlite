@@ -40,8 +40,8 @@ cpp_demangle = "0.5"
 # Registry
 # From VectorGrp/xcp-lite
 xcp_registry = { git = "https://github.com/vectorgrp/xcp-lite", features = ["a2l_reader"] }
-# From fork RainerZ/xcp-lite V3.0.9
-# xcp_registry = { git = "https://github.com/RainerZ/xcp-lite.git", branch = "V3.0.9", features = ["a2l_reader"] }
+# From fork RainerZ/xcp-lite dev-3.0.11
+# xcp_registry = { git = "https://github.com/RainerZ/xcp-lite.git", branch = "dev-3.0.11", features = ["a2l_reader"] }
 # From local directory current branch
 # xcp_registry = { path = "../../../xcp-lite-RainerZ/xcp_registry", features = ["a2l_reader"] } 
 

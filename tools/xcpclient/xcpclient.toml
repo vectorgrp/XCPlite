@@ -59,6 +59,9 @@ create_a2l_template = false
 # Correct an existing A2L file with event/segment info from the live target
 fix_a2l = false
 
+# Embed the XCP A2ML description into a created A2L file instead of including XCP_104.aml
+embed_aml = false
+
 #-----------------------------------------------------------------------------
 # ELF / DWARF
 

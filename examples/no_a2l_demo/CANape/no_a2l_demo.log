@@ -1,11 +1,11 @@
 
 [INFO ] xcp_client - version 4.0.1
 [INFO ] Default event mainloop for variables without a fixed event
-[INFO ] Using A2L file name from command line argument: /Users/rainer/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l
-[INFO ] A2L path: /Users/rainer/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l
-[INFO ] Generate A2L file /Users/rainer/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l with ELF/DWARF information only,  offline mode 
-[INFO ] Reading ELF file: /Users/rainer/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.elf
-[INFO ] Parsing ELF object file /Users/rainer/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.elf
+[INFO ] Using A2L file name from command line argument: /Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l
+[INFO ] A2L path: /Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l
+[INFO ] Generate A2L file /Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l with ELF/DWARF information only,  offline mode 
+[INFO ] Reading ELF file: /Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.elf
+[INFO ] Parsing ELF object file /Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.elf
 
 ====================================================================================================
 Format: Elf
@@ -43,7 +43,7 @@ Sections:
   Name: .bss                 Addr: 0x000302f8 Size: 9976 bytes Kind: UninitializedData 
   Name: .comment             Addr: 0x00000000 Size: 39 bytes Kind: OtherString 
   Name: .debug_aranges       Addr: 0x00000000 Size: 432 bytes Kind: Other 
-  Name: .debug_info          Addr: 0x00000000 Size: 77483 bytes Kind: Other 
+  Name: .debug_info          Addr: 0x00000000 Size: 77484 bytes Kind: Other 
   Name: .debug_abbrev        Addr: 0x00000000 Size: 9136 bytes Kind: Other 
   Name: .debug_line          Addr: 0x00000000 Size: 28406 bytes Kind: Other 
   Name: .debug_str           Addr: 0x00000000 Size: 13213 bytes Kind: OtherString 
@@ -291,10 +291,10 @@ Found 3 segment definition marker variables:
 [INFO ] Metadata comment xcp_meta__comment__bar__static_counter applied to instance 'bar.static_counter'
 [INFO ] Metadata read_write xcp_meta__read_write__bar__static_counter applied to instance 'bar.static_counter'
 [INFO ] ===============================================================
-[INFO ] Write A2L file "/Users/rainer/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l"
-[INFO ] A2L writer: transport layer: UDP 192.168.8.135:5555
-[INFO ] Check A2L file "/Users/rainer/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l"
+[INFO ] Write A2L file "/Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l"
+[INFO ] A2L writer: transport layer: UDP 192.168.0.206:5555
+[INFO ] Check A2L file "/Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l"
 [INFO ] A2L file check ok
-[INFO ] Created A2L with file: /Users/rainer/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l ELF/DWARF information only,  offline mode
+[INFO ] Created A2L with file: /Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/no_a2l_demo/CANape/no_a2l_demo.a2l ELF/DWARF information only,  offline mode
 [INFO ] Flattening typedef structure in registry into mangled instance names !
 [INFO ] Default event 'mainloop' resolved to event id 3
