@@ -2,6 +2,12 @@
 
 All notable changes to XCPlite are documented in this file.
 
+
+## [V2.3.3]
+
+- Added a new persistence_test
+
+
 ## [V2.3.2]
 
 - Bugfixes: 

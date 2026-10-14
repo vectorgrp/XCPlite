@@ -72,6 +72,7 @@ Legend for **Type**:
 | `socket_recv_test` | C | default | unit | yes (`unit`) | loopback sockets | Deterministic header/payload receive splits |
 | `passive_test_c` | C | default | unit | yes (`unit`) | — | `XCP_MODE_DEACTIVATE` passive-mode contract ([passive_test/](passive_test/)) |
 | `passive_test_cpp` | C++ | default | unit | yes (`unit`) | — | Passive-mode contract via the C++ API |
+| `persistence_test` | C | default | unit | yes (`unit`) | writes a `.bin` file to the working directory | Calibration segment freeze and reload through the binary persistence file, also right after `XcpBinWrite()` ([persistence_test/](persistence_test/)) |
 | `cal_test` | C++ | default | unit (+opt. server) | yes (`unit;calibration`) | — hermetic by default; `--server` adds CANape/`xcpclient` | Calibration-segment RCU correctness + multi-thread stress; **self-terminates** ([cal_test/](cal_test/)) |
 | `a2l_test` | C | default | unit+tool | yes if [`a2ltool`](https://crates.io/crates/a2ltool) on `PATH` | `a2ltool` | Generates an A2L and validates it with an external checker ([a2l_test/](a2l_test/)) |
 | `queue_test` | C | default | benchmark | no | — | Lock-free transmit-queue correctness & throughput (multi-thread/process) ([queue_test/](queue_test/)) |

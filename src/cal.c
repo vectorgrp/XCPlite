@@ -416,7 +416,7 @@ tXcpCalSegIndex XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint1
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
     // Mark the segment as preloaded
     seg->h.mode = PAG_PROPERTY_PRELOAD;
-    seg->h.file_pos = file_pos; // Save the position of the segment page data in the file
+    seg->h.file_pos = file_pos; // Save the position of the segment descriptor in the file, the page data follows it
     seg->h.app_id = app_id;     // Save the application ID
 #else
     (void)app_id;   // Unused parameter
