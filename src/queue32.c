@@ -197,6 +197,7 @@ void queueDeinit(tQueueHandle queue_handle) {
     queue->queue_buffer_size = 0;
     queue->queue_size = 0;
     mutexDestroy(&queue->Mutex_Queue);
+    free(queue);
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
