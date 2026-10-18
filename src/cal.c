@@ -501,12 +501,19 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
     // Create, if not exists
     if (calseg_index == XCP_UNDEFINED_CALSEG) {
 
-        // Align page size to XCP_CALPAGE_ALIGNMENT bytes for better performance
-        uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1);
+        // Use 32-bit to prevent overflow when aligning large pages.
+        uint32_t aligned_page_size = ((uint32_t)page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(uint32_t)(XCP_CALPAGE_ALIGNMENT - 1);
 
         // Allocate memory for the new segment from the embedded pool using the thread-safe bump allocator
         // Header + DEFAULT page + ECU page + XCP page + RCU swap page
-        calseg = (tXcpCalSeg *)XcpCalMemAlloc_(sizeof(tXcpCalSegHeader) + CALSEG_PAGE_COUNT * (size_t)aligned_page_size);
+        size_t allocation_size = sizeof(tXcpCalSegHeader) + CALSEG_PAGE_COUNT * (size_t)aligned_page_size;
+        if (allocation_size > (size_t)XCP_CAL_MEM_SIZE) {
+            return XCP_UNDEFINED_CALSEG;
+        }
+        calseg = (tXcpCalSeg *)XcpCalMemAlloc_(allocation_size);
+        if (calseg == NULL) {
+            return XCP_UNDEFINED_CALSEG;
+        }
         DBG_PRINTF3("Create CalSeg '%s' size=%u, type=%s\n", name, page_size, memory_segment ? "seg" : "blk");
         if (!XcpInitCalSeg_(calseg, name, default_page, default_page_file, page_size, memory_segment)) {
             return XCP_UNDEFINED_CALSEG;
@@ -571,7 +578,7 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
     assert(c != NULL);
 
     // Align page size to 8 bytes for better performance
-    uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1);
+    uint32_t aligned_page_size = ((uint32_t)page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(uint32_t)(XCP_CALPAGE_ALIGNMENT - 1);
 
     size_t name_len = STRNLEN(name, XCP_MAX_CALSEG_NAME);
     memcpy(c->h.name, name, name_len);
