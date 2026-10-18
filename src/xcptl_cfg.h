@@ -140,3 +140,16 @@ Older CANape versions expect this option is on by default -> turn it off in devi
 #define XCPTL_MULTICAST_PORT 5557
 #endif
 #endif
+
+// Validate after all transport options have been resolved.
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) && defined(OPTION_FREERTOS_PLUS_TCP)
+#if OPTION_MTU <= 28
+#error "OPTION_MTU must exceed the IPv4/UDP header size"
+#elif XCPTL_MAX_SEGMENT_SIZE < (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
+#error "XCPTL_MAX_SEGMENT_SIZE is too small for a maximum DTO"
+#endif
+#if !defined(OPTION_ENABLE_UDP) || !defined(OPTION_QUEUE_32) || defined(OPTION_QUEUE_64_VAR_SIZE) || defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_ENABLE_TCP) ||            \
+    defined(OPTION_SOCKET_HW_TIMESTAMPS) || defined(OPTION_ENABLE_GET_LOCAL_ADDR) || defined(XCPTL_ENABLE_MULTICAST) || defined(OPTION_SHM_MODE)
+#error "XCPlite FreeRTOS-Plus-TCP supports IPv4 unicast UDP with OPTION_QUEUE_32 only"
+#endif
+#endif
