@@ -12,7 +12,7 @@
 
 #include <stdlib.h> // for malloc, free
 #include <string.h> // for memset, memcpy, strerror, strncpy
-// FreeRTOS uses lwip_close() instead of POSIX close(); bare-metal toolchains may lack unistd.h
+// Native FreeRTOS toolchains may not provide unistd.h.
 #if !defined(_WIN) && !defined(_FREE_RTOS)
 #include <unistd.h> // for close
 #endif
@@ -23,6 +23,7 @@
 
 #if (defined(OPTION_ENABLE_TCP) || defined(OPTION_ENABLE_UDP)) && !defined(OPTION_ENABLE_UDP_RAW)
 
+#if !defined(_FREE_RTOS) || defined(FREE_RTOS_POSIX_SIM) || !defined(OPTION_FREERTOS_PLUS_TCP)
 const char *socketGetErrorString(int32_t err) {
 #if !defined(_WIN)
     return strerror(err);
@@ -50,16 +51,23 @@ const char *socketGetErrorString(int32_t err) {
 #endif
 }
 
+#endif // Host sockets or lwIP
+
 //--------------------------------------------------------------------------
 // FreeRTOS platforms
 
-#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) // FreeRTOS sockets
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) // Native FreeRTOS sockets
 
 #ifdef OPTION_ENABLE_TCP
 #error "FreeRTOS TCP socket functions not implemented yet"
 #endif
 
+#if defined(OPTION_FREERTOS_LWIP) && defined(OPTION_FREERTOS_PLUS_TCP)
+#error "Select only one FreeRTOS network stack"
+#endif
+
 #if defined(OPTION_FREERTOS_LWIP)
+
 #include "lwip/errno.h" // lwIP errno values mapped to POSIX codes
 #include "lwip/netif.h" // netif_default, struct netif::mtu, for the segment size check in socketSendTo
 
@@ -123,9 +131,8 @@ static void socketCheckSegmentSize(uint16_t bufferSize) {
         }
     }
 }
-#endif
 
-#if defined(OPTION_FREERTOS_LWIP) && !defined(OPTION_FREERTOS_LWIP_SOCKET_API)
+#if !defined(OPTION_FREERTOS_LWIP_SOCKET_API)
 
 //--------------------------------------------------------------------------
 // lwIP netconn API
@@ -303,7 +310,7 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
     return true;
 }
 
-#else // lwIP socket API (OPTION_FREERTOS_LWIP_SOCKET_API) or no IP stack
+#else // lwIP socket API (OPTION_FREERTOS_LWIP_SOCKET_API)
 
 //--------------------------------------------------------------------------
 // lwIP socket API
@@ -323,30 +330,16 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
 
 // @@@@ TODO: Eventually remove the socket API version
 
-#if defined(OPTION_FREERTOS_LWIP)
 #include "lwip/sockets.h" // lwip_socket, lwip_bind, lwip_sendto, lwip_recvfrom, lwip_close, lwip_shutdown, lwip_setsockopt
-#endif
 
 // socketStartup: lwIP networking is initialised by the application (e.g. tcpip_init) — no-op here
-bool socketStartup(void) {
-#if defined(OPTION_FREERTOS_LWIP)
-    return true;
-#else
-    DBG_PRINT_ERROR("FREE_RTOS:socketStartup not implemented\n");
-    return true;
-#endif
-}
+bool socketStartup(void) { return true; }
 
 // socketCleanup: no teardown required for lwIP
-void socketCleanup(void) {
-#if !defined(OPTION_FREERTOS_LWIP)
-    DBG_PRINT_ERROR("FREE_RTOS:socketCleanup not implemented\n");
-#endif
-}
+void socketCleanup(void) {}
 
 // Create a UDP socket (TCP not supported: OPTION_ENABLE_TCP must not be defined)
 bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
-#if defined(OPTION_FREERTOS_LWIP)
     assert(socketp != NULL);
     assert(!(flags & SOCKET_MODE_TCP)); // TCP not supported on FreeRTOS/lwIP
 
@@ -364,16 +357,11 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     *socketp = sock;
     DBG_PRINTF5("socketOpen: lwIP UDP socket %d opened\n", sock);
     return true;
-#else
-    DBG_PRINT_ERROR("FREE_RTOS:socketOpen not implemented\n");
-    return false;
-#endif
 }
 
 // Bind socket to a local address and port
 // addr: network-byte-order IPv4 address; NULL or 0.x.x.x binds to INADDR_ANY
 bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
-#if defined(OPTION_FREERTOS_LWIP)
     assert(socket != INVALID_SOCKET_HANDLE);
     struct sockaddr_in a;
     memset(&a, 0, sizeof(a));
@@ -390,44 +378,29 @@ bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
     }
     DBG_PRINTF5("socketBind: bound to port %u\n", port);
     return true;
-#else
-    DBG_PRINT_ERROR("FREE_RTOS:socketBind not implemented\n");
-    return false;
-#endif
 }
 
 // Shutdown socket — unblocks a thread blocked in socketRecvFrom
 bool socketShutdown(SOCKET_HANDLE socket) {
-#if defined(OPTION_FREERTOS_LWIP)
     if (socket != INVALID_SOCKET_HANDLE) {
         lwip_shutdown(socket, SHUT_RDWR);
     }
     return true;
-#else
-    DBG_PRINT_ERROR("FREE_RTOS:socketShutdown not implemented\n");
-    return true;
-#endif
 }
 
 // Close socket and free the handle
 bool socketClose(SOCKET_HANDLE *socketp) {
-#if defined(OPTION_FREERTOS_LWIP)
     assert(socketp != NULL);
     if (*socketp != INVALID_SOCKET_HANDLE) {
         lwip_close(*socketp);
         *socketp = INVALID_SOCKET_HANDLE;
     }
     return true;
-#else
-    DBG_PRINT_ERROR("FREE_RTOS:socketClose not implemented\n");
-    return true;
-#endif
 }
 
 // Receive a UDP datagram (blocking)
 // Returns: > 0 bytes received, 0 on timeout/EAGAIN, -1 on error or socket closed
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time) {
-#if defined(OPTION_FREERTOS_LWIP)
     assert(socket != INVALID_SOCKET_HANDLE);
     struct sockaddr_in src;
     socklen_t srclen = sizeof(src);
@@ -454,10 +427,6 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
         *time = clockGet(); // No hardware timestamps on lwIP; use XCP clock
     }
     return n;
-#else
-    DBG_PRINT_ERROR("FREE_RTOS:socketRecvFrom not implemented\n");
-    return -1;
-#endif
 }
 
 // Send a UDP datagram to addr:port
@@ -466,7 +435,6 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
 // Blocks while lwIP is out of memory, see SOCKET_LWIP_TX_STALL_WARNING_MS
 // Returns: bytes sent, 0 on closed socket, -1 on error
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time) {
-#if defined(OPTION_FREERTOS_LWIP)
     assert(socket != INVALID_SOCKET_HANDLE);
     assert(addr != NULL);
     struct sockaddr_in dst;
@@ -494,16 +462,11 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t buffe
         return -1;
     }
     return n;
-#else
-    DBG_PRINT_ERROR("FREE_RTOS:socketSendTo not implemented\n");
-    return -1;
-#endif
 }
 
 // Set receive timeout on a blocking socket
 // timeoutMs == 0 restores infinite blocking
 bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
-#if defined(OPTION_FREERTOS_LWIP)
     assert(socket != INVALID_SOCKET_HANDLE);
     struct timeval tv;
     tv.tv_sec = (long)(timeoutMs / 1000U);
@@ -514,13 +477,254 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
     }
     DBG_PRINTF5("socketSetTimeout: set to %u ms\n", timeoutMs);
     return true;
-#else
-    DBG_PRINT_ERROR("FREE_RTOS:socketSetTimeout not implemented\n");
-    return true;
-#endif
 }
 
 #endif // lwIP socket API
+
+#elif defined(OPTION_FREERTOS_PLUS_TCP)
+
+//--------------------------------------------------------------------------
+// FreeRTOS-Plus-TCP IPv4 unicast UDP
+
+#include "FreeRTOS_IP.h"
+#include <limits.h>
+#include <string.h>
+
+#if !ipconfigUSE_IPv4
+#error "XCPlite FreeRTOS-Plus-TCP requires ipconfigUSE_IPv4=1"
+#endif
+#if defined(configNUMBER_OF_CORES) && (configNUMBER_OF_CORES > 1)
+#error "XCPlite FreeRTOS-Plus-TCP supports single-core FreeRTOS only"
+#endif
+#if OPTION_MTU > ipconfigNETWORK_MTU
+#error "OPTION_MTU must not exceed ipconfigNETWORK_MTU"
+#endif
+#ifndef OPTION_FREERTOS_SEND_TIMEOUT_MS
+#define OPTION_FREERTOS_SEND_TIMEOUT_MS 20U
+#endif
+
+const char *socketGetErrorString(int32_t err) {
+    switch (err) {
+    case 0:
+        return "no error";
+    case SOCKET_ERROR_WBLOCK:
+        return "would block";
+    case SOCKET_ERROR_TIMEDOUT:
+        return "timed out";
+    case SOCKET_ERROR_INTR:
+        return "interrupted";
+    case SOCKET_ERROR_BADF:
+        return "invalid socket";
+    case SOCKET_ERROR_NOTCONN:
+        return "not connected";
+    case SOCKET_ERROR_MSGSIZE:
+        return "datagram too large";
+    case pdFREERTOS_ERRNO_ENOMEM:
+        return "out of memory";
+    case pdFREERTOS_ERRNO_ENOBUFS:
+        return "no network buffer";
+    case pdFREERTOS_ERRNO_EINVAL:
+        return "invalid argument";
+    case pdFREERTOS_ERRNO_EIO:
+        return "I/O error";
+    case pdFREERTOS_ERRNO_EADDRINUSE:
+        return "address in use";
+    case pdFREERTOS_ERRNO_EOPNOTSUPP:
+        return "operation not supported";
+    default:
+        return "FreeRTOS socket error";
+    }
+}
+
+// Zero selects portMAX_DELAY; positive timeouts round up and saturate below it.
+static TickType_t timeoutTicks(uint32_t ms) {
+    if (ms == 0) {
+        return portMAX_DELAY;
+    }
+    uint64_t ticks = ((uint64_t)ms * configTICK_RATE_HZ + 999U) / 1000U;
+    if (ticks >= (uint64_t)portMAX_DELAY) {
+        ticks = (uint64_t)portMAX_DELAY - 1U;
+    }
+    return (TickType_t)((ticks == 0) ? 1 : ticks);
+}
+
+static void makeAddress(struct freertos_sockaddr *dst, const uint8_t *addr, uint16_t port) {
+    memset(dst, 0, sizeof(*dst));
+    dst->sin_len = sizeof(*dst);
+    dst->sin_family = FREERTOS_AF_INET;
+    dst->sin_port = FreeRTOS_htons(port);
+    if (addr != NULL) {
+        memcpy(&dst->sin_address.ulIP_IPv4, addr, 4);
+    }
+}
+
+bool socketStartup(void) {
+    // The application initializes the IP task. Link availability is not required.
+    // Without the query API, callers must ensure the scheduler is running and unsuspended.
+#if (INCLUDE_xTaskGetSchedulerState == 1) || (configUSE_TIMERS == 1)
+    if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
+        return false;
+    }
+#endif
+    // Blocking socket calls must run outside the IP task.
+    TaskHandle_t ip_task = FreeRTOS_GetIPTaskHandle();
+    return (ip_task != NULL) && (xTaskGetCurrentTaskHandle() != ip_task);
+}
+
+void socketCleanup(void) {} // The application's network stack remains active.
+
+bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
+    if (socketp == NULL) {
+        DBG_PRINT_ERROR("socketOpen: invalid socket pointer\n");
+        return false;
+    }
+    *socketp = INVALID_SOCKET_HANDLE;
+    // SOCKET_MODE_REUSEADDR is accepted but ignored by this backend.
+    if ((flags & ~SOCKET_MODE_REUSEADDR) != 0) {
+        DBG_PRINT_ERROR("socketOpen: unsupported socket flags\n");
+        return false;
+    }
+    Socket_t socket = FreeRTOS_socket(FREERTOS_AF_INET, FREERTOS_SOCK_DGRAM, FREERTOS_IPPROTO_UDP);
+    if (xSocketValid(socket) == pdFALSE) {
+        DBG_PRINT_ERROR("socketOpen: FreeRTOS_socket failed\n");
+        return false;
+    }
+    TickType_t ticks = (OPTION_FREERTOS_SEND_TIMEOUT_MS == 0) ? 0 : timeoutTicks(OPTION_FREERTOS_SEND_TIMEOUT_MS);
+    BaseType_t result = FreeRTOS_setsockopt(socket, 0, FREERTOS_SO_SNDTIMEO, &ticks, sizeof(ticks));
+    if (result != 0) {
+        // Preserve the handle for the caller if closing fails.
+        *socketp = socket;
+        (void)socketClose(socketp);
+        DBG_PRINTF_ERROR("socketOpen: FreeRTOS_setsockopt failed (result=%ld)\n", (long)result);
+        return false;
+    }
+    *socketp = socket;
+    return true;
+}
+
+bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
+    if (xSocketValid(socket) == pdFALSE) {
+        return false;
+    }
+    struct freertos_sockaddr local;
+    makeAddress(&local, addr, port);
+    BaseType_t result = FreeRTOS_bind(socket, &local, sizeof(local));
+    if (result != 0) {
+        DBG_PRINTF_ERROR("socketBind: FreeRTOS_bind failed (result=%ld)\n", (long)result);
+    }
+    return (result == 0);
+}
+
+bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
+    if (xSocketValid(socket) == pdFALSE) {
+        return false;
+    }
+    TickType_t ticks = timeoutTicks(timeoutMs);
+    BaseType_t result = FreeRTOS_setsockopt(socket, 0, FREERTOS_SO_RCVTIMEO, &ticks, sizeof(ticks));
+    if (result != 0) {
+        DBG_PRINTF_ERROR("socketSetTimeout: FreeRTOS_setsockopt failed (result=%ld)\n", (long)result);
+    }
+    return (result == 0);
+}
+
+int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time) {
+    if (xSocketValid(socket) == pdFALSE) {
+        return -SOCKET_ERROR_BADF;
+    }
+    if ((buffer == NULL) || (bufferSize == 0) || (bufferSize > INT16_MAX)) {
+        return -pdFREERTOS_ERRNO_EINVAL;
+    }
+    struct freertos_sockaddr source;
+    socklen_t length = sizeof(source);
+    int32_t result = FreeRTOS_recvfrom(socket, buffer, bufferSize, 0, &source, &length);
+    if (result < 0) {
+        return socketTimeout(-result) ? 0 : (int16_t)result;
+    }
+#if (ipconfigUSE_IPv6 != 0)
+    if (source.sin_family != FREERTOS_AF_INET) {
+        return 0; // Ignore non-IPv4 datagrams.
+    }
+#endif
+    if (result > bufferSize) {
+        return -SOCKET_ERROR_MSGSIZE;
+    }
+    if (srcAddr != NULL) {
+        memcpy(srcAddr, &source.sin_address.ulIP_IPv4, 4);
+    }
+    if (srcPort != NULL) {
+        *srcPort = FreeRTOS_ntohs(source.sin_port);
+    }
+    if (time != NULL) {
+        *time = clockGet();
+    }
+    return (int16_t)result;
+}
+
+int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time) {
+    if (xSocketValid(socket) == pdFALSE) {
+        return -SOCKET_ERROR_BADF;
+    }
+    if ((buffer == NULL) || (addr == NULL) || (bufferSize == 0)) {
+        return -pdFREERTOS_ERRNO_EINVAL;
+    }
+    if ((bufferSize > XCPTL_MAX_SEGMENT_SIZE) || (bufferSize > INT16_MAX)) {
+        return -SOCKET_ERROR_MSGSIZE;
+    }
+    struct freertos_sockaddr destination;
+    makeAddress(&destination, addr, port);
+    if (time != NULL) {
+        *time = clockGet(); // Software timestamp of the send attempt.
+    }
+    // Copy XCPlite buffers so the queue or caller can reuse them after return.
+    // FREERTOS_ZERO_COPY requires a payload buffer from FreeRTOS-Plus-TCP and
+    // transfers ownership to the stack on success.
+    for (;;) {
+        int32_t result = FreeRTOS_sendto(socket, buffer, bufferSize, 0, &destination, sizeof(destination));
+        if (result == bufferSize) {
+            return (int16_t)result;
+        }
+        if (result == 0) {
+            // Size and address family are valid. Exclude failed automatic binding
+            // before retrying network-buffer or IP-event-queue exhaustion.
+            struct freertos_sockaddr local = {0};
+            FreeRTOS_GetLocalAddress(socket, &local);
+            if (local.sin_port == 0) {
+                return -SOCKET_ERROR_NOTCONN;
+            }
+        } else if ((result != -pdFREERTOS_ERRNO_ENOMEM) && (result != -pdFREERTOS_ERRNO_ENOBUFS)) {
+            return (result < 0) ? (int16_t)result : -pdFREERTOS_ERRNO_EIO;
+        }
+        vTaskDelay(1); // Match lwIP's indefinite wait for TX resources; also yield at coarse tick rates.
+    }
+}
+
+bool socketShutdown(SOCKET_HANDLE socket) {
+    // FreeRTOS_shutdown is TCP-only; UDP shutdown is a no-op.
+    return (xSocketValid(socket) == pdTRUE);
+}
+
+bool socketClose(SOCKET_HANDLE *socketp) {
+    if (socketp == NULL) {
+        return false;
+    }
+    if (xSocketValid(*socketp) == pdFALSE) {
+        *socketp = INVALID_SOCKET_HANDLE;
+        return true;
+    }
+    BaseType_t result = FreeRTOS_closesocket(*socketp);
+    if (result != 1) {
+        DBG_PRINTF_ERROR("socketClose: FreeRTOS_closesocket failed (result=%ld)\n", (long)result);
+        return false;
+    }
+    *socketp = INVALID_SOCKET_HANDLE; // Close accepted; cleanup is asynchronous.
+    return true;
+}
+
+#else
+
+#error "No FreeRTOS network stack selected"
+
+#endif // FreeRTOS network stack
 
 #else
 
@@ -1958,6 +2162,6 @@ bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *hw_time, uint64_t *sw_tim
 }
 #endif // defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
 
-#endif // !_WIN (closes the #else of #if _FREE_RTOS && !FREE_RTOS_POSIX_SIM)
+#endif // _FREE_RTOS && !FREE_RTOS_POSIX_SIM
 
-#endif // OPTION_ENABLE_TCP || OPTION_ENABLE_UDP && !OPTION_ENABLE_UDP_RAW
+#endif // (OPTION_ENABLE_TCP || OPTION_ENABLE_UDP) && !OPTION_ENABLE_UDP_RAW

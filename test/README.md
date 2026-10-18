@@ -49,6 +49,16 @@ Other configurations expose different tests:
 
 ---
 
+## FreeRTOS-Plus-TCP tests
+
+The standalone [freertos_plus_tcp_emu_demo](../examples/freertos_demo/freertos_plus_tcp_emu_demo/)
+reference build provides `freerto_plus_tcp_test`, which uses the pinned LTS kernel and network stack (202604.00-LTS),
+with a loopback driver, including when the interactive demo uses libpcap.
+Tests need no NIC, host socket or privileged networking; select
+`FREERTOS_PLUS_TCP_NETWORK_IF=LOOPBACK` to build without libpcap as well.
+The default desktop build does not download these dependencies.
+See [integration and validation](../docs/FREERTOS_PLUS_TCP.md#validation) for commands.
+
 ## Test catalog
 
 Legend for **Type**:

@@ -1,14 +1,15 @@
 # freertos_demo — Examples of how to use XCPlite on microcontroller platforms with FreeRTOS
 
-There are 3 different demos:  
+There are 4 different demos:
 
 - freertos_emu_demo using the POSIX FreeRTOS emulator
 - freertos_esp32_demo for ESP32 with PlatformIO
 - freertos_stm32_demo for STM32 with CubeMX
+- [freertos_plus_tcp_emu_demo](freertos_plus_tcp_emu_demo/) for FreeRTOS-Plus-TCP on Linux with libpcap Ethernet, CANape setup and loopback tests
 
-All examples are based on the same demo application code in `xcp_demo.c` and `xcp_demo.h`, which compiles as C or C++.  
+All examples share the demo application code in `xcp_demo.c` and `xcp_demo.h`, which compiles as C or C++.
 
-Refer to the README.md files in the demo folders for more specific details.  
+Refer to the README.md files in the demo folders for more specific details. For the native Plus-TCP backend, see [FreeRTOS-Plus-TCP integration](../../docs/FREERTOS_PLUS_TCP.md).
 
 
 ## What is shown
