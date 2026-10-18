@@ -248,6 +248,25 @@
 //-------------------------------------------------------------------------------
 // Configuration checks
 
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM)
+
+#if defined(OPTION_FREERTOS_LWIP) && defined(OPTION_FREERTOS_PLUS_TCP)
+#error "Select only one FreeRTOS network stack"
+#endif
+
+#if (defined(OPTION_ENABLE_TCP) || defined(OPTION_ENABLE_UDP)) && \
+    !defined(OPTION_ENABLE_UDP_RAW) && \
+    !defined(OPTION_FREERTOS_LWIP) && \
+    !defined(OPTION_FREERTOS_PLUS_TCP)
+#error "No FreeRTOS network stack selected"
+#endif
+
+#endif
+
+#if defined(OPTION_FREERTOS_PLUS_TCP) && !defined(_FREE_RTOS)
+#error "OPTION_FREERTOS_PLUS_TCP requires _FREE_RTOS"
+#endif
+
 #if defined(OPTION_SECTION_REGISTRATION) && (defined(_MSC_VER) || defined(OPTION_SHM_MODE))
 #error "OPTION_SECTION_REGISTRATION (link time registration of events and calibration segments) is not supported"
 #endif

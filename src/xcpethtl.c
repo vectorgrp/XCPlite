@@ -516,7 +516,11 @@ bool XcpEthTlHandleCommands(void) {
 
         // n < 0 Error - Socket closed or other error
         else if (n < 0) {
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) && defined(OPTION_FREERTOS_PLUS_TCP)
+            int32_t err = -n; // FreeRTOS-Plus-TCP returns negative error codes.
+#else
             int32_t err = socketGetLastError();
+#endif
             if (err == SOCKET_ERROR_MSGSIZE) {
                 return true; // Windows reports oversized datagrams as a receive error.
             }
@@ -612,6 +616,12 @@ extern THREAD_FUNC_RETURN XcpTlMulticastThread(void *par) {
 // Queue can be provided externally in Queue, if *Queue==NULL queue is returned
 bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle Queue) {
 
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) && defined(OPTION_FREERTOS_PLUS_TCP)
+    if (useTCP || !socketClose(&gXcpTl.socket)) {
+        return false; // Reject TCP and finish any previously rejected startup cleanup.
+    }
+#endif
+
     DBG_PRINT3("Init XCP transport layer\n");
     DBG_PRINTF3("  MAX_SEGMENT_SIZE=%u\n", XCPTL_MAX_SEGMENT_SIZE);
     DBG_PRINTF5("  sizeof(gXcpTl)=%u\n", (uint32_t)sizeof(gXcpTl));
@@ -664,6 +674,13 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle 
     } else
 #endif
     { // UDP
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) && defined(OPTION_FREERTOS_PLUS_TCP)
+        if (!socketOpen(&gXcpTl.socket, SOCKET_MODE_REUSEADDR) || !socketBind(gXcpTl.socket, bind_addr, port) || !socketSetTimeout(gXcpTl.socket, XCPTL_RECV_TIMEOUT_MS)) {
+            socketClose(&gXcpTl.socket); // A rejected close keeps the handle for the next initialization.
+            mutexDestroy(&gXcpTl.ctr_mutex);
+            return false;
+        }
+#else
         if (!socketOpen(&gXcpTl.socket, SOCKET_MODE_REUSEADDR))
             return false;
         if (!socketBind(gXcpTl.socket, bind_addr, port))
@@ -671,9 +688,17 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle 
 
         // Set receive timeout to allow periodic checks for shutdown and background tasks
         socketSetTimeout(gXcpTl.socket, XCPTL_RECV_TIMEOUT_MS);
+#endif
 
         DBG_PRINTF3("  Listening for XCP commands on UDP %u.%u.%u.%u port %u\n", bind_addr[0], bind_addr[1], bind_addr[2], bind_addr[3], port);
     }
+
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) && defined(OPTION_FREERTOS_PLUS_TCP)
+    // TODO: Resolve the actual local IPv4 and MAC addresses for reporting.
+    // Binding to INADDR_ANY currently reports 0.0.0.0; MAC is unavailable.
+    memcpy(gXcpTl.server_addr, bind_addr, 4);
+    memset(gXcpTl.server_mac, 0, sizeof(gXcpTl.server_mac));
+#endif
 
 #ifdef OPTION_ENABLE_UDP_RAW
     // The raw Ethernet transport knows both values for certain: the application supplied
@@ -760,7 +785,7 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 
     if (isTcp != NULL)
         *isTcp = gXcpTl.server_use_tcp;
-#if defined(OPTION_ENABLE_GET_LOCAL_ADDR) || defined(OPTION_ENABLE_UDP_RAW)
+#if defined(OPTION_ENABLE_GET_LOCAL_ADDR) || defined(OPTION_ENABLE_UDP_RAW) || (defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) && defined(OPTION_FREERTOS_PLUS_TCP))
     if (addr != NULL)
         memcpy(addr, gXcpTl.server_addr, 4);
     if (mac != NULL)
