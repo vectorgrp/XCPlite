@@ -275,33 +275,51 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
     tQueue *queue = NULL;
 
     DBG_PRINTF6("queueInitFromMemory: queue_memory=%p, queue_memory_size=%zu, clear_queue=%d\n", queue_memory, queue_memory_size, clear_queue);
+
+    size_t memory_size = queue_memory_size;
+    if (queue_memory == NULL) {
+        // Prevent overflow when rounding up to a cache line.
+        if (memory_size > (SIZE_MAX - (CACHE_LINE_SIZE - 1))) {
+            return NULL;
+        }
+        memory_size = (memory_size + (CACHE_LINE_SIZE - 1)) & ~(size_t)(CACHE_LINE_SIZE - 1);
+    }
+
+    // Include the internal entry header in the wraparound reserve.
+    size_t entry_size = (QUEUE_MAX_ENTRY_SIZE + QUEUE_ENTRY_HEADER_SIZE);
+    // Prevent underflow when subtracting the header and wraparound reserve.
+    if (memory_size < (sizeof(tQueueHeader) + entry_size)) {
+        return NULL;
+    }
+    size_t buffer_size = ((memory_size - sizeof(tQueueHeader)) - entry_size) & ~(size_t)(QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1);
+    // The ring must hold a full entry and fit the 32-bit capacity field.
+    if ((buffer_size < entry_size) || (buffer_size > UINT32_MAX)) {
+        return NULL;
+    }
+
     // Allocate the queue memory
     if (queue_memory == NULL) {
-        assert(queue_memory_size > 0);
-        size_t aligned_size = (queue_memory_size + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1); // Align to cache line size
-        assert(aligned_size <= 100ULL * 1024 * 1024); // Sanity check for size, 100 MiB should be enough for a queue, if you need more, increase this limit or remove it
-        queue = (tQueue *)aligned_alloc(CACHE_LINE_SIZE, aligned_size);
-        assert(queue != NULL);
-        assert(queue && ((uint64_t)queue % CACHE_LINE_SIZE) == 0);
-        memset(queue, 0, aligned_size);
+        assert(memory_size <= (100ULL * 1024 * 1024)); // Sanity check for size, 100 MiB should be enough for a queue, if you need more, increase this limit or remove it
+        queue = (tQueue *)aligned_alloc(CACHE_LINE_SIZE, memory_size);
+        if (queue == NULL) {
+            return NULL;
+        }
+        assert(((uint64_t)queue % CACHE_LINE_SIZE) == 0);
+        memset(queue, 0, memory_size);
         queue->h.from_memory = false;
         queue->h.magic = QUEUE_MAGIC;
-        // Reserve header and entry wrap around space at the end of the buffer for maximum entry size QUEUE_MAX_ENTRY_SIZE
-        queue->h.buffer_size = ((aligned_size - sizeof(tQueueHeader)) - (QUEUE_MAX_ENTRY_SIZE + QUEUE_ENTRY_HEADER_SIZE)) & ~(QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1);
+        queue->h.buffer_size = (uint32_t)buffer_size;
         clear_queue = true;
     }
 
     // Queue memory is provided by the caller and should be initialized
     else if (clear_queue) {
-        assert(queue_memory != NULL);
         queue = (tQueue *)queue_memory;
-        assert(queue_memory_size > 0);
-        assert(queue_memory_size <= 100ULL * 1024 * 1024); // Sanity check for size, 100 MiB should be enough for a queue, if you need more, increase this limit or remove it
+        assert(queue_memory_size <= (100ULL * 1024 * 1024)); // Sanity check for size, 100 MiB should be enough for a queue, if you need more, increase this limit or remove it
         memset(queue, 0, queue_memory_size);
         queue->h.from_memory = true;
         queue->h.magic = QUEUE_MAGIC;
-        // Reserve header and entry wrap around space at the end of the buffer for maximum entry size QUEUE_MAX_ENTRY_SIZE
-        queue->h.buffer_size = ((queue_memory_size - sizeof(tQueueHeader)) - (QUEUE_MAX_ENTRY_SIZE + QUEUE_ENTRY_HEADER_SIZE)) & ~(QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1);
+        queue->h.buffer_size = (uint32_t)buffer_size;
     }
 
     // Queue is provided by the caller and is already initialized
@@ -347,7 +365,13 @@ void queueClear(tQueueHandle queue_handle) {
     DBG_PRINT6("queueClear\n");
 }
 
-tQueueHandle queueInit(size_t queue_buffer_size) { return queueInitFromMemory(NULL, queue_buffer_size + sizeof(tQueueHeader), true, NULL); }
+tQueueHandle queueInit(size_t queue_buffer_size) {
+    // Prevent overflow when adding the queue header.
+    if (queue_buffer_size > (SIZE_MAX - sizeof(tQueueHeader))) {
+        return NULL;
+    }
+    return queueInitFromMemory(NULL, (queue_buffer_size + sizeof(tQueueHeader)), true, NULL);
+}
 
 void queueDeinit(tQueueHandle queue_handle) {
     tQueue *queue = (tQueue *)queue_handle;
