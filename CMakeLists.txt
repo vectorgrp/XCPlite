@@ -354,6 +354,9 @@ if(XCPLITE_BUILD_EXAMPLES)
         add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
         target_link_libraries(cpp_demo PRIVATE xcplite)
 
+        add_executable(thread_context_demo examples/thread_context_demo/src/main.cpp examples/thread_context_demo/src/sig_gen.cpp)
+        target_link_libraries(thread_context_demo PRIVATE xcplite)
+
         add_executable(struct_demo examples/struct_demo/src/main.c)
         target_link_libraries(struct_demo PRIVATE xcplite)
 

@@ -113,6 +113,7 @@ void SignalGenerator::Task() {
                 break;
             }
             value_ = (p->ampl * v) + p->offset;
+            output_.store(value_, std::memory_order_relaxed); // Publish for GetValue() called from other threads
         }
 
         // XCP event by event name, event lookup is once and will be cached in a static thread local variable

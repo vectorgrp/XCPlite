@@ -48,8 +48,10 @@ class SignalGenerator {
     std::thread *thread_;             // Thread for the signal generator task
     std::atomic<bool> running_{true}; // Stop flag for the worker thread
 
-    double value_{0};           // Current value
+    double value_{0};           // Current value, written and measured in the task thread only
     double normalized_time_{0}; // Current normalized time in [0.0..1.0[
+
+    std::atomic<double> output_{0}; // Copy of value_ for thread safe access from other threads via GetValue()
 
     void Task();
 
@@ -59,7 +61,7 @@ class SignalGenerator {
     SignalGenerator(const char *instance_name, const SignalParametersT *params);
     ~SignalGenerator();
 
-    [[nodiscard]] double GetValue() const { return value_; } // Getter for the current value
+    [[nodiscard]] double GetValue() const { return output_.load(std::memory_order_relaxed); } // Thread safe getter for the current value
 };
 
 } // namespace signal_generator
