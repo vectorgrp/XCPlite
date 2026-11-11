@@ -123,16 +123,18 @@ static bool CalSegRcuIsUnlocked(const tXcpCalSeg *c);
 // Memory is only freed as a whole when the calibration segment list is destroyed
 static void *XcpCalMemAlloc_(size_t size) {
     DBG_PRINTF6("Allocating %zu bytes from calibration memory pool\n", size);
-    assert(size > 0);
-    assert((size % XCP_CALPAGE_ALIGNMENT) == 0);
-    assert(size <= (size_t)XCP_CAL_MEM_SIZE);
-    assert((uintptr_t)shared.cal_seg_list.cal_mem.pool % XCP_CALPAGE_ALIGNMENT == 0);
+    bool illegal_size = (size == 0) || ((size % XCP_CALPAGE_ALIGNMENT) != 0) || (size > (size_t)XCP_CAL_MEM_SIZE);
+    assert(!illegal_size);
+    if (illegal_size) {
+        DBG_PRINTF_ERROR("Calibration memory segment allocation failed, size = %zu\n", size);
+        return NULL;
+    }
     uint_least32_t old_used, new_used;
     do {
         old_used = atomic_load_explicit(&shared.cal_seg_list.cal_mem_used, memory_order_relaxed);
         new_used = old_used + (uint_least32_t)size;
         if (new_used > XCP_CAL_MEM_SIZE) {
-            DBG_PRINT_ERROR("XCP calibration memory pool exhausted\n");
+            DBG_PRINT_ERROR("Calibration memory pool exhausted\n");
             return NULL;
         }
     } while (!atomic_compare_exchange_weak_explicit(&shared_mut_safe.cal_seg_list.cal_mem_used, &old_used, new_used, memory_order_relaxed, memory_order_relaxed));
@@ -501,13 +503,18 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
     // Create, if not exists
     if (calseg_index == XCP_UNDEFINED_CALSEG) {
 
+        DBG_PRINTF3("Create CalSeg '%s' size=%u, type=%s\n", name, page_size, memory_segment ? "seg" : "blk");
+
         // Align page size to XCP_CALPAGE_ALIGNMENT bytes for better performance
-        uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1);
+        uint32_t aligned_page_size = ((uint32_t)page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(uint32_t)(XCP_CALPAGE_ALIGNMENT - 1);
+        size_t allocation_size = sizeof(tXcpCalSegHeader) + CALSEG_PAGE_COUNT * (size_t)aligned_page_size;
 
         // Allocate memory for the new segment from the embedded pool using the thread-safe bump allocator
         // Header + DEFAULT page + ECU page + XCP page + RCU swap page
-        calseg = (tXcpCalSeg *)XcpCalMemAlloc_(sizeof(tXcpCalSegHeader) + CALSEG_PAGE_COUNT * (size_t)aligned_page_size);
-        DBG_PRINTF3("Create CalSeg '%s' size=%u, type=%s\n", name, page_size, memory_segment ? "seg" : "blk");
+        calseg = (tXcpCalSeg *)XcpCalMemAlloc_(allocation_size);
+        if (calseg == NULL) {
+            return XCP_UNDEFINED_CALSEG;
+        }
         if (!XcpInitCalSeg_(calseg, name, default_page, default_page_file, page_size, memory_segment)) {
             return XCP_UNDEFINED_CALSEG;
         }
@@ -571,7 +578,7 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
     assert(c != NULL);
 
     // Align page size to 8 bytes for better performance
-    uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1);
+    uint32_t aligned_page_size = ((uint32_t)page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(uint32_t)(XCP_CALPAGE_ALIGNMENT - 1);
 
     size_t name_len = STRNLEN(name, XCP_MAX_CALSEG_NAME);
     memcpy(c->h.name, name, name_len);

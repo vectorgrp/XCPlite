@@ -13,10 +13,10 @@
 |
  ----------------------------------------------------------------------------*/
 
+#include <assert.h>  // for static_assert
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uint16_t, uint32_t, uint8_t
 
-#include "assert.h"     // for static_assert
 #include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINTF, DBG_PRINT, ...
 #include "platform.h"   // for atomics
 #include "queue.h"      // for tQueueHandle

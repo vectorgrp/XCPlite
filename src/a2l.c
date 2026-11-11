@@ -1109,7 +1109,7 @@ void A2lCreateInstance_(const char *instance_name, const char *typeName, const u
         fprintf(gA2lFile, " %s 0x%X", A2lGetPrefixedName_(XcpGetProjectName(), typeName), addr);
         printAddrExt(ext);
 
-        // For measurements only: add MATRIX_DIM, READ_WRITE and IF_DATAif applicable
+        // For measurements only: add MATRIX_DIM, READ_WRITE and IF_DATA if applicable
         if (x_dim > 1) { // Array of instance
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
         }

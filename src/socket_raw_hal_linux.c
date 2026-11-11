@@ -24,6 +24,7 @@
 #if defined(OPTION_ENABLE_UDP_RAW) && defined(_LINUX) && !defined(OPTION_UDP_RAW_HAL_EXTERNAL)
 
 #include <arpa/inet.h>       // for htons
+#include <assert.h>          // for assert
 #include <errno.h>           // for errno
 #include <linux/if_ether.h>  // for ETH_P_ALL
 #include <linux/if_packet.h> // for sockaddr_ll, PACKET_OUTGOING, PACKET_IGNORE_OUTGOING
@@ -37,7 +38,6 @@
 #include <sys/types.h>       // for ssize_t
 #include <unistd.h>          // for close, read, write
 
-#include "assert.h"
 #include "dbg_print.h"
 #include "socket_raw_hal.h"
 

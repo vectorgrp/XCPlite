@@ -51,7 +51,7 @@
 // xcpclient reads the events and segments from the target on each connect and compares them with the A2L file, with a mismatch the
 // DAQ measurement fails. It corrects them with --fix-a2l, or takes them from the target when it runs with --elf instead of an A2L file.
 
-#include "assert.h"
+#include <assert.h>
 #include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
