@@ -17,10 +17,10 @@
 
 #include "platform.h" // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex, spinlock
 
-#include "xcplib_cfg.h" // for OPTION_xxx ...
+#include <assert.h> // for assert
 
-#include "assert.h"    // for assert
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT, ...
+#include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT, ...
+#include "xcplib_cfg.h" // for OPTION_xxx ...
 
 #if defined(_LINUX) && defined(_MACOS)
 #error "inconsistent platform defines: both _LINUX and _MACOS defined"

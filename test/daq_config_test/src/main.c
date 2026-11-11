@@ -10,7 +10,7 @@
 //   ./build/daq_config_test <case>   # run one case for step-by-step debugging
 //
 // References: ASAM XCP Protocol Layer 1.4.0, printed page numbers.
-// These fixtures use the default DAQ memory/DTO limits (3072/1024 bytes).
+// These fixtures use the default DAQ memory limit (3072 bytes), DTO size dependent cases adapt to XCPTL_MAX_DTO_SIZE.
 // CTest isolates each case and times it out, including cycles inside XcpEventExt().
 
 #include <stdint.h> // for uintxx_t
@@ -33,6 +33,17 @@
 // Test configuration
 
 #define TEST_QUEUE_SIZE ((size_t)16 * 1024)
+
+// DTO size dependent parameters, valid for any XCPTL_MAX_DTO_SIZE (1024 by default, 248 with OPTION_QUEUE_64_FIX_SIZE)
+// The first ODT of a DAQ list carries the payload of 4 large entries plus one rest entry, which fill it exactly
+// Default: 4*248 + 24 = 1016, OPTION_QUEUE_64_FIX_SIZE: 4*56 + 16 = 240
+#define TEST_MAX_ENTRY_SIZE 248                                // XCP_MAX_ODT_ENTRY_SIZE, advertised in GET_DAQ_RESOLUTION_INFO
+#define TEST_ODT_PAYLOAD (XCPTL_MAX_DTO_SIZE - 8)              // First ODT payload limit: DTO size - 4 byte ODT header - 4 byte timestamp
+#define TEST_ENTRY_SIZE_ ((((TEST_ODT_PAYLOAD - 8) / 4)) & ~3) // Leave at least 8 bytes for the rest entry
+#define TEST_ENTRY_SIZE (TEST_ENTRY_SIZE_ > TEST_MAX_ENTRY_SIZE ? TEST_MAX_ENTRY_SIZE : TEST_ENTRY_SIZE_) // Size of the 4 large entries
+#define TEST_REST_SIZE (TEST_ODT_PAYLOAD - 4 * TEST_ENTRY_SIZE)                                           // Size of the 5th entry, which fills the first ODT exactly
+static_assert(5 * TEST_ENTRY_SIZE > TEST_ODT_PAYLOAD, "5 large entries must overflow the first ODT");
+static_assert(TEST_REST_SIZE >= 4 && TEST_REST_SIZE + 4 <= TEST_MAX_ENTRY_SIZE, "rest entry size out of range");
 
 typedef union {
     uint32_t words[XCPTL_MAX_CTO_SIZE / sizeof(uint32_t)];
@@ -348,30 +359,28 @@ static void test_odt_entry_allocation_overflow(void) {
     reinitialize_and_measure();
 }
 
-// Four 248-byte entries fit; a fifth exceeds the 1016-byte first-ODT payload limit.
+// Four large entries fit; a fifth exceeds the first-ODT payload limit (1016 bytes by default).
 // Require rejection and recovery after FREE_DAQ. Do not require rollback or depend on
 // the pointer's value following CRC_DAQ_CONFIG (Table 232, p. 249).
 static void test_odt_size_overflow(void) {
-    CHECK(XCPTL_MAX_DTO_SIZE == 1024);
     allocate_single_odt(5);
     for (unsigned i = 0; i < 4; i++)
-        CHECK(write_daq(248, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
-    CHECK(write_daq(248, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_DAQ_CONFIG);
+        CHECK(write_daq(TEST_ENTRY_SIZE, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
+    CHECK(write_daq(TEST_ENTRY_SIZE, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_DAQ_CONFIG);
     CHECK(XcpIsConnected());
     reinitialize_and_measure();
 }
 
-// Positive boundary: 4*248 + 24 bytes plus header/timestamp exactly fills MAX_DTO.
+// Positive boundary: 4 large entries + rest entry plus header/timestamp exactly fills MAX_DTO (default 4*248 + 24).
 // It must still acquire a queue buffer and copy all configured bytes correctly.
 static void test_dto_size_limit(void) {
-    CHECK(XCPTL_MAX_DTO_SIZE == 1024);
-    uint8_t measurement[1016];
+    uint8_t measurement[TEST_ODT_PAYLOAD];
     for (unsigned i = 0; i < sizeof(measurement); i++)
         measurement[i] = (uint8_t)i;
     allocate_single_odt(5);
     for (unsigned i = 0; i < 4; i++)
-        CHECK(write_daq(248, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(i * 248, test_event)) == CRC_CMD_OK);
-    CHECK(write_daq(24, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(992, test_event)) == CRC_CMD_OK);
+        CHECK(write_daq(TEST_ENTRY_SIZE, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(i * TEST_ENTRY_SIZE, test_event)) == CRC_CMD_OK);
+    CHECK(write_daq(TEST_REST_SIZE, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(4 * TEST_ENTRY_SIZE, test_event)) == CRC_CMD_OK);
     start_list(0);
     XcpEventExt(test_event, measurement);
     expect_dto(0, measurement, sizeof(measurement));
@@ -424,16 +433,15 @@ static void test_rewrite_shrink(void) {
 // valid configuration intact. This tests validate-before-commit, beyond the XCP
 // recovery requirement; it does not reinstate the rejected smaller-retry requirement.
 static void test_rewrite_overflow(void) {
-    CHECK(XCPTL_MAX_DTO_SIZE == 1024);
-    uint8_t measurement[1016];
+    uint8_t measurement[TEST_ODT_PAYLOAD];
     for (unsigned i = 0; i < sizeof(measurement); i++)
         measurement[i] = (uint8_t)i;
     allocate_single_odt(5);
     for (unsigned i = 0; i < 4; i++)
-        CHECK(write_daq(248, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(i * 248, test_event)) == CRC_CMD_OK);
-    CHECK(write_daq(24, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(992, test_event)) == CRC_CMD_OK);
+        CHECK(write_daq(TEST_ENTRY_SIZE, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(i * TEST_ENTRY_SIZE, test_event)) == CRC_CMD_OK);
+    CHECK(write_daq(TEST_REST_SIZE, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(4 * TEST_ENTRY_SIZE, test_event)) == CRC_CMD_OK);
     CHECK(set_daq_ptr(0, 0, 4) == CRC_CMD_OK);
-    CHECK(write_daq(28, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_DAQ_CONFIG);
+    CHECK(write_daq(TEST_REST_SIZE + 4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_DAQ_CONFIG);
     start_list(0);
     XcpEventExt(test_event, measurement);
     expect_dto(0, measurement, sizeof(measurement));
@@ -531,14 +539,13 @@ static void test_write_multiple_odt_boundary(void) {
 }
 
 // Individual sizes and entry indices are valid, but the second batch element takes
-// the ODT payload from 992 to 1020 bytes, exceeding its 1016-byte limit. Preserve the
+// the ODT payload 4 bytes beyond its limit (default from 992 to 1020 bytes, limit 1016). Preserve the
 // CRC_DAQ_CONFIG response while clearing all DAQs, not only the offending ODT.
 static void test_write_multiple_dto_overflow(void) {
-    CHECK(XCPTL_MAX_DTO_SIZE == 1024);
     allocate_single_odt(5);
     for (unsigned i = 0; i < 3; i++)
-        CHECK(write_daq(248, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
-    CHECK(write_daq_multiple(248, 28) == CRC_DAQ_CONFIG);
+        CHECK(write_daq(TEST_ENTRY_SIZE, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
+    CHECK(write_daq_multiple(TEST_ENTRY_SIZE, TEST_REST_SIZE + 4) == CRC_DAQ_CONFIG);
     expect_configuration_cleared();
     reinitialize_and_measure();
 }

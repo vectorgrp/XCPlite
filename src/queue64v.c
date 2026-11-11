@@ -262,6 +262,12 @@ typedef union QueueHeader {
 
 static_assert(sizeof(tQueueHeader) == CACHE_LINE_SIZE, "QueueHeader size must be CACHE_LINE_SIZE");
 
+// Queue memory size limits (including the queue header)
+// Header, wrap around space for a maximum size entry at the end of the buffer and at least one maximum size entry in the buffer
+#define QUEUE_MIN_MEMORY_SIZE (sizeof(tQueueHeader) + 2 * (QUEUE_MAX_ENTRY_SIZE + QUEUE_ENTRY_HEADER_SIZE) + QUEUE_PAYLOAD_SIZE_ALIGNMENT)
+// Sanity check for size, 100 MiB should be enough for a queue, if you need more, increase this limit (must be < 4 GiB, buffer_size is 32 bit)
+#define QUEUE_MAX_MEMORY_SIZE (100ULL * 1024 * 1024)
+
 // Queue
 typedef struct Queue {
     tQueueHeader h;
@@ -275,14 +281,25 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
     tQueue *queue = NULL;
 
     DBG_PRINTF6("queueInitFromMemory: queue_memory=%p, queue_memory_size=%zu, clear_queue=%d\n", queue_memory, queue_memory_size, clear_queue);
+
+    // Check the queue memory size, when the queue is created
+    // Lower limit: header, wrap around space and at least one maximum size entry, prevents underflow in the buffer size calculation below
+    // Upper limit: prevents overflow in the alignment and in the 32 bit buffer size
+    if (queue_memory == NULL || clear_queue) {
+        if (queue_memory_size < QUEUE_MIN_MEMORY_SIZE || queue_memory_size > QUEUE_MAX_MEMORY_SIZE) {
+            DBG_PRINTF_ERROR("queueInitFromMemory: invalid queue size %zu\n", queue_memory_size);
+            return NULL;
+        }
+    }
+
     // Allocate the queue memory
     if (queue_memory == NULL) {
-        assert(queue_memory_size > 0);
-        size_t aligned_size = (queue_memory_size + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1); // Align to cache line size
-        assert(aligned_size <= 100ULL * 1024 * 1024); // Sanity check for size, 100 MiB should be enough for a queue, if you need more, increase this limit or remove it
+        size_t aligned_size = (queue_memory_size + CACHE_LINE_SIZE - 1) & ~(size_t)(CACHE_LINE_SIZE - 1); // Align to cache line size
         queue = (tQueue *)aligned_alloc(CACHE_LINE_SIZE, aligned_size);
-        assert(queue != NULL);
-        assert(queue && ((uint64_t)queue % CACHE_LINE_SIZE) == 0);
+        if (queue == NULL) {
+            DBG_PRINT_ERROR("queueInitFromMemory: out of memory\n");
+            return NULL;
+        }
         memset(queue, 0, aligned_size);
         queue->h.from_memory = false;
         queue->h.magic = QUEUE_MAGIC;
@@ -293,10 +310,7 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
 
     // Queue memory is provided by the caller and should be initialized
     else if (clear_queue) {
-        assert(queue_memory != NULL);
         queue = (tQueue *)queue_memory;
-        assert(queue_memory_size > 0);
-        assert(queue_memory_size <= 100ULL * 1024 * 1024); // Sanity check for size, 100 MiB should be enough for a queue, if you need more, increase this limit or remove it
         memset(queue, 0, queue_memory_size);
         queue->h.from_memory = true;
         queue->h.magic = QUEUE_MAGIC;

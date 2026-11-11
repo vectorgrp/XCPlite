@@ -125,7 +125,7 @@ endif()
 #     shm      -> hello_xcp (SHM mode), hello_xcp_cpp (SHM mode)
 #     rtos     -> freertos_demo (downloads FreeRTOS-Kernel via FetchContent)
 #   XCPLITE_BUILD_TESTS
-#     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp
+#     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp, persistence_test
 #     ptp      -> clock_test
 #     others   -> (none)
 #   XCPLITE_BUILD_TOOLS
@@ -497,6 +497,9 @@ if(XCPLITE_BUILD_TESTS)
         add_executable(passive_test_cpp test/passive_test/src/main.cpp)
         target_link_libraries(passive_test_cpp PRIVATE xcplite)
 
+        add_executable(persistence_test test/persistence_test/src/main.c)
+        target_link_libraries(persistence_test PRIVATE xcplite)
+
         # Test registration (default configuration)
         foreach(_xcp_unit_test
                 type_detection_test_c
@@ -506,7 +509,8 @@ if(XCPLITE_BUILD_TESTS)
                 socket_recv_test
                 cal_test
                 passive_test_c
-                passive_test_cpp)
+                passive_test_cpp
+                persistence_test)
             add_test(NAME ${_xcp_unit_test} COMMAND ${_xcp_unit_test})
             set_tests_properties(${_xcp_unit_test} PROPERTIES LABELS "unit" TIMEOUT 60)
         endforeach()

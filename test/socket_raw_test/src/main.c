@@ -171,9 +171,12 @@ static void test_checksums(void) {
     CHECK("wire struct packing (14/20/8/28/4)", sizeof(tEthHdr) == 14 && sizeof(tIp4Hdr) == 20 && sizeof(tUdpHdr) == 8 && sizeof(tArpHdr) == 28 && sizeof(tIcmpHdr) == 4);
     CHECK("RAW_HDR_LEN is 42", RAW_HDR_LEN == 42);
     // MTU independent: the frame is the 42 byte header plus one full segment.
-    // With the default OPTION_MTU of 1504 that is 1514 bytes, but jumbo configurations are valid.
+    // XCPTL_MAX_SEGMENT_SIZE = (OPTION_MTU - 28) & ~7, so the IP packet (frame without the 14 byte Ethernet header)
+    // is at most OPTION_MTU and less than 8 bytes smaller (OPTION_MTU 1500: frame 1514, IP packet 1500;
+    // OPTION_MTU 1420 of the raw configuration: frame 1434, IP packet 1420). Jumbo configurations are valid.
     CHECK("max frame == 42 + max segment", RAW_MAX_FRAME == RAW_HDR_LEN + XCPTL_MAX_SEGMENT_SIZE);
-    CHECK("max frame == OPTION_MTU + 10", RAW_MAX_FRAME == OPTION_MTU + 10);
+    CHECK("max IP packet <= OPTION_MTU", RAW_MAX_FRAME - ETH_HDR_LEN <= OPTION_MTU);
+    CHECK("max IP packet > OPTION_MTU - 8", RAW_MAX_FRAME - ETH_HDR_LEN > OPTION_MTU - 8);
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -340,9 +343,12 @@ static void test_arp_icmp(void) {
     CHECK("ICMP: reply length matches the request", gTxLen == n);
 
     setupSocket();
-    n = buildIcmpEcho(f, 1400); // ping -s 1400
+    // The largest echo answered: the reply must fit one full frame, so the echo data is at most one
+    // segment (ping -s 1392 with OPTION_MTU 1420, ping -s 1472 with 1500), its IP packet fits OPTION_MTU.
+    n = buildIcmpEcho(f, (uint16_t)XCPTL_MAX_SEGMENT_SIZE);
     handleFrame(f, n, out, sizeof(out), srcAddr, &srcPort);
-    CHECK("ICMP: large echo (1400 bytes) answered", gTxCount == 1 && gTxLen == n);
+    CHECK("ICMP: largest echo (one segment) answered", gTxCount == 1 && gTxLen == n);
+    CHECK("ICMP: largest echo fits OPTION_MTU", n - ETH_HDR_LEN <= OPTION_MTU);
     ii = (tIp4Hdr *)(gTxFrame + ETH_HDR_LEN);
     ic = gTxFrame + ETH_HDR_LEN + IP4_HDR_LEN;
     CHECK("ICMP: large echo checksum valid", checksum16(ic, (uint16_t)(BE16(ii->total_length) - IP4_HDR_LEN), 0) == 0);

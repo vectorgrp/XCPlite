@@ -25,9 +25,9 @@
 
 #include "sockets.h"
 
+#include <assert.h> // for assert
 #include <string.h> // for memcpy, memcmp, memset
 
-#include "assert.h"
 #include "dbg_print.h"
 #include "socket_raw_hal.h" // for the Ethernet HAL and the backend selection
 #include "xcptl_cfg.h"      // for XCPTL_MAX_SEGMENT_SIZE, XCPTL_MAX_CTO_SIZE

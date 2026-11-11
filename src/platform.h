@@ -87,13 +87,18 @@ OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
 
 //-------------------------------------------------------------------------------------------------
 
+#include <assert.h>   // for assert,static_assert
 #include <inttypes.h> // for PRIx32, PRIu64
 #include <stdbool.h>  // for bool
+#include <stddef.h>   // for size_t
 #include <stdint.h>   // for uintxx_t, uint_fastxx_t
 
 #if !defined(__cplusplus) && !defined(static_assert)
 #define static_assert _Static_assert
 #endif
+
+static_assert(sizeof(size_t) >= 4, "< 32-bit size_t is not supported");
+static_assert(sizeof(int) >= 4, "< 32-bit int is not supported");
 
 //-------------------------------------------------------------------------------------------------
 // Platform specific functions
@@ -320,7 +325,9 @@ typedef struct {
 } MUTEX;
 
 #ifdef __cplusplus
-#define MUTEX_INTIALIZER {}
+#define MUTEX_INTIALIZER                                                                                                                                                           \
+    {                                                                                                                                                                              \
+    }
 #else
 #define MUTEX_INTIALIZER {NULL}
 #endif
@@ -402,7 +409,7 @@ typedef TaskHandle_t THREAD_HANDLE;
 #define create_thread(h, _attr, fn, args)                                                                                                                                          \
     do {                                                                                                                                                                           \
         static StaticTask_t task_buffer;                                                                                                                                           \
-        static StackType_t stack_buffer[FREERTOS_TASK_STACK_DEPTH(OPTION_FREERTOS_STACK_BYTES)];                                                                                  \
+        static StackType_t stack_buffer[FREERTOS_TASK_STACK_DEPTH(OPTION_FREERTOS_STACK_BYTES)];                                                                                   \
         *(h) = xTaskCreateStatic((TaskFunction_t)(fn), #fn, FREERTOS_TASK_STACK_DEPTH(OPTION_FREERTOS_STACK_BYTES), (args), OPTION_FREERTOS_PRIORITY, stack_buffer, &task_buffer); \
         assert(*(h) != NULL);                                                                                                                                                      \
     } while (0)
