@@ -62,7 +62,7 @@
 #include "cmsis_os2.h"
 #endif
 
-#if !defined(FREE_RTOS_POSIX_SIM)
+#if !defined(FREE_RTOS_POSIX_SIM) && !(defined(OPTION_FREERTOS_PLUS_TCP) && defined(__linux__))
 #include "clock64.h"
 #endif
 
@@ -121,7 +121,7 @@ bool startXcpServer() {
 #endif
 
     // Register the high resolution 64-bit clock function implemented by Clock64_Get() in clock64.c as XCP DAQ clock
-#if !defined(FREE_RTOS_POSIX_SIM)
+#if !defined(FREE_RTOS_POSIX_SIM) && !(defined(OPTION_FREERTOS_PLUS_TCP) && defined(__linux__))
     Clock64_Init();
     ApplXcpRegisterGetClockCallback(Clock64_Get);
     ApplXcpRegisterIdleCallback(Clock64_Update);

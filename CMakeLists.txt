@@ -70,7 +70,7 @@ endif()
 # Application specific configuration override header (XCPLITE_CFG_OVERRIDE)
 # A path to a header which is included at the end of src/xcplib_cfg.h (XCPLIB_CFG_OVERRIDE) and
 # may #undef/#define any OPTION_* default, like the shipped src/xcplib_<name>_cfg.h files do.
-# Only valid with XCPLITE_CONFIGURATION=default; to build on a shipped configuration, #include
+# Valid with XCPLITE_CONFIGURATION=default or rtos; to build on a shipped configuration, #include
 # its header (e.g. "xcplib_no_a2l_cfg.h") at the top of the custom header.
 # Like XCPLITE_CONFIGURATION, a normal variable set by a consuming project is honored.
 if(DEFINED XCPLITE_CFG_OVERRIDE AND NOT DEFINED CACHE{XCPLITE_CFG_OVERRIDE})
@@ -79,14 +79,14 @@ else()
     set(_xcplite_cfg_override_init "")
 endif()
 set(XCPLITE_CFG_OVERRIDE "${_xcplite_cfg_override_init}" CACHE FILEPATH
-    "Application specific configuration override header, applied on top of src/xcplib_cfg.h (XCPLITE_CONFIGURATION=default only)")
+    "Application specific configuration override header, applied on top of src/xcplib_cfg.h (XCPLITE_CONFIGURATION=default or rtos)")
 
 set(_xcplib_cfg_override_path "") # full path of the override header to install (shipped or custom)
 set(_xcplib_cfg_override_dir "")  # include directory of a custom override header
 if(XCPLITE_CFG_OVERRIDE)
-    if(NOT XCPLITE_CONFIGURATION STREQUAL "default")
+    if(NOT XCPLITE_CONFIGURATION MATCHES "^(default|rtos)$")
         message(FATAL_ERROR
-            "XCPLITE_CFG_OVERRIDE requires XCPLITE_CONFIGURATION=default (got '${XCPLITE_CONFIGURATION}'). "
+            "XCPLITE_CFG_OVERRIDE requires XCPLITE_CONFIGURATION=default or rtos (got '${XCPLITE_CONFIGURATION}'). "
             "To build on a shipped configuration, #include its header (e.g. \"xcplib_${XCPLITE_CONFIGURATION}_cfg.h\") "
             "at the top of your override header.")
     endif()
@@ -139,7 +139,7 @@ endif()
 #   XCPLITE_INSTALL  (any configuration)
 #                -> generate install/export rules; ON when xcplite is the top-level
 #                   project, OFF when consumed via add_subdirectory/FetchContent
-#   XCPLITE_CFG_OVERRIDE  (configuration 'default' only)
+#   XCPLITE_CFG_OVERRIDE  (configurations 'default' or 'rtos')
 #                -> path to an application specific configuration override header,
 #                   applied on top of src/xcplib_cfg.h (see examples/fetchcontent_example)
 #
@@ -151,6 +151,19 @@ option(XCPLITE_BUILD_TOOLS      "Build tool targets for the selected configurati
 option(XCPLITE_BUILD_RUST_TOOLS "Build Rust tool targets: xcpclient, bintool (requires cargo)" OFF)
 option(XCPLITE_BUILD_BPF_DEMO   "Build bpf_demo (default configuration, Linux only; requires libbpf)" OFF)
 option(XCPLITE_INSTALL          "Generate install rules for xcplite (default: ON when top-level, OFF when consumed via add_subdirectory/FetchContent)" ${_xcplite_is_top_level})
+
+option(XCPLITE_FREERTOS_PLUS_TCP "Use application-provided FreeRTOS-Plus-TCP targets (rtos configuration)" OFF)
+if(XCPLITE_FREERTOS_PLUS_TCP)
+    if(NOT XCPLITE_CONFIGURATION STREQUAL "rtos")
+        message(FATAL_ERROR "XCPLITE_FREERTOS_PLUS_TCP requires XCPLITE_CONFIGURATION=rtos")
+    endif()
+    if(XCPLITE_INSTALL)
+        message(FATAL_ERROR "XCPLITE_FREERTOS_PLUS_TCP requires XCPLITE_INSTALL=OFF; use XCPlite as a source subproject with application-provided FreeRTOS targets")
+    endif()
+    if(NOT TARGET freertos_kernel OR NOT TARGET freertos_plus_tcp)
+        message(FATAL_ERROR "Provide freertos_kernel and freertos_plus_tcp targets before adding xcplite")
+    endif()
+endif()
 
 # Find required packages
 # The rtos configuration is single-threaded from pthreads' perspective (FreeRTOS primitives only);
@@ -250,6 +263,11 @@ set(xcplite_SOURCES src/xcpappl.c src/xcplite.c src/xcpethserver.c src/xcpethtl.
 
 # Create xcplite library
 add_library(xcplite ${xcplite_SOURCES})
+
+if(XCPLITE_FREERTOS_PLUS_TCP)
+    target_compile_definitions(xcplite PUBLIC _FREE_RTOS OPTION_FREERTOS_PLUS_TCP)
+    target_link_libraries(xcplite PUBLIC freertos_kernel freertos_plus_tcp)
+endif()
 
 # Namespaced alias so that consumers can link xcplite::xcplite regardless of whether
 # xcplite comes from an installed package (find_package) or from the source tree
@@ -427,7 +445,9 @@ if(XCPLITE_BUILD_EXAMPLES)
         # freertos_demo: FreeRTOS POSIX simulator for testing FreeRTOS xcplite support on the host.
         # Linux only. Downloads FreeRTOS-Kernel via FetchContent (requires network access at configure time).
         # Note: The embedded FreeRTOS examples for eps32 and stm32 are build externally
-        if(NOT WIN32)
+        if(XCPLITE_FREERTOS_PLUS_TCP)
+            message(STATUS "Plus-TCP: use examples/freertos_demo/freertos_plus_tcp_emu_demo as the parent project")
+        elseif(NOT WIN32)
             add_subdirectory(examples/freertos_demo/freertos_emu_demo)
             message(STATUS "freertos_emu_demo: building with FreeRTOS-Kernel (FetchContent)")
         else()
