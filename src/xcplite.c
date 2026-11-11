@@ -932,6 +932,38 @@ tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns, uin
     return id;
 }
 
+// Add a measurement event instance with a given instance index to the event list, return event id (0..MAX_EVENT-1)
+// If an event with this name and index already exists (for example preloaded from the binary persistence file), just return the existing id
+// The index gives the event instance an identity, index 0 is the event without instance index
+// Thread safe by mutex
+tXcpEventId XcpCreateEventWithIndex(const char *name, uint16_t index, uint32_t cycle_time_ns, uint8_t priority) {
+
+    if (!isActivated()) {
+        return XCP_UNDEFINED_EVENT_ID; // Uninitialized
+    }
+
+    assert(name != NULL);
+
+    mutexLock(&local_mut.event_list_mutex);
+    tXcpEventId id = XCP_UNDEFINED_EVENT_ID;
+    uint16_t count = acquireEventCount();
+    for (uint16_t i = 0; i < count; i++) {
+#ifdef OPTION_SHM_MODE // find only events owned by this application process
+        if (shared.event_list.event[i].app_id != XcpShmGetAppId())
+            continue;
+#endif
+        if (shared.event_list.event[i].index == index && strcmp(shared.event_list.event[i].name, name) == 0) {
+            id = i;
+            break;
+        }
+    }
+    if (id == XCP_UNDEFINED_EVENT_ID) {
+        id = XcpCreateIndexedEvent(name, index, cycle_time_ns, priority);
+    }
+    mutexUnlock(&local_mut.event_list_mutex);
+    return id;
+}
+
 // Add a measurement event to the event list, return event id (0..MAX_EVENT-1)
 // If name already exists, just return the existing id
 // Thread safe by mutex

@@ -14,6 +14,8 @@ Depending on calibration parameters ampl, phase, offset and period in struct Sig
 
 #include "xcplib.hpp" // for xcp::CalSeg
 
+#include "xcp_context.hpp" // for xcp::Context
+
 //-----------------------------------------------------------------------------------------------
 
 namespace signal_generator {
@@ -40,6 +42,8 @@ class SignalGenerator {
   private:
     xcp::CalSeg<SignalParametersT> signal_parameters_; // Wrapped signal parameters struct to enable XCP calibration access
 
+    xcp::Context context_; // XCP context of this instance, makes the instance known to context-aware instrumentation
+
     const char *instance_name_;       // Instance name
     std::thread *thread_;             // Thread for the signal generator task
     std::atomic<bool> running_{true}; // Stop flag for the worker thread
@@ -56,6 +60,9 @@ class SignalGenerator {
     ~SignalGenerator();
 
     [[nodiscard]] double GetValue() const { return output_.load(std::memory_order_relaxed); } // Thread safe getter for the current value
+
+    // Get the current value with instrumentation, may be called from any thread
+    double Poll() const;
 };
 
 } // namespace signal_generator

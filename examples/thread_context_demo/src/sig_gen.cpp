@@ -21,9 +21,24 @@ namespace signal_generator {
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double k2Pi = (kPi * 2);
+constexpr double kClipLimit = 60.0; // Output limit in Volt
+
+// Shared helper function, called by all signal generator instances
+// It does not know for which instance it is working, the context-aware instrumentation gets the instance from the current context of the thread
+static double Clip(double input) {
+    DaqSpan(clip);
+    double clipped = input;
+    if (clipped > kClipLimit)
+        clipped = kClipLimit;
+    if (clipped < -kClipLimit)
+        clipped = -kClipLimit;
+    DaqEventCtxVar(clip, A2L_MEAS_PHYS(input, "Clip function input", "Volt", -100.0, +100.0), A2L_MEAS_PHYS(clipped, "Clip function output", "Volt", -100.0, +100.0));
+    return clipped;
+}
 
 // Constructor - creates the signal generator with the given instance name and parameters
-SignalGenerator::SignalGenerator(const char *instance_name, const SignalParametersT *params) : signal_parameters_(instance_name, params), instance_name_(instance_name) {
+SignalGenerator::SignalGenerator(const char *instance_name, const SignalParametersT *params)
+    : signal_parameters_(instance_name, params), context_(instance_name), instance_name_(instance_name) {
 
     // Once registration of the A2L TYPEDEF for SignalParametersT
     if (A2lOnce()) {
@@ -57,8 +72,22 @@ SignalGenerator::~SignalGenerator() {
     }
 }
 
+// Get the current value, called from other threads (the main loop)
+// The method attaches the context of its instance for the duration of the call, the context of the caller is restored on return
+double SignalGenerator::Poll() const {
+    xcp::Scope scope(context_);
+    DaqSpan(poll);
+    double polled = output_.load(std::memory_order_relaxed);
+    DaqEventCtxVar(poll, A2L_MEAS_PHYS(polled, "Value polled by another thread", "Volt", -100.0, +100.0));
+    return polled;
+}
+
 // Cyclic calculation function - runs in a separate thread
 void SignalGenerator::Task() {
+
+    // Attach the context of this instance to this thread
+    // The context was created in the thread which constructed the instance, a new thread does not inherit a context
+    xcp::Scope scope(context_);
 
     double time = 0;
     double start_time = static_cast<double>(clockGetMonotonicUs()) / 1000000; // time in s since start of the signal generator
@@ -69,6 +98,7 @@ void SignalGenerator::Task() {
 
         // Calculate the waveform value based on the current time and signal parameters
         {
+            DaqSpan(calc);
             auto p = signal_parameters_.lock();
             normalized_time_ = fmod(time, p->period) / p->period; // Normalize time ([0.0..1.0[ to the period
             double v = 0;
@@ -88,14 +118,13 @@ void SignalGenerator::Task() {
                 v = sin((normalized_time_ * k2Pi) + p->phase);
                 break;
             }
-            value_ = (p->ampl * v) + p->offset;
+            value_ = Clip((p->ampl * v) + p->offset);
             output_.store(value_, std::memory_order_relaxed); // Publish for GetValue() called from other threads
         }
 
-        // XCP event
-        DaqEventVar(siggen,                                                                          //
-                    A2L_MEAS_PHYS(value_, "Signal generator output (all instances)", "Volt", -100.0, +100.0) //
-        );
+        // XCP event in the current context
+        // Each instance gets its own event instance siggen_<n> and its own measurement <instance_name>.value_
+        DaqEventCtxVar(siggen, A2L_MEAS_PHYS(value_, "Signal generator output", "Volt", -100.0, +100.0));
 
         // Sleep for delay_us microseconds
         sleepUs(signal_parameters_.lock()->delay_us);

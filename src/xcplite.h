@@ -246,6 +246,9 @@ tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, ui
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1), thread safe, if name exists, an instance id is appended to the name
 tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
 
+// Add a measurement event instance with a given instance index, return the existing event if name and index already exist, thread safe
+tXcpEventId XcpCreateEventWithIndex(const char *name, uint16_t index, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
+
 // Get the event index (1..), return 0 if not found
 uint16_t XcpGetEventIndex(tXcpEventId event);
 

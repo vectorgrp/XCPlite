@@ -15,7 +15,7 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
-constexpr const char *OPTION_PROJECT_NAME = "telemetry_demo";
+constexpr const char *OPTION_PROJECT_NAME = "thread_context_demo";
 constexpr const char OPTION_PROJECT_VERSION[] = "V0.9";
 constexpr bool OPTION_USE_TCP = false;
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
@@ -85,14 +85,21 @@ int main() {
 
         sleepUs(100000); // Wait a bit to let the signal generator threads initialize
 
+        // Poll once to register the instrumentation in Poll
+        (void)signal_generator_1.Poll();
+        (void)signal_generator_2.Poll();
+
+        // Create the A2L conversion for the span names
+        xcp::A2lCreateSpanConversion();
+
         // Main loop
         std::cout << "Starting main loop..." << std::endl;
         double channel1, channel2;
         while (running) {
 
             // Poll the current values of signal generator 1+2
-            channel1 = signal_generator_1.GetValue();
-            channel2 = signal_generator_2.GetValue();
+            channel1 = signal_generator_1.Poll();
+            channel2 = signal_generator_2.Poll();
 
             // Trigger the XCP measurement event mainloop for local variables channel1 and channel2
             DaqEventVar(mainloop,                                                                           //
@@ -100,7 +107,7 @@ int main() {
                         A2L_MEAS_PHYS(channel2, "Current value of signal generator 2", "Volt", -1.0, +1.0)  //
             );
 
-            std::cout << channel1 << " , " << channel2 << std::endl;
+            // std::cout << channel1 << " , " << channel2 << std::endl;
             sleepUs(100000);
 
         } // while (running)

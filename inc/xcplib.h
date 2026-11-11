@@ -315,6 +315,17 @@ tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, ui
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
 tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 
+/// Add a measurement event instance with a given instance index to the event list, return event id (0..XCP_MAX_EVENT_COUNT-1)
+/// If an event with this name and instance index already exists, returns the existing event id
+/// Unlike XcpCreateEventInstance, the caller defines the instance index, which gives the event instance a stable identity
+/// Function is thread safe by using a mutex for event list access.
+/// @param name Name of the event.
+/// @param index Instance index (1..), will be the postfix of the event name in the A2L file, 0 means no instance index.
+/// @param cycle_time_ns Cycle time in nanoseconds. 0 means sporadic event.
+/// @param priority Priority of the event. 0 means normal, >=1 means realtime.
+/// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
+tXcpEventId XcpCreateEventWithIndex(const char *name, uint16_t index, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+
 #endif // OPTION_DAQ_EVENT_LIST
 
 /// Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
