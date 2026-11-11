@@ -106,8 +106,8 @@ tQueueHandle queueInit(size_t queue_buffer_size);
 /// Creates a queue inside the user provided buffer.
 /// @precondition queue_buffer_size must at least fit the queue header and minimum payload size.
 /// This can be used to place the queue inside shared memory
-/// @param queue_buffer         Buffer to place the queue in including the queue header.
-/// @param queue_buffer_size    Buffer size including the queue header.
+/// @param queue_memory         Buffer to place the queue in including the queue header.
+/// @param queue_memory_size    Buffer size including the queue header.
 /// @param clear_queue          Clear the queue memory or keep the passed buffer untouched.
 /// @param out out_buffer_size  Optional out parameter can be used to get the remaining buffer size.
 /// @return Queue handle.

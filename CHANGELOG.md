@@ -5,9 +5,10 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V2.3.4]
 
-- Added a new persistence_test
-- Fixed socket_raw_test
 - Fixed potential integer overflows in calibration memory size calculation
+- Fixed queue64f and queue64v memory size checks
+- Fixed socket_raw_test
+- Added a new persistence_test
 
 
 
