@@ -17,12 +17,15 @@ any worker, measures each completed work item.
 | Batch completion detection | Separate atomic completion counter with release/acquire ordering |
 | Calibration as external request | Main loop starts a batch when `params.start_request` changes |
 | Parallel speedup | Sum of work item durations / batch runtime |
+| Generic work interface | The work is defined in `work.c` behind the interface `work.h`, `main.c` only knows work item indices |
 
 ### Files
 
 | File | Purpose |
 |---|---|
-| `src/main.c` | Demo application — worker threads, work distribution, batch control |
+| `src/main.c` | Generic part — worker threads, work distribution, batch control, instrumentation |
+| `src/work.h` | Work interface and threading contract |
+| `src/work.c` | Work implementation — placeholder with simulated work, replace with the real work |
 | `CANape/` | CANape project (A2L auto-upload, XCP UDP, port 5555) |
 
 ---
@@ -32,33 +35,51 @@ any worker, measures each completed work item.
 ```
 main loop                                   worker threads (THREAD_COUNT)
 ---------                                   -----------------------------
+work_init()
 start_request changed or auto_restart:      loop:
-  gWorkDone = 0                               fetch_work(&index):  CAS gWorkRemaining n -> n-1 if n > 0
-  gWorkRemaining = batch_size  (release)      if fetched:
-                                                do_work(index)
-cyclic:                                         trigger event work_done
-  gWorkDone == batch_size (acquire)?            gWorkDone++  (release)
-    -> batch completed                        else:
-  trigger event mainloop                        sleep poll_us
+  n = work_begin_batch()                      fetch_work(&index):  CAS gWorkRemaining n -> n-1 if n > 0
+  gWorkDone = 0                               if fetched:
+  gWorkRemaining = n  (release)                 work_execute(index)
+                                                trigger event work_done
+cyclic:                                         gWorkDone++  (release)
+  gWorkDone == n (acquire)?                   else:
+    -> work_complete(n)                         sleep poll_us
+  trigger event mainloop
+work_shutdown()
 ```
 
-- Work item indices are handed out in ascending order `0..batch_size-1`.
+- Work item indices are handed out in ascending order `0..n-1`, `n` is the number of work items returned by `work_begin_batch`.
 - A plain `atomic_fetch_sub` is not used, because idle workers polling an empty counter would underflow it.
 - `gWorkRemaining == 0` means all work items are fetched, not completed. Completion is tracked by `gWorkDone`.
 - A new batch is only started when the previous batch is completed.
 - Idle workers poll with `params.poll_us`, so `work_latency` includes up to one poll interval.
-- `do_work(index)` is a placeholder: it sleeps for a pseudo random duration between 10% and 100% of `params.work_time_us`, deterministic per index.
 
-### Calibration parameters (`params`)
+### Work interface (`work.h`)
+
+| Function | Called by | Purpose |
+|---|---|---|
+| `bool work_init(void)` | main thread, once, before the worker threads are started | Create calibration segments, register parameters and measurements, allocate resources |
+| `uint32_t work_begin_batch(void)` | main thread, no batch running | Define the work items of a new batch and prepare their input data, return the number of work items (0 = no batch) |
+| `void work_execute(uint32_t index)` | worker threads, concurrently, each index exactly once | Execute one work item |
+| `bool work_complete(uint32_t items)` | main thread, after all work items are executed | Evaluate the batch result, false counts as batch error |
+| `void work_shutdown(void)` | main thread, after the worker threads are joined | Release resources |
+
+Data written in `work_begin_batch` is visible in `work_execute`, data written in `work_execute` is visible in `work_complete`.
+Concurrent work items may write to data owned by their index (e.g. `result[index]`) without synchronization.
+
+The placeholder in `work.c` creates batches of `work_params.items` work items, each sleeps for a pseudo random duration between 10% and 100% of `work_params.time_us`, deterministic per index,
+and checks in `work_complete` that every work item was executed exactly once.
+
+### Calibration parameters (`params`, `work_params`)
 
 | Parameter | Default | Description |
 |---|---|---|
 | `start_request` | 0 | Increment to start a new batch |
 | `auto_restart` | false | Start the next batch automatically when the previous one is completed |
-| `batch_size` | 100 | Number of work items in a batch |
-| `work_time_us` | 10000 | Maximum duration of a simulated work item |
 | `poll_us` | 1000 | Worker poll interval when there is nothing to do |
 | `cycle_us` | 10000 | Main loop cycle time |
+| `work_params.items` | 100 | Number of work items in a batch (placeholder work) |
+| `work_params.time_us` | 10000 | Maximum duration of a simulated work item (placeholder work) |
 
 ### Measurements
 
@@ -69,6 +90,7 @@ cyclic:                                         trigger event work_done
 | `work_done` | `work_time` | Duration of the work item (us) |
 | `work_done` | `work_latency` | Time from batch start to start of the work item (us) |
 | `mainloop` | `batch_count` | Number of completed batches |
+| `mainloop` | `batch_errors` | Number of batches for which `work_complete` returned false |
 | `mainloop` | `batch_running` | Batch is running |
 | `mainloop` | `batch_size`, `work_remaining`, `work_done` | Batch progress |
 | `mainloop` | `batch_time` | Runtime of the current or last batch (us) |

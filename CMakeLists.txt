@@ -357,7 +357,7 @@ if(XCPLITE_BUILD_EXAMPLES)
         add_executable(struct_demo examples/struct_demo/src/main.c)
         target_link_libraries(struct_demo PRIVATE xcplite)
 
-        add_executable(multi_thread_demo examples/multi_thread_demo/src/main.c)
+        add_executable(multi_thread_demo examples/multi_thread_demo/src/main.c examples/multi_thread_demo/src/work.c)
         target_link_libraries(multi_thread_demo PRIVATE xcplite)
 
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

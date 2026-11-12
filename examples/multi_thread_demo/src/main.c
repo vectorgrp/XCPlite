@@ -2,9 +2,11 @@
 //
 // A fixed set of worker threads processes batches of work items:
 //   - The main loop starts a batch of work items on an external request (calibration parameter start_request)
-//   - Each worker thread fetches the next work item index from a shared atomic counter and calls do_work(index)
+//   - Each worker thread fetches the next work item index from a shared atomic counter and calls work_execute(index)
 //   - When there is nothing to do, the worker sleeps for the poll interval and checks again
 //   - The main loop detects when all work items of a batch are completed
+//
+// The work itself is defined in work.c, main.c is generic, see the interface contract in work.h
 //
 // Instrumentation:
 //   - A single global event 'work_done' is triggered by any worker thread when it completed a work item,
@@ -22,6 +24,8 @@
 
 // Internal libxcplite includes to simplify multi platform threading and atomics
 #include "platform.h" // for THREAD_HANDLE, create_thread, sleepUs, clockGetMonotonicNs, atomic_xxx
+
+#include "work.h" // for work_init, work_begin_batch, work_execute, work_complete, work_shutdown
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -44,14 +48,12 @@
 typedef struct params {
     uint32_t start_request; // Increment to request a new batch, the main loop starts a batch when the value changes
     bool auto_restart;      // Start the next batch automatically when the previous batch is completed
-    uint32_t batch_size;    // Number of work items in a batch
-    uint32_t work_time_us;  // Maximum duration of a simulated work item in us
     uint32_t poll_us;       // Worker poll interval in us, when there is nothing to do
     uint32_t cycle_us;      // Main loop cycle time in us
 } params_t;
 
 // Default parameters
-static const params_t params = {.start_request = 0, .auto_restart = false, .batch_size = 100, .work_time_us = 10000, .poll_us = 1000, .cycle_us = 10000};
+static const params_t params = {.start_request = 0, .auto_restart = false, .poll_us = 1000, .cycle_us = 10000};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
@@ -102,22 +104,6 @@ static void start_batch(uint32_t batch_size) {
 }
 
 //-----------------------------------------------------------------------------------------------------
-// Work
-
-// Execute work item 'index'
-// Placeholder: simulates work of a pseudo random duration between 10% and 100% of params.work_time_us, deterministic for each index
-static void do_work(uint32_t index) {
-
-    const params_t *params = (params_t *)XcpLockCalSeg(calseg);
-    uint32_t work_time_us = params->work_time_us;
-    XcpUnlockCalSeg(calseg); // Don't hold the calibration segment lock while working
-
-    uint32_t hash = (index * 2654435761u) >> 16; // Knuth multiplicative hash, 16 bit
-    uint32_t min_us = work_time_us / 10;
-    sleepUs(min_us + (uint32_t)(((uint64_t)(work_time_us - min_us) * hash) / 0xFFFF));
-}
-
-//-----------------------------------------------------------------------------------------------------
 
 // Signal handler for clean shutdown
 static volatile bool gRun = true;
@@ -157,7 +143,7 @@ THREAD_FUNC_RETURN worker(void *p) {
         if (fetch_work(&work_index)) {
             uint64_t t1 = clockGetMonotonicNs();
             work_latency = t1 - gBatchStartTime;
-            do_work(work_index);
+            work_execute(work_index);
             work_time = clockGetMonotonicNs() - t1;
 
             // Instrumentation: Measurement event, triggered by any worker thread
@@ -218,10 +204,13 @@ int main(void) {
     A2lSetSegmentAddrMode(calseg, params);
     A2lCreateParameter(params.start_request, "Increment to start a new batch", "", 0, 4294967295.0);
     A2lCreateParameter(params.auto_restart, "Start the next batch automatically when the previous batch is completed", "", 0, 1);
-    A2lCreateParameter(params.batch_size, "Number of work items in a batch", "", 0, 1000000);
-    A2lCreateParameter(params.work_time_us, "Maximum duration of a simulated work item", "us", 0, 1000000);
     A2lCreateParameter(params.poll_us, "Worker poll interval when there is nothing to do", "us", 10, 1000000);
     A2lCreateParameter(params.cycle_us, "Main loop cycle time", "us", 100, 1000000);
+
+    // Initialize the work, before the worker threads are started
+    if (!work_init()) {
+        return 1;
+    }
 
     // Conversion for the durations measured in ns
     A2lCreateLinearConversion(ns_to_us, "Duration in ns to us", "us", 0.001, 0.0);
@@ -230,19 +219,21 @@ int main(void) {
     DaqCreateEvent(work_done);
 
     // Main loop local measurement variables on stack
-    uint32_t batch_count = 0;      // Number of completed batches
-    uint8_t batch_running = 0;     // 1 while a batch is running
-    uint32_t batch_size = 0;       // Number of work items in the current batch
-    uint32_t work_remaining = 0;   // Number of work items not fetched yet
-    uint32_t work_done = 0;        // Number of work items completed
-    uint64_t batch_time = 0;       // Runtime of the current or last batch in ns
-    double batch_speedup = 0.0;    // Sum of work item durations / batch runtime of the last batch
+    uint32_t batch_count = 0;    // Number of completed batches
+    uint32_t batch_errors = 0;   // Number of completed batches with an invalid result
+    uint8_t batch_running = 0;   // 1 while a batch is running
+    uint32_t batch_size = 0;     // Number of work items in the current batch
+    uint32_t work_remaining = 0; // Number of work items not fetched yet
+    uint32_t work_done = 0;      // Number of work items completed
+    uint64_t batch_time = 0;     // Runtime of the current or last batch in ns
+    double batch_speedup = 0.0;  // Sum of work item durations / batch runtime of the last batch
     uint32_t last_start_request = params.start_request;
 
     // Instrumentation: Main loop event and measurement variables
     DaqCreateEvent(mainloop);
     A2lSetStackAddrMode(mainloop);
     A2lCreateMeasurement(batch_count, "Number of completed batches");
+    A2lCreateMeasurement(batch_errors, "Number of completed batches with an invalid result");
     A2lCreateMeasurement(batch_running, "Batch is running");
     A2lCreateMeasurement(batch_size, "Number of work items in the current batch");
     A2lCreateMeasurement(work_remaining, "Number of work items not fetched yet");
@@ -265,7 +256,6 @@ int main(void) {
         const params_t *params = (params_t *)XcpLockCalSeg(calseg);
         uint32_t start_request = params->start_request;
         bool auto_restart = params->auto_restart;
-        uint32_t new_batch_size = params->batch_size;
         uint32_t cycle_us = params->cycle_us;
         XcpUnlockCalSeg(calseg);
 
@@ -279,19 +269,27 @@ int main(void) {
                 batch_speedup = batch_time > 0 ? (double)work_time_sum / (double)batch_time : 0.0;
                 batch_running = 0;
                 batch_count++;
-                printf("Batch %u completed: %u work items in %.3f ms, speedup %.2f\n", batch_count, batch_size, (double)batch_time / 1000000.0, batch_speedup);
+                bool ok = work_complete(batch_size);
+                if (!ok) {
+                    batch_errors++;
+                }
+                printf("Batch %u completed%s: %u work items in %.3f ms, speedup %.2f\n", batch_count, ok ? "" : " with errors", batch_size, (double)batch_time / 1000000.0,
+                       batch_speedup);
             }
         } else {
             // Start a new batch on request
-            if ((start_request != last_start_request || auto_restart) && new_batch_size > 0) {
+            if (start_request != last_start_request || auto_restart) {
                 last_start_request = start_request;
-                batch_size = new_batch_size;
-                work_remaining = batch_size;
-                work_done = 0;
-                batch_time = 0;
-                batch_running = 1;
-                start_batch(batch_size);
-                printf("Batch %u started: %u work items\n", batch_count + 1, batch_size);
+                uint32_t items = work_begin_batch();
+                if (items > 0) {
+                    batch_size = items;
+                    work_remaining = batch_size;
+                    work_done = 0;
+                    batch_time = 0;
+                    batch_running = 1;
+                    start_batch(batch_size);
+                    printf("Batch %u started: %u work items\n", batch_count + 1, batch_size);
+                }
             }
         }
 
@@ -306,6 +304,8 @@ int main(void) {
         if (t[i])
             join_thread(t[i]);
     }
+
+    work_shutdown(); // Release the resources of the work
 
     XcpDisconnect();        // Force disconnect the XCP client
     A2lFinalize();          // Finalize A2L generation, if not done yet
