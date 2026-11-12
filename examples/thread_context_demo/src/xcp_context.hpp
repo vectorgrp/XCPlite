@@ -36,6 +36,13 @@
 //     location, the timestamps of an XCP event must be monotonic (the span events of a context are serialized for this reason)
 //-----------------------------------------------------------------------------------------------------
 
+/*
+Questions:
+- Could we move A2lCreateSpanConversion into the A2L generator finalize ?
+- In OTel a context is a trace-id and a span-id (plus flags t.b.d.), a tracer has a name and a trace-id, add this to make it more OTel like ?
+- What if a class instance does not know its identity (the instance name), could it just capture the current context ?
+*/
+
 #include <atomic>  // for std::atomic
 #include <cstdint> // for uintxx_t
 #include <cstdio>  // for snprintf
