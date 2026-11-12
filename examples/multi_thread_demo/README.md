@@ -50,6 +50,7 @@ start_request changed or auto_restart:      loop:
 cyclic:                                         gWorkDone++  (release)
   gWorkDone == n (acquire)?                   else:
     -> work_complete(n)                         sleep poll_us
+    -> trigger event batch_done
   trigger event mainloop
 work_shutdown()
 ```
@@ -106,12 +107,14 @@ Rendering takes about 0.6 s with 8 worker threads, writing the PNG file about 0.
 | `work_done` | `work_index` | Index of the completed work item |
 | `work_done` | `work_time` | Duration of the work item (us) |
 | `work_done` | `work_latency` | Time from batch start to start of the work item (us) |
-| `mainloop` | `batch_count` | Number of completed batches |
-| `mainloop` | `batch_errors` | Number of batches for which `work_complete` returned false |
 | `mainloop` | `batch_running` | Batch is running |
-| `mainloop` | `batch_size`, `work_remaining`, `work_done` | Batch progress |
-| `mainloop` | `batch_time` | Runtime of the current or last batch (us) |
-| `mainloop` | `batch_speedup` | Sum of work item durations / batch runtime of the last batch |
+| `mainloop` | `work_remaining`, `work_done` | Progress of the current batch |
+| `batch_done` | `batch_count` | Number of completed batches |
+| `batch_done` | `batch_errors` | Number of batches for which `work_complete` returned false |
+| `batch_done` | `batch_size` | Number of work items of the batch |
+| `batch_done` | `batch_time` | Runtime of the batch until all work items were completed (us) |
+| `batch_done` | `batch_speedup` | Sum of work item durations / `batch_time` |
+| `batch_done` | `batch_duration` | Overall duration of the batch, from batch start until `work_complete` returned (us) |
 
 ---
 

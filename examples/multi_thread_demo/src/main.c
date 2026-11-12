@@ -12,7 +12,8 @@
 // Instrumentation:
 //   - A single global event 'work_done' is triggered by any worker thread when it completed a work item,
 //     it measures the worker stack variables work_index, worker_id, work_time and work_latency
-//   - A cyclic event 'mainloop' measures the batch state, progress and runtime
+//   - A cyclic event 'mainloop' measures the progress of the current batch
+//   - An event 'batch_done' is triggered when a batch is completed, it measures the result, runtime and speedup of the batch
 
 #include <assert.h>  // for assert
 #include <signal.h>  // for signal handling
@@ -228,19 +229,25 @@ int main(void) {
     uint32_t work_done = 0;      // Number of work items completed
     uint64_t batch_time = 0;     // Runtime of the current or last batch in ns
     double batch_speedup = 0.0;  // Sum of work item durations / batch runtime of the last batch
+    uint64_t batch_duration = 0; // Overall duration of the last batch in ns, from batch start until work_complete returned
     uint32_t last_start_request = params.start_request;
 
-    // Instrumentation: Main loop event and measurement variables
+    // Instrumentation: Main loop event and measurement variables for the progress of the current batch
     DaqCreateEvent(mainloop);
     A2lSetStackAddrMode(mainloop);
-    A2lCreateMeasurement(batch_count, "Number of completed batches");
-    A2lCreateMeasurement(batch_errors, "Number of completed batches with an invalid result");
     A2lCreateMeasurement(batch_running, "Batch is running");
-    A2lCreateMeasurement(batch_size, "Number of work items in the current batch");
     A2lCreateMeasurement(work_remaining, "Number of work items not fetched yet");
     A2lCreateMeasurement(work_done, "Number of work items completed");
-    A2lCreatePhysMeasurement(batch_time, "Runtime of the current or last batch", "conv.ns_to_us", 0.0, 100000000.0);
-    A2lCreateMeasurement(batch_speedup, "Sum of work item durations / batch runtime of the last batch");
+
+    // Instrumentation: Batch completion event and measurement variables for the result of the completed batch
+    DaqCreateEvent(batch_done);
+    A2lSetStackAddrMode(batch_done);
+    A2lCreateMeasurement(batch_count, "Number of completed batches");
+    A2lCreateMeasurement(batch_errors, "Number of completed batches with an invalid result");
+    A2lCreateMeasurement(batch_size, "Number of work items of the batch");
+    A2lCreatePhysMeasurement(batch_time, "Runtime of the batch until all work items were completed", "conv.ns_to_us", 0.0, 100000000.0);
+    A2lCreateMeasurement(batch_speedup, "Sum of work item durations / runtime of the batch");
+    A2lCreatePhysMeasurement(batch_duration, "Overall duration of the batch, from batch start until work_complete returned", "conv.ns_to_us", 0.0, 100000000.0);
 
     // Create the worker threads
     THREAD_HANDLE t[THREAD_COUNT];
@@ -274,6 +281,11 @@ int main(void) {
                 if (!ok) {
                     batch_errors++;
                 }
+                batch_duration = clockGetMonotonicNs() - gBatchStartTime;
+
+                // Instrumentation: Batch completion event
+                DaqTriggerEvent(batch_done);
+
                 printf("Batch %u completed%s: %u work items in %.3f ms, speedup %.2f\n", batch_count, ok ? "" : " with errors", batch_size, (double)batch_time / 1000000.0,
                        batch_speedup);
             }

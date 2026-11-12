@@ -10,7 +10,7 @@ PrgDate=27.10.2025
 Description=
 CreationTime=12:42
 CreationDate=09/02/2025 ; Month/Day/Year
-ModificationTime=12:27
+ModificationTime=13:11
 ModificationDate=11/12/2026 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
@@ -78,7 +78,7 @@ Count=0
 Name=Measurement and Calibration Demo
 Comment=
 Maximized=0
-ActiveWindow=10000
+ActiveWindow=7
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -127,11 +127,50 @@ Count=1
 5="Comment",""
 Count=5
 
+[FUNCTION_1]
+NAME=Update
+COMMENT=
+COUNT=5
+1=function Update ()
+2={
+3=  UpdateHTMLWindows();
+4=  return ;
+5=}
+
+[FUNCTION_OBJECT_1]
+Number=13
+Unit=
+Components=0
+TimeSeriesSaveMode=0
+StimMode=0
+Name=Update
+ObjectType=1
+TextFormula=Update
+Disabled=0
+FromLibrary=0
+BurstSensitivity=10
+LPcount=0
+Formula=0
+Precision=-1
+HasInitialValue=0
+InitialValue=0
+NumberOfInputSignals=0
+Module=Functions
+Mode=1
+Rate=1000
+ModeIsDefault=0
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+DisplayCount=0
+
 [FUNCTION_OBJECT_LIST]
-count=0
+count=1
 
 [FUNCTIONS]
-COUNT=0
+COUNT=1
 COUNT_LIBRARY=0
 
 [GFX_VISUALIZATION]
@@ -156,7 +195,7 @@ MeaCfgLabellistName=
 
 [MEASUREMENT_OBJECT_1]
 Module=xcp_demo
-Name=batch_count
+Name=batch_running
 Disabled=0
 Mode=2147483649
 Rate=0
@@ -492,6 +531,67 @@ GUID=DISPLAY_f36ec2ca-9052-4d6a-a554-e755513947e8
 
 [MEASUREMENT_OBJECT_1_DISPLAY_1]
 Window=3
+Index=5
+Color=65535
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=255
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=1
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_5d16c21a-0c0a-4211-a20d-6531b012eb9c
+
+[MEASUREMENT_OBJECT_2]
+Module=xcp_demo
+Name=batch_count
+Disabled=0
+Mode=2147483650
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_2_DISPLAY_1]
+Window=3
 Index=7
 Color=65280
 ApplyColorToBackground=0
@@ -536,11 +636,11 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_1aa4bd17-43f2-4587-aa8a-250073b5613a
 
-[MEASUREMENT_OBJECT_2]
+[MEASUREMENT_OBJECT_3]
 Module=xcp_demo
 Name=batch_errors
 Disabled=0
-Mode=2147483649
+Mode=2147483650
 Rate=0
 ModeIsDefault=1
 Row=0
@@ -551,7 +651,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_2_DISPLAY_1]
+[MEASUREMENT_OBJECT_3_DISPLAY_1]
 Window=3
 Index=6
 Color=255
@@ -597,72 +697,11 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_0bf46f1e-74a4-4a8a-bca5-5e865e452c02
 
-[MEASUREMENT_OBJECT_3]
-Module=xcp_demo
-Name=batch_running
-Disabled=0
-Mode=2147483649
-Rate=0
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder1
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_3_DISPLAY_1]
-Window=3
-Index=5
-Color=65535
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=100
-YMin=0
-YMax=100
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=255
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=1
-MeaSublMask=0
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-GUID=DISPLAY_5d16c21a-0c0a-4211-a20d-6531b012eb9c
-
 [MEASUREMENT_OBJECT_4]
 Module=xcp_demo
 Name=batch_size
 Disabled=0
-Mode=2147483649
+Mode=2147483650
 Rate=0
 ModeIsDefault=1
 Row=0
@@ -723,7 +762,7 @@ GUID=DISPLAY_03e9865a-eaf5-414b-bab4-108c4ce464f1
 Module=xcp_demo
 Name=batch_speedup
 Disabled=0
-Mode=2147483649
+Mode=2147483650
 Rate=0
 ModeIsDefault=1
 Row=0
@@ -784,7 +823,7 @@ GUID=DISPLAY_bc5f42b4-9425-4279-a695-afa1187a1735
 Module=xcp_demo
 Name=batch_time
 Disabled=0
-Mode=2147483649
+Mode=2147483650
 Rate=0
 ModeIsDefault=1
 Row=0
@@ -1136,29 +1175,40 @@ VmdmDescription=
 Count=0
 
 [Module_xcp_demo]
-EVENT_COUNT=2
+EVENT_COUNT=3
 EVENT_CHANNEL_0=0x0000
 EVENT_CHANNEL_1=0x0001
+EVENT_CHANNEL_2=0x0002
 EVENT_CYCLE_0=0
 EVENT_CYCLE_1=0
+EVENT_CYCLE_2=0
 EVENT_SAMPLE_UNIT_0=3
 EVENT_SAMPLE_UNIT_1=3
+EVENT_SAMPLE_UNIT_2=3
 EVENT_MODE_0=4
 EVENT_MODE_1=4
+EVENT_MODE_2=4
 EVENT_PRIO_0=0
 EVENT_PRIO_1=0
+EVENT_PRIO_2=0
 EVENT_MAX_DAQ_LIST_0=255
 EVENT_MAX_DAQ_LIST_1=255
+EVENT_MAX_DAQ_LIST_2=255
 EVENT_NAME_0=work_done
 EVENT_NAME_1=mainloop
+EVENT_NAME_2=batch_done
 EVENT_MIN_CYCLE_TIME_CYCLE_0=0
 EVENT_MIN_CYCLE_TIME_CYCLE_1=0
+EVENT_MIN_CYCLE_TIME_CYCLE_2=0
 EVENT_MIN_CYCLE_TIME_UNIT_0=9
 EVENT_MIN_CYCLE_TIME_UNIT_1=9
+EVENT_MIN_CYCLE_TIME_UNIT_2=9
 EVENT_MULTISAMPLES_0=0
 EVENT_MULTISAMPLES_1=0
+EVENT_MULTISAMPLES_2=0
 EVENT_DPM_SUPPORTED_0=0
 EVENT_DPM_SUPPORTED_1=0
+EVENT_DPM_SUPPORTED_2=0
 IGNORE_FIX_EVENTS=0
 
 [OPTIONS]
@@ -1324,10 +1374,10 @@ FilterNodeID=All
 TreeExpand_0=@All
 TreeExpand_1=All\Devices\xcp_demo
 TreeExpand_2=All\Devices\xcp_demo\xcp_demo_autodetect.a2l
-TreeExpand_3=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\task_2
-TreeExpand_4=All\Devices
-TreeExpand_5=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop
-TreeExpand_6=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\work_done
+TreeExpand_3=All\Devices
+TreeExpand_4=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop
+TreeExpand_5=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\work_done
+TreeExpand_6=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events
 TreeExpand_7=$All\Devices
 TreeExpand_8=#All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\work_done\work_index
 TextSearchCaseSensitive=0
@@ -1452,9 +1502,9 @@ Comment=Numeric Window
 Number=3
 GUID=WINDOW_d568eb5b-c856-48f0-a22c-8512d52f1ad5
 ScreenDPIinSection=192
-Position=0, 37, 34, 633, 587 ;cmd, x, y, w, h
+Position=0, 38, 34, 634, 588 ;cmd, x, y, w, h
 Position_dpi96=0, 19, 17, 317, 294 ;cmd, x, y, w, h
-Position_Page01=0, 37, 34, 633, 587 ;cmd, x, y, w, h
+Position_Page01=0, 38, 34, 634, 588 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 19, 17, 317, 294 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -1491,9 +1541,9 @@ Comment=Numeric Window
 Number=4
 GUID=WINDOW_f667617e-bcc5-4a0c-9f93-a5c01c16ff85
 ScreenDPIinSection=192
-Position=0, 694, 34, 653, 310 ;cmd, x, y, w, h
+Position=0, 694, 34, 654, 310 ;cmd, x, y, w, h
 Position_dpi96=0, 347, 17, 327, 155 ;cmd, x, y, w, h
-Position_Page01=0, 694, 34, 653, 310 ;cmd, x, y, w, h
+Position_Page01=0, 694, 34, 654, 310 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 347, 17, 327, 155 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -1515,10 +1565,10 @@ Comment=Multi view window
 Number=5
 GUID=WINDOW_6ab217ea-cf8d-4115-9cfd-7e96f97c0c7b
 ScreenDPIinSection=192
-Position=0, 37, 644, 2464, 982 ;cmd, x, y, w, h
-Position_dpi96=0, 19, 322, 1232, 491 ;cmd, x, y, w, h
-Position_Page01=0, 37, 644, 2464, 982 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 19, 322, 1232, 491 ;cmd, x, y, w, h
+Position=0, 38, 892, 2464, 736 ;cmd, x, y, w, h
+Position_dpi96=0, 19, 446, 1232, 368 ;cmd, x, y, w, h
+Position_Page01=0, 38, 892, 2464, 736 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 19, 446, 1232, 368 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
@@ -1546,7 +1596,7 @@ XYModeIndexP1=-1
 DisplayModeAuto=0
 XStart=0
 AbsoluteTimeMode=0
-YAxisWidth=527
+YAxisWidth=528
 YAxisWidth_dpi96=264
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
@@ -1594,8 +1644,29 @@ COUNT=1
 COL_0=31, 224
 COL_0_dpi96=31, 112
 
+[WINDOW_7]
+ProgID=
+PROPERTIES_COUNT=1
+PROPERTY_1={"Url":"","Path":"Y:\\XCPlite-RainerZ\\mandelbrot.png","Type":"File","IsLegacyConfig":false,"LegacyBrowserType":0}
+OBJECTS_COUNT=0
+ObjectCount=0
+HiddenDisplayCount=0
+Title=Browser
+Type=2199023255552
+Comment=Browser
+Number=7
+GUID=WINDOW_558b4b96-a251-40db-baf9-ada6535acd5d
+ScreenDPIinSection=192
+Position=0, 1366, 26, 1138, 858 ;cmd, x, y, w, h
+Position_dpi96=0, 683, 13, 569, 429 ;cmd, x, y, w, h
+Position_Page01=0, 1366, 26, 1138, 858 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 683, 13, 569, 429 ;cmd, x, y, w, h
+FloatingWindow=0
+ShowSignalComments=1
+DisplayMask=1 ; pages 1
+
 [WINDOWS]
-Count=6
+Count=7
 
 [Y_COMMON_AXIS_LIST]
 Count=0
