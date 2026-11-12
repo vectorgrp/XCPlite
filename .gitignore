@@ -21,6 +21,9 @@ RecycleBin.ini
 !/tools/xcpclient/fixtures/*.elf
 *.bin
 
+# multi_thread_demo output image
+/mandelbrot.png
+
 # Temporary files
 test_bintool
 *.bak

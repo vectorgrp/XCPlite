@@ -189,7 +189,7 @@ Multiple examples demonstrating different features are available in the [example
 - [point_cloud_demo](examples/point_cloud_demo/README.md) - Measure and visualize dynamic length data structures in CANape (point cloud in 3D scene window)
 - [c_demo](examples/c_demo/README.md) - More detailed complex data objects, calibration objects, and calibration page switching
 - [cpp_demo](examples/cpp_demo/README.md) - More detailed C++ class instrumentation and RAII wrappers
-- [multi_thread_demo](examples/multi_thread_demo/README.md) - Worker threads processing batches of work, one event triggered from many threads
+- [multi_thread_demo](examples/multi_thread_demo/README.md) - Worker threads rendering the Mandelbrot set line by line, one event triggered from many threads
 - [struct_demo](examples/struct_demo/README.md) - More detailed nested structs and multidimensional arrays
 
 For detailed information about each example and how to set up CANape projects, see the [examples overview](examples/README.md).

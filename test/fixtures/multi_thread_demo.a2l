@@ -67,11 +67,12 @@ ALIGNMENT_INT64 1
 /*-----------------------------------------------------------------------------------------*/
 
 /begin CHARACTERISTIC params.start_request "Increment to start a new batch" VALUE 0x80010000 U32 0 NO_COMPU_METHOD 0 4.29497e+09 /end CHARACTERISTIC
-/begin CHARACTERISTIC params.auto_restart "Start the next batch automatically when the previous batch is completed" VALUE 0x80010004 U8 0 NO_COMPU_METHOD 0 1 /end CHARACTERISTIC
+/begin CHARACTERISTIC params.auto_restart "Ask the work for a new batch cyclically while no batch is running" VALUE 0x80010004 U8 0 NO_COMPU_METHOD 0 1 /end CHARACTERISTIC
 /begin CHARACTERISTIC params.poll_us "Worker poll interval when there is nothing to do" VALUE 0x80010008 U32 0 NO_COMPU_METHOD 10 1e+06 PHYS_UNIT "us" /end CHARACTERISTIC
 /begin CHARACTERISTIC params.cycle_us "Main loop cycle time" VALUE 0x8001000C U32 0 NO_COMPU_METHOD 100 1e+06 PHYS_UNIT "us" /end CHARACTERISTIC
-/begin CHARACTERISTIC work_params.items "Number of work items in a batch" VALUE 0x80020000 U32 0 NO_COMPU_METHOD 0 1e+06 /end CHARACTERISTIC
-/begin CHARACTERISTIC work_params.time_us "Maximum duration of a simulated work item" VALUE 0x80020004 U32 0 NO_COMPU_METHOD 0 1e+06 PHYS_UNIT "us" /end CHARACTERISTIC
+/begin CHARACTERISTIC mandelbrot.x "Center of the area to render, real part" VALUE 0x80020000 F64 0 NO_COMPU_METHOD -2 2 /end CHARACTERISTIC
+/begin CHARACTERISTIC mandelbrot.y "Center of the area to render, imaginary part" VALUE 0x80020008 F64 0 NO_COMPU_METHOD -2 2 /end CHARACTERISTIC
+/begin CHARACTERISTIC mandelbrot.width "Width of the area to render" VALUE 0x80020010 F64 0 NO_COMPU_METHOD 0 4 /end CHARACTERISTIC
 /begin MEASUREMENT batch_count "Number of completed batches" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x40FF9C ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT batch_errors "Number of completed batches with an invalid result" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x40FF98 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT batch_running "Batch is running" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x40FF97 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
@@ -89,7 +90,7 @@ ALIGNMENT_INT64 1
 
 /* Groups */
 /begin GROUP params "Calibration Segment" ROOT /begin REF_CHARACTERISTIC params.start_request params.auto_restart params.poll_us params.cycle_us /end REF_CHARACTERISTIC /end GROUP
-/begin GROUP work_params "Calibration Segment" ROOT /begin REF_CHARACTERISTIC work_params.items work_params.time_us /end REF_CHARACTERISTIC /end GROUP
+/begin GROUP mandelbrot "Calibration Segment" ROOT /begin REF_CHARACTERISTIC mandelbrot.x mandelbrot.y mandelbrot.width /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP mainloop "Measurement event group"  /begin REF_MEASUREMENT batch_count batch_errors batch_running batch_size work_remaining work_done batch_time batch_speedup /end REF_MEASUREMENT /end GROUP
 /begin GROUP work_done "Measurement event group"  /begin REF_MEASUREMENT worker_id work_index work_time work_latency /end REF_MEASUREMENT /end GROUP
 
@@ -102,7 +103,7 @@ ALIGNMENT_INT64 1
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP work_done mainloop /end SUB_GROUP /end GROUP
 
 /begin MOD_PAR ""
-EPK "V5_11_33_46" ADDR_EPK 0x80000000
+EPK "V5_12_02_47" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 32 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 0 /* number */ 2 /* pages */ 0 /*addr_ext*/ 0 0
@@ -121,7 +122,7 @@ EPK "V5_11_33_46" ADDR_EPK 0x80000000
   /end SEGMENT
 /end IF_DATA
 /end MEMORY_SEGMENT
-/begin MEMORY_SEGMENT work_params "" DATA FLASH INTERN 0x80020000 8 -1 -1 -1 -1 -1
+/begin MEMORY_SEGMENT mandelbrot "" DATA FLASH INTERN 0x80020000 24 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 2 /* number */ 2 /* pages */ 0 /*addr_ext*/ 0 0
   /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM

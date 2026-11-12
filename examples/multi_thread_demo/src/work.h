@@ -9,7 +9,7 @@
 //
 //   work_init()                  main thread, once, after XCP and A2L initialization, before the worker threads are started
 //   loop:
-//     n = work_begin_batch()     main thread, no batch running
+//     n = work_begin_batch(req)  main thread, no batch running, on request or cyclic with auto restart
 //     work_execute(index)        worker threads, concurrently, called exactly once for each index 0..n-1
 //     work_complete(n)           main thread, after work_execute returned for all indices of the batch
 //   work_shutdown()              main thread, once, after the worker threads are joined
@@ -31,8 +31,11 @@ extern "C" {
 bool work_init(void);
 
 /// Begin a new batch of work: define the work items and prepare their input data
+/// Called on an explicit request (params.start_request changed), or cyclic while no batch is running when params.auto_restart is set
+/// The work decides whether there is something to do, e.g. only when its input or parameters changed
+/// @param requested true on an explicit request, false when called by auto restart
 /// @return Number of work items in this batch, 0 = nothing to do, the batch is not started
-uint32_t work_begin_batch(void);
+uint32_t work_begin_batch(bool requested);
 
 /// Execute work item 'index' of the current batch
 /// Called concurrently from multiple worker threads, each index exactly once

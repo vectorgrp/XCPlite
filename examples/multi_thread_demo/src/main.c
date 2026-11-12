@@ -1,7 +1,8 @@
 ﻿// multi_thread_demo XCPlite example
 //
 // A fixed set of worker threads processes batches of work items:
-//   - The main loop starts a batch of work items on an external request (calibration parameter start_request)
+//   - The main loop starts a batch of work items on an external request (calibration parameter start_request),
+//     or asks the work cyclically for a new batch while no batch is running (calibration parameter auto_restart)
 //   - Each worker thread fetches the next work item index from a shared atomic counter and calls work_execute(index)
 //   - When there is nothing to do, the worker sleeps for the poll interval and checks again
 //   - The main loop detects when all work items of a batch are completed
@@ -47,13 +48,13 @@
 
 typedef struct params {
     uint32_t start_request; // Increment to request a new batch, the main loop starts a batch when the value changes
-    bool auto_restart;      // Start the next batch automatically when the previous batch is completed
+    bool auto_restart;      // Ask the work for a new batch cyclically while no batch is running, the work decides if there is something to do
     uint32_t poll_us;       // Worker poll interval in us, when there is nothing to do
     uint32_t cycle_us;      // Main loop cycle time in us
 } params_t;
 
 // Default parameters
-static const params_t params = {.start_request = 0, .auto_restart = false, .poll_us = 1000, .cycle_us = 10000};
+static const params_t params = {.start_request = 0, .auto_restart = true, .poll_us = 1000, .cycle_us = 10000};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
@@ -203,7 +204,7 @@ int main(void) {
     // Register calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
     A2lCreateParameter(params.start_request, "Increment to start a new batch", "", 0, 4294967295.0);
-    A2lCreateParameter(params.auto_restart, "Start the next batch automatically when the previous batch is completed", "", 0, 1);
+    A2lCreateParameter(params.auto_restart, "Ask the work for a new batch cyclically while no batch is running", "", 0, 1);
     A2lCreateParameter(params.poll_us, "Worker poll interval when there is nothing to do", "us", 10, 1000000);
     A2lCreateParameter(params.cycle_us, "Main loop cycle time", "us", 100, 1000000);
 
@@ -277,10 +278,11 @@ int main(void) {
                        batch_speedup);
             }
         } else {
-            // Start a new batch on request
-            if (start_request != last_start_request || auto_restart) {
+            // Start a new batch on request, or ask the work for a new batch with auto restart
+            bool requested = (start_request != last_start_request);
+            if (requested || auto_restart) {
                 last_start_request = start_request;
-                uint32_t items = work_begin_batch();
+                uint32_t items = work_begin_batch(requested);
                 if (items > 0) {
                     batch_size = items;
                     work_remaining = batch_size;

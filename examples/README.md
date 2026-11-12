@@ -157,6 +157,7 @@ Shows measurement of work distributed over a fixed set of worker threads.
 Worker threads fetch work items from a shared lock-free counter, the main loop starts batches of work on a calibration request.  
 A single global event, triggered by any worker thread, measures each completed work item from the stack of the triggering thread.  
 Measures work item duration, start latency and the speedup of parallel execution.  
+Example work: renders the Mandelbrot set line by line into a PNG file, the area is a calibration parameter.  
 
 
 ### [point_cloud_demo](point_cloud_demo/README.md)
