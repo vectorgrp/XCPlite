@@ -153,11 +153,10 @@ Pure measurement demo, does not have any calibration parameters.
 
 ### [multi_thread_demo](multi_thread_demo/README.md)
 
-Shows measurement in multiple threads.  
-Create thread local instances of events and measurements.  
-Share a parameter segment among multiple threads.  
-Thread safe and consistent access to parameters.  
-Experimental code to demonstrate how to create context and spans using the XCP instrumentation API.  
+Shows measurement of work distributed over a fixed set of worker threads.  
+Worker threads fetch work items from a shared lock-free counter, the main loop starts batches of work on a calibration request.  
+A single global event, triggered by any worker thread, measures each completed work item from the stack of the triggering thread.  
+Measures work item duration, start latency and the speedup of parallel execution.  
 
 
 ### [point_cloud_demo](point_cloud_demo/README.md)
@@ -236,8 +235,8 @@ API areas each example exercises.
 | `xcp::CalSeg<T>` (runtime-created, with A2L) | — | ✅ | — | ✅ | — | — | — | — |
 | `CalSeg::lock()` / `CalSegRef::lock()` / auto unlock | — | ✅ | — | ✅ | — | — | ✅ | ✅ |
 | **Events & measurement triggers** | | | | | | | | |
-| `DaqCreateEvent` | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ |
-| `DaqCreateEventInstance` (thread-local) | — | — | — | — | — | ✅ | — | — |
+| `DaqCreateEvent` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `DaqCreateEventInstance` (thread-local) | — | — | — | — | — | — | — | — |
 | `DaqCreateAndTriggerEvent` (inline) | — | — | — | — | — | — | ✅ | — |
 | `DaqTriggerEvent` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `DaqTriggerEventExt` (relative base addr) | — | — | — | — | ✅ | — | ✅ | — |
@@ -245,8 +244,8 @@ API areas each example exercises.
 | `DaqEventExtVar` / `DaqTriggerEventVar` (C++ variadic) | — | ✅ | — | ✅ | — | — | — | — |
 | **A2L — measurement registration** | | | | | | | | |
 | `A2lCreateMeasurement` (scalar) | ✅ | — | ✅ | ✅ | ✅ | ✅ | — | — |
-| `A2lCreateMeasurementArray` / `Matrix` | — | — | ✅ | ✅ | — | ✅ | — | — |
-| `A2lCreateMeasurementInstance` (named) | ✅ | — | — | ✅ | — | ✅ | — | — |
+| `A2lCreateMeasurementArray` / `Matrix` | — | — | ✅ | ✅ | — | — | — | — |
+| `A2lCreateMeasurementInstance` (named) | ✅ | — | — | ✅ | — | — | — | — |
 | `A2lCreatePhysMeasurement` (with unit/conv) | ✅ | — | — | ✅ | — | ✅ | — | — |
 | **A2L — calibration parameter registration** | | | | | | | | |
 | `A2lCreateParameter` (scalar) | ✅ | — | ✅ | — | — | ✅ | — | — |
@@ -254,18 +253,18 @@ API areas each example exercises.
 | `A2lCreateCurveWithSharedAxis` / `MapWithSharedAxis` | — | — | — | ✅ | — | — | — | — |
 | `A2lCreateAxis` | — | — | ✅ | — | — | — | — | — |
 | **A2L — typedef type system** | | | | | | | | |
-| `A2lTypedefBegin` / `A2lTypedefEnd` | — | ✅ | ✅ | ✅ | ✅ | ✅ | — | — |
-| `A2lTypedefMeasurementComponent` | — | — | — | — | ✅ | ✅ | — | — |
+| `A2lTypedefBegin` / `A2lTypedefEnd` | — | ✅ | ✅ | ✅ | ✅ | — | — | — |
+| `A2lTypedefMeasurementComponent` | — | — | — | — | ✅ | — | — | — |
 | `A2lTypedefParameterComponent` | — | — | — | ✅ | — | — | — | — |
 | `A2lTypedefCurveComponent` / `AxisComponent` | — | — | — | ✅ | — | — | — | — |
-| `A2lCreateTypedefInstance` / `InstanceArray` | — | — | ✅ | ✅ | ✅ | ✅ | — | — |
+| `A2lCreateTypedefInstance` / `InstanceArray` | — | — | ✅ | ✅ | ✅ | — | — | — |
 | `A2lCreateTypedefReference` (pointer/heap) | — | — | — | — | ✅ | — | — | — |
 | **A2L — conversions and metadata** | | | | | | | | |
-| `A2lCreateLinearConversion` | ✅ | — | — | ✅ | — | — | — | — |
+| `A2lCreateLinearConversion` | ✅ | — | — | ✅ | — | ✅ | — | — |
 | `A2lCreateEnumConversion` | — | — | — | ✅ | — | — | — | — |
 | **A2L — addressing modes** | | | | | | | | |
 | `A2lSetAbsoluteAddrMode` | ✅ | — | ✅ | ✅ | ✅ | — | — | — |
-| `A2lSetRelativeAddrMode` (heap/instance base) | — | ✅ | — | ✅ | ✅ | ✅ | — | — |
+| `A2lSetRelativeAddrMode` (heap/instance base) | — | ✅ | — | ✅ | ✅ | — | — | — |
 | `A2lSetStackAddrMode` (stack variables) | ✅ | — | ✅ | ✅ | ✅ | ✅ | — | — |
 | `A2lSetSegmentAddrMode` (CalSeg base) | ✅ | — | ✅ | — | — | ✅ | — | — |
 | **On-target A2L generation** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **—** | — |
