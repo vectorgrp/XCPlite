@@ -1,0 +1,11 @@
+CANape PAR V3.1: xcp_demo_autodetect.a2l 1 0 xcp_demo
+; 
+; 
+; 
+; 
+; 
+params.auto_restart [UINT(8)]  1 ; 1
+params.start_request [UINT(32)]  37 ; 37
+mandelbrot.width [DOUBLE]  3 ; 3
+mandelbrot.x [DOUBLE]  -0.5 ; -0.5
+mandelbrot.y [DOUBLE]  0 ; 0
