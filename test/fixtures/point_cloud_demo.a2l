@@ -139,7 +139,7 @@ ALIGNMENT_INT64 1
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP step /end SUB_GROUP /end GROUP
 
 /begin MOD_PAR ""
-EPK "19_39_15" ADDR_EPK 0x80000000
+EPK "20_45_56" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 32 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 0 /* number */ 2 /* pages */ 0 /*addr_ext*/ 0 0
