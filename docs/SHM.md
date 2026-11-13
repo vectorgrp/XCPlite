@@ -78,3 +78,41 @@ There are tools included for working with or demonstrating the shared memory tra
 See the readme files in the [tools](tools/) folder for more information about how to use these tools.
 
 
+## Known limitations
+
+The shared memory mode is experimental. This list covers the problems which are known and not solved yet.
+
+### General
+
+- **Platforms.** POSIX only (Linux, macOS, QNX), not supported on Windows.
+- **Shared limits.** `OPTION_DAQ_EVENT_COUNT` (16), `OPTION_DAQ_CONTEXT_COUNT` (8), `OPTION_DAQ_SPAN_COUNT` (32), the calibration segment limit and `OPTION_DAQ_MEM_SIZE` are limits for all applications together, not per application. The defaults are sized for a single application.
+- **A full event list aborts the application.** When the event list is full, `DaqEventVar` and the other macros which register measurements for a new event end in an assertion in the A2L generator (`A2lGetAddr_`). The context-aware `DaqEventCtxVar` skips the measurement instead.
+- **Event and context creation is not process safe.** The event list, the context list and the span name list are protected by a process local mutex only. Two applications must not create events, contexts or span names at the same time, in practice: do not start applications which register at startup at the same moment.
+- **Event names by protocol are not unique.** `GET_DAQ_EVENT_INFO` returns the event name without the application name, only the A2L file has `<app>.<event>`. Equal event names in two applications, for example `mainloop`, give duplicate names. xcpclient without `--upload-a2l` stops with a `Duplicate` error in this case (observed with context events, expected for any equal event name). Use `--upload-a2l`.
+- **xcpclient reports the addressing scheme as unsupported.** xcpclient prints an error for `XCPLITE__CXSDD`. Measurement with an uploaded A2L file works nevertheless, the consequences for calibration and for the A2L tools of xcpclient (`--fix-a2l`, `--elf`) are not checked.
+- **The server does not migrate.** If the server application ends, the shared memory is recreated by the next application in mode `XCP_MODE_SHM_AUTO` or `XCP_MODE_SHM_SERVER`, see above.
+- **A2L timing.** Each application must have registered all its events and measurements before the server finalizes the main A2L file. Later registrations are not in the A2L file.
+- **Layout version.** All applications and tools (`shmtool`, `xcpdaemon`) must be built from the same XCPlite version and configuration. The layout version `SHM_VERSION` is checked, a mismatch needs `shmtool clean`.
+- **ECU project name.** Setting the ECU project name is not implemented, the main A2L file and the persistence file are named `main`.
+- **Stale A2L state.** It is not checked whether the partial A2L file of a preloaded application still exists on disk.
+
+### Contexts and spans
+
+- **No process safe creation**, see above. This includes span names.
+- **Span ids are shared.** Span names of all applications are in one list and one conversion `conv.spans`. A span name used by two applications has one id. The limit `OPTION_DAQ_SPAN_COUNT` is reached sooner with several applications.
+- **Span names are not persisted.** Span ids are assigned in the order of first execution and may differ between runs, when the applications start in a different order. An existing A2L file (`A2L_MODE_WRITE_ONCE`) then shows wrong span names.
+- **Contexts without events are not persisted.** The context list is rebuilt from the events in the persistence file. This has no effect for `xcp::Context`, which always has its `spans` event.
+- **Context ids are not stable across restarts** when the set of applications changes. The names are stable, the per code location caches are per process and are rebuilt.
+- **Monotonic timestamps.** A context-aware event must not be triggered concurrently by several threads in the same context at the same code location. Only the `spans` event of a context is serialized, and only within one `xcp::Context` object: create one object per context name.
+- **Span duration** `span_dt` belongs to the span which just ended, the sample does not name it.
+- **`DaqSpan` before `XcpInit`.** A span which is executed for the first time before XCP is activated keeps the span id 0 (none).
+- **A full context list** makes further contexts behave as "no context": their code measures on the events without context, mixed with other instances.
+- **Name length.** Context and event names are limited to 15 characters each, the application name is prepended in the A2L file.
+
+### Not tested
+
+- `xcpdaemon` as the XCP server for applications which use contexts. The tests used an application in mode `XCP_MODE_SHM_AUTO` as server.
+- Linux and QNX. Contexts in SHM mode were tested on macOS only.
+- More than two applications, applications in different languages, and an application which is restarted while the others keep running.
+- CANape. The tests used xcpclient.
+- `thread_context_demo` is built in the default configuration only, there is no SHM example which uses contexts in the repository.
