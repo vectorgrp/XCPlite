@@ -1,4 +1,4 @@
-﻿// multi_thread_demo XCPlite example
+// multi_thread_demo XCPlite example
 //
 // A fixed set of worker threads processes batches of work items:
 //   - The main loop starts a batch of work items on an external request (calibration parameter start_request),
@@ -16,337 +16,152 @@
 //   - An event 'batch_done' is triggered when a batch is completed, it measures the result, runtime and speedup of the batch
 
 #include <assert.h>  // for assert
-#include <math.h>    // for M_PI, sin
 #include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
-#include <string.h>  // for sprintf
 
 #include "a2l.h"    // for A2l generation
 #include "xcplib.h" // for application programming interface
 
-// Internal libxcplite includes to simplify multi platform threading and print XCP metrics
-#include "platform.h"   // for THREAD_HANDLE
-#include "xcplib_cfg.h" // for OPTION_xxx
-#include "xcplite.h"    // for XcpXxx, ApplXcpXxx, tXcpCto, ...
+// Internal libxcplite includes to simplify multi platform threading and atomics
+#include "platform.h" // for THREAD_HANDLE, create_thread, sleepUs, clockGetMonotonicNs, atomic_xxx
+
+#include "work.h" // for work_init, work_begin_batch, work_execute, work_complete, work_shutdown
 
 //-----------------------------------------------------------------------------------------------------
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-#ifndef M_2PI
-#define M_2PI (M_PI * 2)
-#endif
-
-//-----------------------------------------------------------------------------------------------------
-
-#define XCP_MAX_EVENT_NAME 15
-#define THREAD_COUNT 8            // Number of threads to create
-#define THREAD_DELAY_US 1000      // Delay in microseconds for the thread loops
-#define MAX_THREAD_NAME_LENGTH 32 // Maximum length of thread name
-
-#ifndef _WIN32
-// #include <stdatomic.h> // for atomic_
-#define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
-// #define FILTER_SLEEP_US 100 // Simulated work in filter function
-// #define CLIP_SLEEP_US 50    // Simulated work in clip function
-#endif
+#define THREAD_COUNT 8 // Number of worker threads
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "multi_thread_demo" // A2L project name
-#define OPTION_PROJECT_VERSION "V4_" __TIME__   // EPK version string
+#define OPTION_PROJECT_VERSION "V5_" __TIME__   // EPK version string
 #define OPTION_USE_TCP false                    // TCP or UDP
 #define OPTION_SERVER_PORT 5555                 // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}         // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 1024)         // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 4                      // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 3                      // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
 
 typedef struct params {
-    uint16_t counter_max; // Maximum value of the counter
-    double ampl;          // Amplitude
-    double period;        // Period
-    double filter;        // Filter coefficient for the filter function 0.0-1.0
-    double clip_max;      // Maximum value for clipping function
-    double clip_min;      // Minimum value for clipping function
-    uint32_t delay_us;    // Delay in microseconds for the thread loops
-    bool run;             // Stop flag for the task
+    uint32_t start_request; // Increment to request a new batch, the main loop starts a batch when the value changes
+    bool auto_restart;      // Ask the work for a new batch cyclically while no batch is running, the work decides if there is something to do
+    uint32_t poll_us;       // Worker poll interval in us, when there is nothing to do
+    uint32_t cycle_us;      // Main loop cycle time in us
 } params_t;
 
 // Default parameters
-static const params_t params = {
-    .counter_max = 1024, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = +100.0, .clip_min = -100.0, .delay_us = THREAD_DELAY_US, .run = true};
+static const params_t params = {.start_request = 0, .auto_restart = true, .poll_us = 1000, .cycle_us = 10000};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
 
 //-----------------------------------------------------------------------------------------------------
-// Thread context
-// Experimental
+// Work distribution
 
-#ifdef EXPERIMENTAL_THREAD_CONTEXT
+// Number of work items not fetched yet, decremented by the workers until zero
+// Published with release semantics by the main loop when a new batch is started
+static atomic_uint_fast32_t gWorkRemaining = 0;
 
-// Thread context structure
-typedef struct {
-    char name[MAX_THREAD_NAME_LENGTH + 1]; // Human-readable thread name
-    tXcpEventId id;                        // XCP event ID for this thread
-    tXcpEventId span_id;                   // XCP event ID for the current span
-    uint32_t level;                        // Current span level
-} tXcpContext;
+// Number of work items completed in the current batch, incremented with release semantics by the workers
+// The batch is completed when gWorkDone == gBatchSize
+static atomic_uint_fast32_t gWorkDone = 0;
 
-// Global thread-local context
-THREAD_LOCAL tXcpContext gXcpContext = {0};
+// Sum of the work item durations of the current batch in ns, to calculate the speedup of parallel execution
+static atomic_uint_fast64_t gWorkTimeSum = 0;
 
-// Inline accessors for maximum performance
-static inline tXcpContext *XcpGetContext(void) { return &gXcpContext; }
-static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
+// Batch size and start time of the current batch
+// Written by the main loop only while no batch is running, before gWorkRemaining is published,
+// read by the workers only after they successfully fetched a work item (acquire), so no atomics are needed
+static uint32_t gBatchSize = 0;
+static uint64_t gBatchStartTime = 0;
 
-// Begin a span, create a span event once
-// Trigger the context event on entry
-#define BeginSpan(name)                                                                                                                                                            \
-    uint64_t span_t1 = ApplXcpGetClock64();                                                                                                                                        \
-    uint64_t span_dt;                                                                                                                                                              \
-    static _Atomic tXcpEventId span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
-    tXcpEventId old_span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                              \
-    if (atomic_compare_exchange_strong_explicit(&span_id, &old_span_id, 1, memory_order_relaxed, memory_order_relaxed)) {                                                          \
-        A2lLock();                                                                                                                                                                 \
-        span_id = XcpCreateEvent(name, 0, 0);                                                                                                                                      \
-        A2lSetStackAddrMode_i(span_id);                                                                                                                                            \
-        A2lCreatePhysMeasurementInstance(name, span_dt, "Span runtime", "ns", 0.0, 0.1000000);                                                                                     \
-        A2lUnlock();                                                                                                                                                               \
-    }                                                                                                                                                                              \
-    tXcpContext *ctx = XcpGetContext();                                                                                                                                            \
-    tXcpEventId previous_span_id = ctx->span_id;                                                                                                                                   \
-    ctx->span_id = span_id;                                                                                                                                                        \
-    ctx->level++;                                                                                                                                                                  \
-    XcpEventExtAt_Var(ctx->id, span_t1, 2, xcp_get_frame_addr(), (const uint8_t *)ctx);
-
-// End span
-// Trigger the span event and the context event on exit
-// Measure execution time of the span
-#define EndSpan()                                                                                                                                                                  \
-    uint64_t span_t2 = ApplXcpGetClock64();                                                                                                                                        \
-    span_dt = span_t2 - span_t1;                                                                                                                                                   \
-    XcpEventExtAt_Var(ctx->span_id, span_t2, 2, xcp_get_frame_addr(), (const uint8_t *)ctx);                                                                                       \
-    ctx->span_id = previous_span_id;                                                                                                                                               \
-    ctx->level--;                                                                                                                                                                  \
-    XcpEventExtAt_Var(ctx->id, span_t2, 2, xcp_get_frame_addr(), (const uint8_t *)ctx);
-
-// Create a named context
-// Create the context event (name is 'context_name'_'context_index')
-// Register the context struct  as A2L typedef instance tied to the context event
-static uint16_t XcpCreateContext(const char *context_name, uint16_t context_index) {
-
-    if (!XcpIsActivated()) {
-        return XCP_UNDEFINED_EVENT_ID; // Return undefined event ID if XCP is not activated
+// Fetch the next work item index
+// Lock-free: decrement gWorkRemaining only if it is not zero yet, a plain atomic_fetch_sub would underflow when polled while idle
+// Work item indices are handed out in ascending order 0..gBatchSize-1
+static bool fetch_work(uint32_t *index) {
+    uint_fast32_t remaining = atomic_load_explicit(&gWorkRemaining, memory_order_relaxed);
+    while (remaining > 0) {
+        // On failure, remaining is updated with the current value and the loop retries
+        if (atomic_compare_exchange_strong_explicit(&gWorkRemaining, &remaining, remaining - 1, memory_order_acquire, memory_order_relaxed)) {
+            *index = gBatchSize - (uint32_t)remaining;
+            return true;
+        }
     }
-
-    // Once:
-    // Create a typedef for the thread context
-    // Uses the predefined enum conversion rule for the event names
-    A2lOnce() {
-        A2lLock();
-        A2lTypedefBegin(tXcpContext, &gXcpContext, "A2L typedef for tXcpContext");
-        A2lTypedefPhysMeasurementComponent(span_id, "function span id", "conv.events", 0, 32);
-        A2lTypedefMeasurementComponent(level, "function span nesting level");
-        A2lTypedefEnd();
-        A2lUnlock();
-    }
-
-    // Init thread local context
-    // Create a unique name from index
-    // Create an XCP event for this context
-    snprintf(gXcpContext.name, sizeof(gXcpContext.name), "%s_%u", context_name, context_index);
-    gXcpContext.id = XcpCreateEvent(gXcpContext.name, 0, 0);
-    gXcpContext.span_id = gXcpContext.id;
-    gXcpContext.level = 0;
-
-    // Create a measurement typedef instance with the context name
-    A2lLock();
-    A2lSetRelativeAddrMode_i(gXcpContext.id, &gXcpContext); // Set relative addressing mode for the thread context
-    A2lCreateTypedefNamedInstance(gXcpContext.name, gXcpContext, tXcpContext, "Thread local context");
-    A2lUnlock();
-
-    printf("Thread context created: name = %s, id = %u\n", gXcpContext.name, gXcpContext.id);
-    return gXcpContext.id;
+    return false;
 }
 
-#else
-#define BeginSpan(name)
-#define EndSpan()
-#endif
-
-//-----------------------------------------------------------------------------------------------------
-
-// Clip a value to a range defined in the calibration segment
-double clip(double input) {
-
-#ifdef EXPERIMENTAL_THREAD_CONTEXT
-    // Instrumentation: Begin span for clip function
-    BeginSpan("clip");
-#endif
-
-// Simulate some more expensive work
-#ifdef CLIP_SLEEP_US
-    sleepUs(CLIP_SLEEP_US);
-#endif
-
-    const params_t *params = (params_t *)XcpLockCalSeg(calseg);
-
-    // Clip the input value to a range defined in the calibration segment
-    double output = input;
-    if (output > params->clip_max) {
-        output = params->clip_max;
-    } else if (output < params->clip_min) {
-        output = params->clip_min;
-    }
-
-    XcpUnlockCalSeg(calseg);
-
-#ifdef EXPERIMENTAL_THREAD_CONTEXT
-    // Instrumentation: End span for filter function
-    EndSpan();
-#endif
-
-    return output;
-}
-
-// Filter function that applies a simple low-pass filter to the input signal
-// Demonstrates observation of function called in different threads and contexts
-double filter(double input) {
-
-    double filtered_input = 0;
-    double clipped_output = 0;
-    static THREAD_LOCAL double last = 0.0; // Thread-local state for the filter, simplified example, one filter instance per thread
-
-#ifdef EXPERIMENTAL_THREAD_CONTEXT
-    // Instrumentation: Begin span for filter function
-    BeginSpan("filter");
-
-    // Instrumentation: Register local variable filtered_input for measurement (once global, use the span event id)
-    A2lOnce() { // Ensure this is only done once globally
-        A2lLock();
-        A2lSetStackAddrMode_i(XcpGetContext()->span_id); // Set stack addressing mode
-        A2lCreateMeasurement(filtered_input, "Filter result");
-        A2lUnlock();
-    }
-#endif
-// Simulate some more expensive work
-#ifdef FILTER_SLEEP_US
-    sleepUs(FILTER_SLEEP_US);
-#endif
-
-    const params_t *params = (params_t *)XcpLockCalSeg(calseg);
-
-    // Filter the input signal using a simple low-pass filter
-    filtered_input = input * params->filter + last * (1.0 - params->filter);
-    last = filtered_input;
-
-    XcpUnlockCalSeg(calseg);
-
-    // Clip the filter output
-    clipped_output = clip(filtered_input);
-
-#ifdef EXPERIMENTAL_THREAD_CONTEXT
-    // Instrumentation: End span for filter function
-    EndSpan();
-#endif
-
-    return clipped_output;
+// Start a new batch of work items
+// Precondition: no batch is running (gWorkRemaining == 0 and gWorkDone == gBatchSize)
+static void start_batch(uint32_t batch_size) {
+    gBatchSize = batch_size;
+    gBatchStartTime = clockGetMonotonicNs();
+    atomic_store_explicit(&gWorkTimeSum, 0, memory_order_relaxed);
+    atomic_store_explicit(&gWorkDone, 0, memory_order_relaxed);
+    atomic_store_explicit(&gWorkRemaining, batch_size, memory_order_release); // Publish the batch to the workers
 }
 
 //-----------------------------------------------------------------------------------------------------
 
 // Signal handler for clean shutdown
 static volatile bool gRun = true;
-static void sig_handler(int sig) { gRun = false; }
+static void sig_handler(int sig) {
+    (void)sig;
+    gRun = false;
+}
 
 //-----------------------------------------------------------------------------------------------------
 
-// Task function that runs in a separate thread
-// Calculates a sine wave, square wave, and sawtooth wave signal
-THREAD_FUNC_RETURN task(void *p) {
-    (void)p;
+// Worker thread
+// Fetches and executes work items until there is nothing to do, then sleeps for the poll interval
+THREAD_FUNC_RETURN worker(void *p) {
 
-    bool run = true;
-    uint32_t delay_us = 1000;
-    uint64_t start_time = clockGetMonotonicUs(); // Get the start time
+    // Worker local measurement variables on stack
+    uint16_t worker_id = (uint16_t)(uintptr_t)p; // Index of this worker thread
+    uint32_t work_index = 0;                     // Index of the last completed work item
+    uint64_t work_time = 0;                      // Duration of the last work item in ns
+    uint64_t work_latency = 0;                   // Time from batch start to the start of the last work item in ns
 
-    // Task local measurement variables on stack
-    uint16_t counter = 0;
-    double time = 0;
-    double channel1 = 0;
-    double channel2 = 0;
-    double channel3 = 0;
-    uint32_t array[256] = {0};
+    // Instrumentation: Register the worker local variables with stack addressing mode for the global event 'work_done'
+    // All workers execute this function, so the variables have the same stack frame relative address in each thread,
+    // the event trigger captures the stack frame of the triggering thread
+    A2lOnce() {
+        A2lLock();
+        A2lSetStackAddrMode(work_done);
+        A2lCreateMeasurement(worker_id, "Index of the worker thread which completed the work item");
+        A2lCreateMeasurement(work_index, "Index of the completed work item");
+        A2lCreatePhysMeasurement(work_time, "Duration of the work item", "conv.ns_to_us", 0.0, 1000000.0);
+        A2lCreatePhysMeasurement(work_latency, "Time from batch start to start of the work item", "conv.ns_to_us", 0.0, 10000000.0);
+        A2lUnlock();
+    }
 
-    // Instrumentation: Events and measurement variables
-    // Register task local variables counter and channelx with stack addressing mode
-    DaqCreateEventInstance(task);
-    tXcpEventId task_event_id = DaqGetEventInstanceId(task);
+    while (gRun) {
 
-    // Build the task name from the event index
-    uint16_t task_index = XcpGetEventIndex(task_event_id); // Get the event index of this event instance
-    char task_name[XCP_MAX_EVENT_NAME + 1];
-    snprintf(task_name, sizeof(task_name), "task_%u", task_index);
+        // Fetch and execute work
+        if (fetch_work(&work_index)) {
+            uint64_t t1 = clockGetMonotonicNs();
+            work_latency = t1 - gBatchStartTime;
+            work_execute(work_index);
+            work_time = clockGetMonotonicNs() - t1;
 
-    // Create measurement variables for this task instance
-    A2lLock();
-    A2lSetStackAddrMode_i(task_event_id);
-    A2lCreateMeasurementInstance(task_name, counter, "Mainloop counter");
-    A2lCreateMeasurementInstance(task_name, channel1, "task sine wave signal");
-    A2lCreateMeasurementInstance(task_name, channel2, "task square wave signal");
-    A2lCreateMeasurementInstance(task_name, channel3, "task sawtooth signal");
-    A2lCreateMeasurementArrayInstance(task_name, array, "task array (to increase measurement workload)");
-    A2lUnlock();
+            // Instrumentation: Measurement event, triggered by any worker thread
+            DaqTriggerEvent(work_done);
 
-    // Instrumentation: Context
-    // Create context for this task
-#ifdef EXPERIMENTAL_THREAD_CONTEXT
-    XcpCreateContext("ctx", task_index);
-#endif
-
-    while (run && gRun) {
-
-        {
-            const params_t *params = (params_t *)XcpLockCalSeg(calseg);
-
-            counter++;
-            if (counter > params->counter_max) {
-                counter = 0;
-            }
-
-            time = (double)(clockGetMonotonicUs() - start_time) / 1000000;                // Calculate elapsed time in seconds
-            double normalized_time = M_2PI * fmod(time, params->period) / params->period; // Normalize time ([0.0..M_2PI[ to the period
-            channel1 = params->ampl * sin(normalized_time);                               // Sine wave
-            channel2 = params->ampl * ((normalized_time < M_PI) ? 1.0 : -1.0);            // Square wave
-            channel3 = params->ampl * (normalized_time - M_PI) / M_PI;                    // Sawtooth wave
-
-            // Sleep time
-            delay_us = params->delay_us;
-
-            // Stop
-            run = params->run;
-
-            XcpUnlockCalSeg(calseg);
+            // Report completion to the main loop
+            atomic_fetch_add_explicit(&gWorkTimeSum, work_time, memory_order_relaxed);
+            atomic_fetch_add_explicit(&gWorkDone, 1, memory_order_release);
+            continue; // Check for more work immediately
         }
 
-        // Filter or clip the signals
-        channel1 = clip(channel1);   // Sine
-        channel2 = filter(channel2); // Square
-        channel3 = clip(channel3);   // Sawtooth
-
-        // Instrumentation: Measurement event
-        DaqTriggerEvent_i(task_event_id);
-
-        // Sleep for the specified delay parameter in microseconds, defines the approximate sampling rate
-        sleepUs(delay_us);
+        // Nothing to do, sleep for the poll interval
+        const params_t *params = (params_t *)XcpLockCalSeg(calseg);
+        uint32_t poll_us = params->poll_us;
+        XcpUnlockCalSeg(calseg);
+        sleepUs(poll_us);
     }
 
     THREAD_FUNC_END; // Exit the thread
@@ -375,9 +190,8 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-    // In this demo, with A2L_MODE_WRITE_ALWAYS, the A2L file is unstable, because the thread creation order is underterminstic
-    // It is still ok to use A2L_MODE_WRITE_ONCE, the A2l file content is equivalent, as the events numbers associated to the thread don't have an individual identity
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS | A2L_MODE_EVENT_CONVERSION)) {
+    // All events are created before the worker threads are started, so the A2L file content does not depend on thread scheduling
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
@@ -390,25 +204,113 @@ int main(void) {
 
     // Register calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params.counter_max, "Max counter value, wrap around", "", 0.0, 65535.0);
-    A2lCreateParameter(params.ampl, "Amplitude", "Volt", 0, 100.0);
-    A2lCreateParameter(params.period, "Period", "s", 0.1, 10.0);
-    A2lCreateParameter(params.filter, "Filter coefficient", "", 0.0, 1.0);
-    A2lCreateParameter(params.clip_max, "Maximum value for clipping function", "Volt", -100.0, 100.0);
-    A2lCreateParameter(params.clip_min, "Minimum value for clipping function", "Volt", -100.0, 100.0);
-    A2lCreateParameter(params.delay_us, "task delay time in us", "us", 0, 1000000);
-    A2lCreateParameter(params.run, "stop task", "", 0, 1);
+    A2lCreateParameter(params.start_request, "Increment to start a new batch", "", 0, 4294967295.0);
+    A2lCreateParameter(params.auto_restart, "Ask the work for a new batch cyclically while no batch is running", "", 0, 1);
+    A2lCreateParameter(params.poll_us, "Worker poll interval when there is nothing to do", "us", 10, 1000000);
+    A2lCreateParameter(params.cycle_us, "Main loop cycle time", "us", 100, 1000000);
 
-    // Create multiple instances of task
+    // Initialize the work, before the worker threads are started
+    if (!work_init()) {
+        return 1;
+    }
+
+    // Conversion for the durations measured in ns
+    A2lCreateLinearConversion(ns_to_us, "Duration in ns to us", "us", 0.001, 0.0);
+
+    // Instrumentation: Create the global event triggered by the workers, before the workers are started
+    DaqCreateEvent(work_done);
+
+    // Main loop local measurement variables on stack
+    uint32_t batch_count = 0;    // Number of completed batches
+    uint32_t batch_errors = 0;   // Number of completed batches with an invalid result
+    uint8_t batch_running = 0;   // 1 while a batch is running
+    uint32_t batch_size = 0;     // Number of work items in the current batch
+    uint32_t work_remaining = 0; // Number of work items not fetched yet
+    uint32_t work_done = 0;      // Number of work items completed
+    uint64_t batch_time = 0;     // Runtime of the current or last batch in ns
+    double batch_speedup = 0.0;  // Sum of work item durations / batch runtime of the last batch
+    uint64_t batch_duration = 0; // Overall duration of the last batch in ns, from batch start until work_complete returned
+    uint32_t last_start_request = params.start_request;
+
+    // Instrumentation: Main loop event and measurement variables for the progress of the current batch
+    DaqCreateEvent(mainloop);
+    A2lSetStackAddrMode(mainloop);
+    A2lCreateMeasurement(batch_running, "Batch is running");
+    A2lCreateMeasurement(work_remaining, "Number of work items not fetched yet");
+    A2lCreateMeasurement(work_done, "Number of work items completed");
+
+    // Instrumentation: Batch completion event and measurement variables for the result of the completed batch
+    DaqCreateEvent(batch_done);
+    A2lSetStackAddrMode(batch_done);
+    A2lCreateMeasurement(batch_count, "Number of completed batches");
+    A2lCreateMeasurement(batch_errors, "Number of completed batches with an invalid result");
+    A2lCreateMeasurement(batch_size, "Number of work items of the batch");
+    A2lCreatePhysMeasurement(batch_time, "Runtime of the batch until all work items were completed", "conv.ns_to_us", 0.0, 100000000.0);
+    A2lCreateMeasurement(batch_speedup, "Sum of work item durations / runtime of the batch");
+    A2lCreatePhysMeasurement(batch_duration, "Overall duration of the batch, from batch start until work_complete returned", "conv.ns_to_us", 0.0, 100000000.0);
+
+    // Create the worker threads
     THREAD_HANDLE t[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
         t[i] = 0;
-        create_thread(&t[i], NULL, task, NULL);
+        create_thread(&t[i], NULL, worker, (void *)(uintptr_t)i);
     }
 
-    // Wait for signal to stop
+    printf("Started %d worker threads, increment params.start_request to start a batch of work\n", THREAD_COUNT);
+
+    // Main loop
     while (gRun) {
-        sleepUs(100000); // 100ms
+
+        const params_t *params = (params_t *)XcpLockCalSeg(calseg);
+        uint32_t start_request = params->start_request;
+        bool auto_restart = params->auto_restart;
+        uint32_t cycle_us = params->cycle_us;
+        XcpUnlockCalSeg(calseg);
+
+        if (batch_running) {
+            // Check if the batch is completed
+            work_remaining = (uint32_t)atomic_load_explicit(&gWorkRemaining, memory_order_relaxed);
+            work_done = (uint32_t)atomic_load_explicit(&gWorkDone, memory_order_acquire);
+            batch_time = clockGetMonotonicNs() - gBatchStartTime;
+            if (work_done == batch_size) {
+                uint64_t work_time_sum = (uint64_t)atomic_load_explicit(&gWorkTimeSum, memory_order_relaxed);
+                batch_speedup = batch_time > 0 ? (double)work_time_sum / (double)batch_time : 0.0;
+                batch_running = 0;
+                batch_count++;
+                bool ok = work_complete(batch_size);
+                if (!ok) {
+                    batch_errors++;
+                }
+                batch_duration = clockGetMonotonicNs() - gBatchStartTime;
+
+                // Instrumentation: Batch completion event
+                DaqTriggerEvent(batch_done);
+
+                printf("Batch %u completed%s: %u work items in %.3f ms, speedup %.2f\n", batch_count, ok ? "" : " with errors", batch_size, (double)batch_time / 1000000.0,
+                       batch_speedup);
+            }
+        } else {
+            // Start a new batch on request, or ask the work for a new batch with auto restart
+            bool requested = (start_request != last_start_request);
+            if (requested || auto_restart) {
+                last_start_request = start_request;
+                uint32_t items = work_begin_batch(requested);
+                if (items > 0) {
+                    batch_size = items;
+                    work_remaining = batch_size;
+                    work_done = 0;
+                    batch_time = 0;
+                    batch_running = 1;
+                    start_batch(batch_size);
+                    printf("Batch %u started: %u work items\n", batch_count + 1, batch_size);
+                }
+            }
+        }
+
+        // Instrumentation: Main loop measurement event
+        DaqTriggerEvent(mainloop);
+
+        sleepUs(cycle_us);
     }
 
     // Wait for all threads to finish
@@ -417,20 +319,11 @@ int main(void) {
             join_thread(t[i]);
     }
 
-#ifdef TEST_ENABLE_TL_METRICS
-    printf("  Total TX packets:    %u\n", gXcpTxPacketCount);
-    printf("  Total TX messages:   %u\n", gXcpTxMessageCount);
-    printf("  Total TX iovecs:     %u\n", gXcpTxIoVectorCount);
-    printf("  Total RX packets:    %u\n", gXcpRxPacketCount);
-#endif
+    work_shutdown(); // Release the resources of the work
 
     XcpDisconnect();        // Force disconnect the XCP client
     A2lFinalize();          // Finalize A2L generation, if not done yet
     XcpEthServerShutdown(); // Stop the XCP server
-
-#ifdef TEST_CLOCK_GET_STATISTIC
-    clockGetPrintStatistic();
-#endif
 
     return 0;
 }
