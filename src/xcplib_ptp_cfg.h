@@ -29,5 +29,5 @@
 
 #define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available (needed only for ptptool on Linux)
 
-// Contexts and spans are supported in the default configuration only
+// Contexts and spans are supported in the default and the shm configuration only
 #undef OPTION_DAQ_CONTEXT_LIST

@@ -44,7 +44,7 @@ Example output:
 ```
 /xcpdata mmap found, size = 16384 bytes
 ================================================================================
-  version            : 1.0.0
+  version            : 1.1.0
   declared size      : 4096 bytes  (this build: 4096)
   leader pid         : 12345
   app count          : 2 / 8

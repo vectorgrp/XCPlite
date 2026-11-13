@@ -149,7 +149,7 @@
 // A context is a named identity ("who is executing"), for example a class instance or a worker thread.
 // An event may belong to a context, it is then named <context name>.<event name>.
 // Enables XcpCreateContext, XcpCreateContextEvent, XcpRegisterSpanName and the C++ API in xcplib_context.hpp (xcp::Context, xcp::Scope, DaqSpan, DaqEventCtxVar)
-// (Needs OPTION_DAQ_EVENT_LIST and on-target A2L generation, enabled in the default configuration only)
+// (Needs OPTION_DAQ_EVENT_LIST and on-target A2L generation, enabled in the default and the shm configuration only)
 #define OPTION_DAQ_CONTEXT_LIST
 
 // Maximum number of contexts

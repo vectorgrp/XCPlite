@@ -41,6 +41,13 @@ void XcpInitContextList(void);
 // Returns the context id (1..XCP_MAX_CONTEXT_COUNT) or XCP_UNDEFINED_CONTEXT
 uint16_t XcpCreateContext(const char *name);
 
+#ifdef OPTION_SHM_MODE // create a context for another application
+// In SHM mode, create or find a context of the application app_id, used to preload contexts from the binary persistence file
+uint16_t XcpCreateAppContext(const char *name, uint8_t app_id);
+// In SHM mode, get the application id of a context
+uint8_t XcpGetContextAppId(uint16_t context);
+#endif
+
 // Get the name of a context, returns NULL if not found
 const char *XcpGetContextName(uint16_t context);
 

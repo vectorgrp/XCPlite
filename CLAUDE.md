@@ -99,7 +99,7 @@ src/xcpethtl.c/.h               Ethernet transport layer (packet framing)
 src/xcpshmserver.h, src/shm.c/.h   Shared-memory transport layer (SHM configuration only)
 src/queue*.c                    Lock-free/mutex transmit queue implementations (see below)
 src/cal.c/.h                    Calibration segment RCU implementation (page switching, locks)
-src/ctx.c/.h                    Context list and span name list (OPTION_DAQ_CONTEXT_LIST, default configuration only), C++ API in inc/xcplib_context.hpp
+src/ctx.c/.h                    Context list and span name list (OPTION_DAQ_CONTEXT_LIST, default and shm configuration only), C++ API in inc/xcplib_context.hpp
 src/a2l.c, src/a2l_writer.c     Runtime A2L file generation
 src/persistence.c/.h            Binary (.bin) parameter/event persistence across restarts
 src/platform.c/.h               OS abstraction (threads, clock, mutex, atomics) — Linux/macOS/QNX/Windows/FreeRTOS

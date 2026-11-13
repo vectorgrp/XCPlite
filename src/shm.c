@@ -28,6 +28,7 @@
 
 #include "shm.h"
 
+#include "ctx.h"         // for XcpGetContextCount, XcpGetContextName, declares nothing without OPTION_DAQ_CONTEXT_LIST
 #include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "persistence.h" // for XcpBinGetFilename()
 #include "platform.h"    // for atomics
@@ -263,6 +264,20 @@ void XcpShmDebugPrint(void) {
                    ev->flags);
     }
     printf(ANSI_COLOR_RESET);
+
+    // --- Context list and span name list ---
+#ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
+    uint16_t context_count = XcpGetContextCount();
+    printf(ANSI_COLOR_BLUE "Contexts (%u):\n" ANSI_COLOR_RESET, context_count);
+    for (uint16_t context = 1; context <= context_count; context++) {
+        printf("  [%u] '%s', app_id=%u\n", context, XcpGetContextName(context), XcpGetContextAppId(context));
+    }
+    uint16_t span_count = XcpGetSpanCount();
+    printf(ANSI_COLOR_BLUE "Span names (%u):\n" ANSI_COLOR_RESET, span_count);
+    for (uint16_t span = 0; span < span_count; span++) {
+        printf("  [%u] '%s'\n", span, XcpGetSpanName(span));
+    }
+#endif
 
     // --- Calibration segment list ---
     uint16_t calseg_count = XcpGetCalSegCount();

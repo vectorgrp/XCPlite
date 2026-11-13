@@ -476,7 +476,7 @@ The whole section requires **`!OPTION_SECTION_REGISTRATION`**. Measurements use 
 
 ### 3.3 Contexts and spans ([xcplib_context.hpp](../inc/xcplib_context.hpp))
 
-Included by `xcplib.hpp`. Requires **`OPTION_DAQ_CONTEXT_LIST`** and `OPTION_ENABLE_A2L_GENERATOR` (default configuration only). Separates the measurement data of the same code running for several class instances or threads, see [thread_context_demo](../examples/thread_context_demo/README.md).
+Included by `xcplib.hpp`. Requires **`OPTION_DAQ_CONTEXT_LIST`** and `OPTION_ENABLE_A2L_GENERATOR` (default and shm configuration only). Separates the measurement data of the same code running for several class instances or threads, see [thread_context_demo](../examples/thread_context_demo/README.md).
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|

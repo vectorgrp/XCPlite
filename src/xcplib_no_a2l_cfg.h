@@ -53,7 +53,7 @@
 // Optional, event trigger function not supported without OPTION_DAQ_EVENT_LIST are: DaqEventVar, DaqTriggerEventExt_s
 #undef OPTION_DAQ_EVENT_LIST
 
-// Contexts and spans are supported in the default configuration only
+// Contexts and spans are supported in the default and the shm configuration only
 #undef OPTION_DAQ_CONTEXT_LIST
 
 //-------------------------------------------------------------------------------

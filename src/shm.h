@@ -38,7 +38,7 @@ typedef struct XcpData tXcpData;
 // Shared-memory application registration table
 
 #define SHM_MAGIC 0x5843504C4954455F // "XCPLITE_" in little-endian ASCII
-#define SHM_VERSION 0x00010000       // Version 1.0.0
+#define SHM_VERSION 0x00010100       // Version 1.1.0, context list and span name list in tXcpData
 #define SHM_PROJECT_NAME "main"      // Name of the main A2L and BIN file
 #define SHM_MAX_APP_COUNT 8          // Maximum number of concurrently registered processes
 

@@ -43,7 +43,16 @@ The server is never automatically migrated to another running application. If th
 
 ## BIN persistence file usage
 
-The persistence file manages event and calibration segment information for all applications, so they all shared the same number space for calibration segments and events. 
+The persistence file manages event and calibration segment information for all applications, so they all shared the same number space for calibration segments and events.
+
+Contexts and spans (`OPTION_DAQ_CONTEXT_LIST`, C++ API `xcp::Context`, `xcp::Scope`, `DaqSpan`, `DaqEventCtxVar`) are available in SHM mode. The context list and the span name list are part of the shared state, like the event list:
+
+- Each application has its own namespace for context names. Two applications may both have a context `SigGen1`; these are two contexts with different context ids, and their events and measurements are `<app>.SigGen1.<event>` and `<app>.SigGen1.<variable>` in the A2L file.
+- Span names and span ids are common to all applications, the server writes one enum conversion `conv.spans`.
+- `OPTION_DAQ_CONTEXT_COUNT`, `OPTION_DAQ_SPAN_COUNT` and `OPTION_DAQ_EVENT_COUNT` are limits for all applications together.
+- The persistence file stores the context name with each event, the contexts are rebuilt for the owning application on load.
+- Like event creation, context creation is protected by a process local mutex only: two applications must not create contexts or events at the same time.
+- `shmtool status -v` lists the contexts and span names. 
 
 Using the binary persistence mode is mandatory for the shared memory mode, because the shared memory state is initialized from the persistence file by the leader.  
 From BIN format V2.5, there is a new section in the persistence file for the application list. This allows to keep the application id assignment stable, regardless of startup order.  

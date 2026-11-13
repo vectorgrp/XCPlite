@@ -3,7 +3,7 @@
 
 // xcplib_context.hpp
 // Contexts and spans for XCPlite, inspired by OpenTelemetry
-// Included by xcplib.hpp, when OPTION_DAQ_CONTEXT_LIST is enabled (default configuration only)
+// Included by xcplib.hpp, when OPTION_DAQ_CONTEXT_LIST is enabled (default and shm configuration only)
 
 // Copyright (c) Vector Informatik GmbH. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for details.

@@ -455,7 +455,11 @@ static bool load(const char *filename, const char *epk) {
         desc.context[XCP_MAX_CONTEXT_NAME] = 0;
         if (desc.context[0] != 0) {
 #ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
+#ifdef OPTION_SHM_MODE // the context belongs to the application of the event
+            context = XcpCreateAppContext(desc.context, desc.app_id);
+#else
             context = XcpCreateContext(desc.context);
+#endif
 #endif
             if (context == 0) {
                 DBG_PRINTF_ERROR("Failed to create context '%s' of event '%s' from persistence file\n", desc.context, desc.name);

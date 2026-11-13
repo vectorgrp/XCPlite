@@ -14,7 +14,9 @@
 |
 |   The lists are part of the XCP state (tXcpData), next to the event list.
 |   The application programming interface is C++ only, see xcplib_context.hpp.
-|   Enabled with OPTION_DAQ_CONTEXT_LIST, default configuration only.
+|   Enabled with OPTION_DAQ_CONTEXT_LIST, default and shm configuration only.
+|   In SHM mode, the lists are shared by all application processes: each application has its own namespace for context names,
+|   span names and span ids are common to all applications.
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | Licensed under the MIT license. See LICENSE file in the project root for details.
@@ -87,11 +89,28 @@ const char *XcpGetContextName(uint16_t context) {
     return shared.context_list.context[context - 1].name;
 }
 
+#ifdef OPTION_SHM_MODE // get context application id
+// Get the application id of a context
+uint8_t XcpGetContextAppId(uint16_t context) {
+    if (!XcpIsActivated() || context == XCP_UNDEFINED_CONTEXT || context > acquireContextCount())
+        return 0;
+    return shared.context_list.context[context - 1].app_id;
+}
+#endif
+
 // Create a context or return the id of the existing context with this name
 // An existing context may have been preloaded from the binary persistence file
+// In SHM mode, the context list is shared by all application processes, each application has its own namespace for context names
 // Thread safe by mutex
-// @@@@ TODO: Find a process safe solution for SHM mode
+// @@@@ TODO: Not process safe in SHM mode, like the event list: two application processes must not create contexts or events at the same time
+#ifdef OPTION_SHM_MODE // context of this application process
+static uint16_t createContext(const char *name, uint8_t app_id);
+uint16_t XcpCreateContext(const char *name) { return createContext(name, XcpShmGetAppId()); }
+uint16_t XcpCreateAppContext(const char *name, uint8_t app_id) { return createContext(name, app_id); }
+static uint16_t createContext(const char *name, uint8_t app_id) {
+#else
 uint16_t XcpCreateContext(const char *name) {
+#endif
 
     if (!XcpIsActivated()) {
         return XCP_UNDEFINED_CONTEXT; // Uninitialized
@@ -112,7 +131,7 @@ uint16_t XcpCreateContext(const char *name) {
     uint16_t count = acquireContextCount();
     for (uint16_t i = 0; i < count; i++) {
 #ifdef OPTION_SHM_MODE // find only contexts owned by this application process
-        if (shared.context_list.context[i].app_id != XcpShmGetAppId())
+        if (shared.context_list.context[i].app_id != app_id)
             continue;
 #endif
         if (strcmp(shared.context_list.context[i].name, name) == 0) {
@@ -130,7 +149,7 @@ uint16_t XcpCreateContext(const char *name) {
     strncpy(shared_mut.context_list.context[count].name, name, XCP_MAX_CONTEXT_NAME);
     shared_mut.context_list.context[count].name[XCP_MAX_CONTEXT_NAME] = 0;
 #ifdef OPTION_SHM_MODE // store the application id in the context
-    shared_mut.context_list.context[count].app_id = XcpShmGetAppId();
+    shared_mut.context_list.context[count].app_id = app_id;
 #endif
     releaseContextCount(count + 1); // Publish the new context
 
@@ -157,6 +176,12 @@ tXcpEventId XcpCreateContextEvent(uint16_t context, const char *name, uint32_t c
         DBG_PRINTF_ERROR("context %u of event '%s' does not exist\n", context, name);
         return XCP_UNDEFINED_EVENT_ID;
     }
+#ifdef OPTION_SHM_MODE // the context must be owned by this application process
+    if (context != XCP_UNDEFINED_CONTEXT && shared.context_list.context[context - 1].app_id != XcpShmGetAppId()) {
+        DBG_PRINTF_ERROR("context %u of event '%s' belongs to another application\n", context, name);
+        return XCP_UNDEFINED_EVENT_ID;
+    }
+#endif
 
     mutexLock(&local_mut.event_list_mutex);
     tXcpEventId id = XcpFindContextEvent(context, name);

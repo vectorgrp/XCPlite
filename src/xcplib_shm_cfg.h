@@ -34,8 +34,5 @@
 // Experimental, work in progress, demonstrated in silkit_demo
 #define OPTION_SHM_MODE
 
-// Contexts and spans are supported in the default configuration only
-#undef OPTION_DAQ_CONTEXT_LIST
-
 // Linker section based event and calibration segment registration not supported
 #undef OPTION_SECTION_REGISTRATION

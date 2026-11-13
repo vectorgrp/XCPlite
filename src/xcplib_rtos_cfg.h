@@ -133,7 +133,7 @@
 #undef OPTION_DAQ_EVENT_COUNT
 #define OPTION_DAQ_EVENT_COUNT 16
 
-// Contexts and spans are supported in the default configuration only
+// Contexts and spans are supported in the default and the shm configuration only
 #undef OPTION_DAQ_CONTEXT_LIST
 
 // OPTION_QUEUE_32 is MANDATORY on 32-bit Cortex-M4:

@@ -99,8 +99,8 @@ including a receiver for visualisation, are in the header of [otel/src/main.cpp]
   file is finalized.
 - **Span duration.** `span_dt` belongs to the span that just ended, the end sample does not name it.
 - **Attach starts without a span.** The current span of the capturing thread is not carried over.
-- **Default configuration only.** Needs runtime event creation and on-target A2L generation. Not
-  available in the SHM configuration yet.
+- **Default and shm configuration only.** Needs runtime event creation and on-target A2L generation.
+  In SHM mode, each application has its own namespace for context names, see [docs/SHM.md](../../docs/SHM.md).
 - **Library implementation.** The context names are kept in a context list in the C core
   ([src/ctx.c](../../src/ctx.c)), an event stores the id of its context. The binary persistence file
   stores the context name with each event, so event ids are stable across restarts. There is no C
@@ -184,7 +184,7 @@ Other
 
 ### Postponed 
 
-SHM configuration: enable OPTION_DAQ_CONTEXT_LIST there, bump SHM_VERSION, make context creation process safe, and test with shmtool and xcpdaemon.
+SHM configuration: make context and event creation process safe (two applications must not create contexts or events at the same time), test with xcpdaemon.
 
 ### Not verified
 
@@ -277,7 +277,6 @@ Not affected by the number of contexts or code locations:
 - Should a context capture the current context when the instance does not know its own name?
 - How far should the naming follow OTel? An OTel tracer has a name but no id, it is only a factory for
   spans. The trace id belongs to the trace, which is the set of all spans sharing that id.
-- Contexts in the SHM configuration.
 - A group per context in the A2L file, containing the event groups of the context.
 - Optional connection to a real OTel backend, on target through opentelemetry-cpp or off target by
   exporting span records from xcpclient.
