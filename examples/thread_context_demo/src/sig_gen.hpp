@@ -44,9 +44,10 @@ class SignalGenerator {
 
     xcp::Context context_; // XCP context of this instance, makes the instance known to context-aware instrumentation
 
-    const char *instance_name_;       // Instance name
-    std::thread *thread_;             // Thread for the signal generator task
-    std::atomic<bool> running_{true}; // Stop flag for the worker thread
+    const char *instance_name_;        // Instance name
+    std::thread *thread_;              // Thread for the signal generator task
+    std::atomic<bool> running_{true};  // Stop flag for the worker thread
+    std::atomic<bool> started_{false}; // Set by the worker thread after its first cycle
 
     double value_{0};           // Current value, written and measured in the task thread only
     double normalized_time_{0}; // Current normalized time in [0.0..1.0[

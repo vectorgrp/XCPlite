@@ -60,6 +60,13 @@ SignalGenerator::SignalGenerator(const char *instance_name, const SignalParamete
     std::cout << "Starting task: " << instance_name_ << std::endl;
 
     thread_ = new std::thread([this]() { Task(); });
+
+    // Wait until the task has executed its first cycle
+    // The events and measurements of an instance are created when its instrumentation is executed for the first time,
+    // waiting here makes the creation order and so the event ids and the A2L file independent of thread start-up timing
+    while (!started_.load(std::memory_order_acquire)) {
+        sleepUs(100);
+    }
 }
 
 SignalGenerator::~SignalGenerator() {
@@ -125,6 +132,9 @@ void SignalGenerator::Task() {
         // XCP event in the current context
         // Each instance gets its own event instance siggen_<n> and its own measurement <instance_name>.value_
         DaqEventCtxVar(siggen, A2L_MEAS_PHYS(value_, "Signal generator output", "Volt", -100.0, +100.0));
+
+        // First cycle done, all instrumentation of the task has been executed once
+        started_.store(true, std::memory_order_release);
 
         // Sleep for delay_us microseconds
         sleepUs(signal_parameters_.lock()->delay_us);

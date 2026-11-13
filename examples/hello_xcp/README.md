@@ -91,7 +91,8 @@ More advanced topics are covered by the other examples:
 
 - **hello_xcp_cpp** — C++ RAII calibration segment wrapper, variadic macro API
 - **c_demo** — complex calibration objects (maps, curves), consistent atomic updates, polling
-- **multi_thread_demo** — worker threads, one event triggered from many threads, lock-free work distribution
+- **multi_thread_demo** — thread-local events, shared calibration, context/span instrumentation
+- **thread_context_demo** — experimental: multiple class instances and threads separated by context and spans
 - **cpp_demo** — signal generators, lookup tables, class instance measurement
 - **struct_demo** — nested structs, arrays of structs, typedef-based measurement types
 

@@ -136,6 +136,7 @@ ALL_EXAMPLES=(
     "cpp_demo"
     "struct_demo"
     "multi_thread_demo"
+    "thread_context_demo"
     "point_cloud_demo"
 )
 
@@ -160,7 +161,7 @@ fi
 
 # Function to get protocol for an example
 # TCP examples: hello_xcp, hello_xcp_cpp, struct_demo
-# UDP examples: c_demo, cpp_demo, multi_thread_demo
+# UDP examples: c_demo, cpp_demo, multi_thread_demo, thread_context_demo
 # Keep in sync with OPTION_USE_TCP in the main source file of each example
 get_example_protocol() {
     local example_name="$1"
@@ -168,7 +169,7 @@ get_example_protocol() {
         point_cloud_demo|struct_demo)
             echo "tcp"
             ;;
-        hello_xcp|hello_xcp_cpp|c_demo|cpp_demo|multi_thread_demo)
+        hello_xcp|hello_xcp_cpp|c_demo|cpp_demo|multi_thread_demo|thread_context_demo)
             echo "udp"
             ;;
         *)
@@ -453,11 +454,12 @@ run_example() {
     fi
     
     # Check for .a2l files created by this example
-    # Format: example_name_HH_MM_SS.a2l (where HH_MM_SS is from __TIME__)
+    # Format: example_name_HH_MM_SS.a2l (where HH_MM_SS is from __TIME__), example_name_V<version>.a2l (fixed version, for example V2.3) or example_name.a2l
+    # Note: examples with a fixed version and A2L_MODE_WRITE_ONCE do not regenerate an existing A2L file, use 'clean' to compare a fresh one
     # Check both BUILD_DIR and WORKSPACE_ROOT (examples write to current directory)
     # Each example creates exactly one A2L file
-    # Use grep to ensure the filename ends with _HH_MM_SS.a2l pattern or exact match
-    local a2l_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 \( -name "${example_basename}_*.a2l" -o -name "${example_basename}.a2l" \) -type f 2>/dev/null | grep -E "(/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.a2l$|/${example_basename}\.a2l$)" | head -1)
+    # Use grep to ensure the filename ends with one of these patterns (not a substring match of another example)
+    local a2l_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 \( -name "${example_basename}_*.a2l" -o -name "${example_basename}.a2l" \) -type f 2>/dev/null | grep -E "(/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.a2l$|/${example_basename}_V[0-9]+(\.[0-9]+)*\.a2l$|/${example_basename}\.a2l$)" | head -1)
     
     if [ -n "$a2l_files" ]; then
         log_plain "${BLUE}  Found .a2l file(s):${NC}"

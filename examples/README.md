@@ -160,6 +160,16 @@ Measures work item duration, start latency and the speedup of parallel execution
 Example work: renders the Mandelbrot set line by line into a PNG file, the area is a calibration parameter.  
 
 
+### [thread_context_demo](thread_context_demo/README.md)
+
+Experimental.  
+Shows how to separate the measurement data of the same code running for multiple class instances and in multiple threads.  
+Uses a prototype of context, scope and span, a concept inspired by OpenTelemetry: instrumented code gets its instance from the current context of the thread.  
+Measures span begin, end, nesting and duration for each context.  
+Contains the same demo instrumented with opentelemetry-cpp for comparison (not built).  
+There is no CANape project for this example yet, use xcpclient.  
+
+
 ### [point_cloud_demo](point_cloud_demo/README.md)
 
 Demonstrates how to visualize dynamic data structures in the CANape 3D scene window.  
@@ -187,6 +197,7 @@ The examples demonstrate various advanced topics:
 - Use consistent atomic parameter modification
 - Make parameter changes persistent (freeze)
 - Use the API to create context and span, measure durations
+- Separate the measurement data of multiple class instances with a thread context
 
 
 

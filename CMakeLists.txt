@@ -119,7 +119,7 @@ endif()
 # Available targets depend on the active XCPLITE_CONFIGURATION:
 #   XCPLITE_BUILD_EXAMPLES
 #     default  -> hello_xcp, hello_xcp_cpp, c_demo, cpp_demo, point_cloud_demo,
-#                 struct_demo, multi_thread_demo, ptp4l_demo (Linux)
+#                 struct_demo, multi_thread_demo, thread_context_demo, ptp4l_demo (Linux)
 #     no_a2l   -> no_a2l_demo, no_a2l_demo_cpp
 #     ptp      -> ptp4l_demo (Linux)
 #     shm      -> hello_xcp (SHM mode), hello_xcp_cpp (SHM mode)
