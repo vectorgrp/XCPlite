@@ -131,7 +131,6 @@ static tXcpCalSegIndex calseg_id_name;
 // Event descriptor and id, from DaqCreateEvent(name), DaqCreateEventExt(name, cycle, prio), DaqCreateAndTriggerEvent(name)
 static const tXcpEventDescriptor evt__name;     // in section xcp_evts
 static tXcpEventId evt_id_name;
-static THREAD_LOCAL tXcpEventId evt__dynname;   // DaqCreateEventInstance(name), one event instance per thread
 
 // Event trigger anchor, from DaqTriggerEvent(name), DaqTriggerEventExt(name, base), DaqEventVar(name, ...), DaqTriggerEventCapture(name, ...), see below
 static tXcpEventId trg__<modes>__name;          // in the function which triggers the event
@@ -284,7 +283,7 @@ An event is triggered by a function (`XcpEvent`, `XcpEventExt`, ...) or a macro 
 
 Triggering the same event at multiple code locations is possible, but it is the user's responsibility to make sure that all measurement variables associated with the event are valid at each location. This is not recommended, it also makes the measurement data hard to interpret.
 
-To filter events depending on their execution context, events can be enabled and disabled at runtime (`XcpEventEnable`, `DaqEventEnable`/`DaqEventDisable`). Context dependent events, for example one event instance per thread (`DaqCreateEventInstance`, `XcpCreateEventInstance`) or per class instance, are supported but need more complex instrumentation, see `multi_thread_demo` and `cpp_demo`. The experimental example `thread_context_demo` explores a thread context, which gives the instrumented code its instance implicitly.
+To filter events depending on their execution context, events can be enabled and disabled at runtime (`XcpEventEnable`, `DaqEventEnable`/`DaqEventDisable`). Context dependent events, for example one event per thread or per class instance, are supported with explicit instrumentation (an event per instance created by name, see `cpp_demo`) or with contexts (`OPTION_DAQ_CONTEXT_LIST`, C++ API `xcp::Context`, `xcp::Scope`, `DaqEventCtxVar`, see `thread_context_demo`): an event which belongs to a context is identified by context and event name and is named `<context>.<event>` in the A2L file. The context names are kept in a context list next to the event list (`src/ctx.c`), the binary persistence file stores the context name with each event. The experimental example `thread_context_demo` explores a thread context, which gives the instrumented code its instance implicitly.
 
 The event id is the creation order (default configuration, made stable across restarts by the binary persistence file) or the position of the event descriptor in the `xcp_evts` section (section registration). The XCP tool must respect the fixed event definitions, see Tool Compatibility in the README.
 

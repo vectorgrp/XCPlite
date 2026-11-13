@@ -306,38 +306,66 @@ typedef uint16_t tXcpEventId;
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if out of event list memory.
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 
-/// Add a measurement event to event list, return event id (0..XCP_MAX_EVENT_COUNT-1)
-/// If the event name exists, a new event instance index is generated (will be the postfix of the event name in the A2L file)
-/// Function is thread safe by using a mutex for event list access.
-/// @param name Name of the event.
-/// @param cycle_time_ns Cycle time in nanoseconds. 0 means sporadic event.
-/// @param priority Priority of the event. 0 means normal, >=1 means realtime.
-/// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
-tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
-
-/// Add a measurement event instance with a given instance index to the event list, return event id (0..XCP_MAX_EVENT_COUNT-1)
-/// If an event with this name and instance index already exists, returns the existing event id
-/// Unlike XcpCreateEventInstance, the caller defines the instance index, which gives the event instance a stable identity
-/// Function is thread safe by using a mutex for event list access.
-/// @param name Name of the event.
-/// @param index Instance index (1..), will be the postfix of the event name in the A2L file, 0 means no instance index.
-/// @param cycle_time_ns Cycle time in nanoseconds. 0 means sporadic event.
-/// @param priority Priority of the event. 0 means normal, >=1 means realtime.
-/// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
-tXcpEventId XcpCreateEventWithIndex(const char *name, uint16_t index, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
-
 #endif // OPTION_DAQ_EVENT_LIST
 
 /// Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
 /// @param name Name of the event.
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if not found.
-/// If multiple events instances with the same name exist, the first one is returned.
+/// Events which belong to a context (<context name>.<event name>) are not found.
 tXcpEventId XcpFindEvent(const char *name);
 
-/// Get the event instance index (1..)
+#ifdef OPTION_DAQ_EVENT_LIST
+
+/// Get the context id of an event
 /// @param event Event id.
-/// @return The event index (1..), or 0 if no indexed event instance found.
-uint16_t XcpGetEventIndex(tXcpEventId event);
+/// @return The context id (1..), or 0 if the event does not belong to a context.
+uint16_t XcpGetEventContext(tXcpEventId event);
+
+#endif // OPTION_DAQ_EVENT_LIST
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Contexts and spans
+// A context is a named identity ("who is executing"), for example a class instance or a worker thread.
+// An event may belong to a context, it is then named <context name>.<event name>.
+// These functions are the C core of the C++ API in xcplib_context.hpp (xcp::Context, xcp::Scope, DaqSpan, DaqEventCtxVar),
+// there is no C instrumentation API for contexts.
+
+#ifdef OPTION_DAQ_CONTEXT_LIST
+
+/// Create a context, returns the context id (1..OPTION_DAQ_CONTEXT_COUNT)
+/// If a context with this name already exists, returns the existing context id
+/// Function is thread safe by using a mutex.
+/// @param name Name of the context, at most 15 characters.
+/// @return The context id or 0 if the name is too long or the context list is full.
+uint16_t XcpCreateContext(const char *name);
+
+/// Get the name of a context
+/// @param context Context id.
+/// @return The context name or NULL if not found.
+const char *XcpGetContextName(uint16_t context);
+
+/// Get the number of contexts
+uint16_t XcpGetContextCount(void);
+
+/// Add a measurement event which belongs to a context to the event list, returns the event id (0..XCP_MAX_EVENT_COUNT-1)
+/// The event is named <context name>.<name> in the A2L file.
+/// If an event with this name already exists in this context, returns the existing event id
+/// Function is thread safe by using a mutex for event list access.
+/// @param context Context id, 0 creates an event without context like XcpCreateEvent.
+/// @param name Name of the event.
+/// @param cycle_time_ns Cycle time in nanoseconds. 0 means sporadic event.
+/// @param priority Priority of the event. 0 means normal, >=1 means realtime.
+/// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
+tXcpEventId XcpCreateContextEvent(uint16_t context, const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+
+/// Register a span name, returns the span id (1..OPTION_DAQ_SPAN_COUNT-1)
+/// If the span name is already registered, returns the existing span id
+/// The A2L generator creates the enum conversion conv.spans from the registered span names.
+/// @param name Name of the span, at most 31 characters.
+/// @return The span id or 0 (no span) if the span name list is full.
+uint16_t XcpRegisterSpanName(const char *name);
+
+#endif // OPTION_DAQ_CONTEXT_LIST
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Dynamic or linktime named DAQ event creation
@@ -516,20 +544,6 @@ extern const tXcpEventDescriptor __stop_xcp_evts[] __asm("section$end$__DATA$xcp
             }                                                                                                                                                                      \
         }                                                                                                                                                                          \
     }
-
-/// Create a multi instance event
-/// No once pattern, a new event instance is created for each call
-/// If the name exists, an incrementing instance index is generated and appended to the event name (<name>_<instance_index>)
-/// @param name Name given as identifier
-#define DaqCreateEventInstance(event_name)                                                                                                                                         \
-    static tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                                 \
-    if (XcpIsActivated()) {                                                                                                                                                        \
-        evt__##event_name = XcpCreateEventInstance(#event_name, 0, 0);                                                                                                             \
-    }
-
-/// Get event instance id
-/// @param name Name given as identifier
-#define DaqGetEventInstanceId(event_name) evt__##event_name
 
 #endif // OPTION_DAQ_EVENT_LIST
 

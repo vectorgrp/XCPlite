@@ -58,7 +58,7 @@ Switching compilers requires a fresh build directory (CMake caches the compiler 
 
 ### Running tests
 
-Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `daq_config_test`, `clock_test`, `queue_test`, `xcp_test`, `passive_test_c`, `passive_test_cpp`, `persistence_test`, `type_detection_test_*`; `ptp` config: `clock_test` only; `raw` config: `socket_raw_test`, end-to-end test `test/test_socket_raw.sh`). Build then run directly, e.g.:
+Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `daq_config_test`, `clock_test`, `queue_test`, `xcp_test`, `passive_test_c`, `passive_test_cpp`, `persistence_test`, `context_test`, `type_detection_test_*`; `ptp` config: `clock_test` only; `raw` config: `socket_raw_test`, end-to-end test `test/test_socket_raw.sh`). Build then run directly, e.g.:
 
 ```bash
 ./build.sh tests           # build the test suite
@@ -99,6 +99,7 @@ src/xcpethtl.c/.h               Ethernet transport layer (packet framing)
 src/xcpshmserver.h, src/shm.c/.h   Shared-memory transport layer (SHM configuration only)
 src/queue*.c                    Lock-free/mutex transmit queue implementations (see below)
 src/cal.c/.h                    Calibration segment RCU implementation (page switching, locks)
+src/ctx.c/.h                    Context list and span name list (OPTION_DAQ_CONTEXT_LIST, default configuration only), C++ API in inc/xcplib_context.hpp
 src/a2l.c, src/a2l_writer.c     Runtime A2L file generation
 src/persistence.c/.h            Binary (.bin) parameter/event persistence across restarts
 src/platform.c/.h               OS abstraction (threads, clock, mutex, atomics) — Linux/macOS/QNX/Windows/FreeRTOS

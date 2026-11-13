@@ -140,17 +140,25 @@ The macros take the default page variable as an identifier: `name` is the segmen
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
 | `XcpCreateEvent(name, cycle_ns, prio)` | function | Create an event, or return the existing one with this name. Thread safe | `OPTION_DAQ_EVENT_LIST` | bpf_demo, freertos_demo |
-| `XcpCreateEventInstance(name, cycle_ns, prio)` | function | Create a new indexed instance (`name_<n>`) of an event | `OPTION_DAQ_EVENT_LIST` | — |
-| `XcpCreateEventWithIndex(name, index, cycle_ns, prio)` | function | Create an event instance (`name_<index>`) with a given instance index, or return the existing one with this name and index. Thread safe | `OPTION_DAQ_EVENT_LIST` | thread_context_demo |
-| `XcpFindEvent(name)` | function | Look up an event id by name | — | — (used by the trigger macros) |
-| `XcpGetEventIndex(event)` | function | Instance index (1..) of an indexed event | `OPTION_DAQ_EVENT_LIST` | — |
+| `XcpFindEvent(name)` | function | Look up an event id by name. Events which belong to a context are not found | — | — (used by the trigger macros) |
+| `XcpGetEventContext(event)` | function | Context id (1..) of an event which belongs to a context, 0 otherwise | `OPTION_DAQ_EVENT_LIST` | — |
 | `DaqCreateEvent(name)` | macro | Create a sporadic event (inside a function). It is created at runtime, or registered at link time with section registration | `OPTION_DAQ_EVENT_LIST` or `OPTION_SECTION_REGISTRATION` | most C examples, cpp_demo, silkit_demo, no_a2l_demo, no_a2l_demo_cpp, freertos_demo |
 | `DaqCreateEventExt(name, cycle_us, prio)` | macro | Like `DaqCreateEvent`, with a cycle time and priority | as above | — |
 | `DaqDeclareEvent(name)` | macro | File scope event declaration, so callbacks can trigger it by name | `OPTION_SECTION_REGISTRATION` | — |
 | `DaqDeclareEventExt(name, cycle_us, prio)` | macro | As above, with a cycle time and priority | `OPTION_SECTION_REGISTRATION` | — |
 | `DaqCreateEvent_s(name_str)` | macro | Create an event with a runtime string name, once per thread | `OPTION_DAQ_EVENT_LIST` | cpp_demo |
-| `DaqCreateEventInstance(name)` | macro | Create a new event instance on every call | `OPTION_DAQ_EVENT_LIST` | — |
-| `DaqGetEventInstanceId(name)` | macro | Id of the instance created by `DaqCreateEventInstance` | `OPTION_DAQ_EVENT_LIST` | — |
+
+#### Contexts and spans (C core of the C++ API)
+
+A context is a named identity ("who is executing"), an event may belong to a context and is then named `<context>.<event>`. These functions are used by the C++ API in section 3.3, there are no C instrumentation macros for contexts.
+
+| Name | Kind | Description | Option | Examples |
+|---|---|---|---|---|
+| `XcpCreateContext(name)` | function | Create a context, or return the id (1..) of the existing one with this name. Thread safe | `OPTION_DAQ_CONTEXT_LIST` | — (used by `xcp::Context`) |
+| `XcpGetContextName(context)` | function | Name of a context | `OPTION_DAQ_CONTEXT_LIST` | — |
+| `XcpGetContextCount()` | function | Number of contexts | `OPTION_DAQ_CONTEXT_LIST` | — |
+| `XcpCreateContextEvent(context, name, cycle_ns, prio)` | function | Create the event `<context>.<name>`, or return the existing one with this name in this context. Thread safe | `OPTION_DAQ_CONTEXT_LIST` | — (used by `DaqEventCtxVar`) |
+| `XcpRegisterSpanName(name)` | function | Register a span name, returns the span id. The A2L generator creates `conv.spans` from the registered names | `OPTION_DAQ_CONTEXT_LIST` | — (used by `DaqSpan`) |
 
 ### 1.7 DAQ events: trigger functions
 
@@ -465,6 +473,20 @@ The whole section requires **`!OPTION_SECTION_REGISTRATION`**. Measurements use 
 | `XCPLIB_ALWAYS_INLINE` | macro | Force inlining, so that the templates capture the caller's stack frame | — | — |
 
 ---
+
+### 3.3 Contexts and spans ([xcplib_context.hpp](../inc/xcplib_context.hpp))
+
+Included by `xcplib.hpp`. Requires **`OPTION_DAQ_CONTEXT_LIST`** and `OPTION_ENABLE_A2L_GENERATOR` (default configuration only). Separates the measurement data of the same code running for several class instances or threads, see [thread_context_demo](../examples/thread_context_demo/README.md).
+
+| Name | Kind | Description | Option | Examples |
+|---|---|---|---|---|
+| `xcp::Context(name)` | class | Named context, creates the event `<name>.spans` with the measurements `<name>.span`, `.level`, `.span_dt`. `id()`, `name()`, `event()`, static `GetCurrent()` | `OPTION_DAQ_CONTEXT_LIST` | thread_context_demo |
+| `xcp::Scope(context)` | class | Makes a context the current context of the calling thread, restores the previous one in the destructor | as above | thread_context_demo |
+| `DaqEventCtxVar(name, A2L_MEAS(...), ...)` | macro | Like `DaqEventVar`, in the current context: event `<context>.<name>`, measurements `<context>.<variable>`, created once per context and code location. Without a current context like `DaqEventVar` | as above | thread_context_demo |
+| `DaqEventCtxVar_(context, name, ...)` | macro | As above, with an explicit context pointer | as above | — |
+| `DaqSpan(name)` | macro | Begin a span, it ends at the end of the block. Begin and end are recorded on the event `<context>.spans` | as above | thread_context_demo |
+| `xcp::Span(span_id)` | class | Implementation of `DaqSpan` | as above | — |
+| `xcp::DaqEventCtxVarTemplate(ids, context, name, measurements...)` | function template | Implementation of `DaqEventCtxVar` | as above | — |
 
 ## Part 4: C++ A2L generation API ([a2l.hpp](../inc/a2l.hpp))
 

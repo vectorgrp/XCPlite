@@ -136,14 +136,29 @@
 
 // Enable DAQ event management
 // Mandatory for some of the standard examples in XCPlite, rust xcp-lite has its own DAQ event management
-// Enables dynamic event creation and per thread event instances
-// Enables tXcpEvent, XcpCreateIndexedEvent, XcpCreateEvent, XcpCreateEventInstance, XcpGetEventCount, XcpFindEvent,XcpGetEventName,XcpGetEventIndex,XcpGetEvent
+// Enables dynamic event creation
+// Enables tXcpEvent, XcpCreateIndexedEvent, XcpCreateEvent, XcpGetEventCount, XcpFindEvent, XcpGetEventName, XcpGetEventContext, XcpGetEvent
 #define OPTION_DAQ_EVENT_LIST
 
 // Maximum number of DAQ events (integer value, must be even)
 // Needs OPTION_DAQ_EVENT_COUNT*2 bytes of memory
 // If OPTION_DAQ_EVENT_LIST is off, event number is bound which is used for optimization
 #define OPTION_DAQ_EVENT_COUNT (16)
+
+// Enable DAQ contexts and spans
+// A context is a named identity ("who is executing"), for example a class instance or a worker thread.
+// An event may belong to a context, it is then named <context name>.<event name>.
+// Enables XcpCreateContext, XcpCreateContextEvent, XcpRegisterSpanName and the C++ API in xcplib_context.hpp (xcp::Context, xcp::Scope, DaqSpan, DaqEventCtxVar)
+// (Needs OPTION_DAQ_EVENT_LIST and on-target A2L generation, enabled in the default configuration only)
+#define OPTION_DAQ_CONTEXT_LIST
+
+// Maximum number of contexts
+// Needs 16 bytes of memory per context
+#define OPTION_DAQ_CONTEXT_COUNT (8)
+
+// Maximum number of different span names, including the reserved span id 0 for "no span"
+// Needs 32 bytes of memory per span name
+#define OPTION_DAQ_SPAN_COUNT (32)
 
 // Memory bytes used for XCP DAQ tables
 // 6 bytes per measurement signal (ODT entry) needed

@@ -259,7 +259,7 @@ void XcpShmDebugPrint(void) {
         if (ev == NULL)
             printf("  [%u] not found\n", id);
         else
-            printf("  [%u] '%s', cycle_ns=%u, index=%u, app_id=%u, daq_first=%u, flags=0x%02X\n", id, XcpGetEventName(id), ev->cycle_time_ns, ev->index, ev->app_id, ev->daq_first,
+            printf("  [%u] '%s', cycle_ns=%u, context=%u, app_id=%u, daq_first=%u, flags=0x%02X\n", id, XcpGetEventName(id), ev->cycle_time_ns, ev->context, ev->app_id, ev->daq_first,
                    ev->flags);
     }
     printf(ANSI_COLOR_RESET);

@@ -164,7 +164,7 @@ Example work: renders the Mandelbrot set line by line into a PNG file, the area 
 
 Experimental.  
 Shows how to separate the measurement data of the same code running for multiple class instances and in multiple threads.  
-Uses a prototype of context, scope and span, a concept inspired by OpenTelemetry: instrumented code gets its instance from the current context of the thread.  
+Uses context, scope and span (`xcp::Context`, `xcp::Scope`, `DaqSpan`, `DaqEventCtxVar`), a concept inspired by OpenTelemetry: instrumented code gets its instance from the current context of the thread, events are named `<context>.<event>`.  
 Measures span begin, end, nesting and duration for each context.  
 Contains the same demo instrumented with opentelemetry-cpp for comparison (not built).  
 There is no CANape project for this example yet, use xcpclient.  
@@ -248,7 +248,6 @@ API areas each example exercises.
 | `CalSeg::lock()` / `CalSegRef::lock()` / auto unlock | — | ✅ | — | ✅ | — | — | ✅ | ✅ |
 | **Events & measurement triggers** | | | | | | | | |
 | `DaqCreateEvent` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `DaqCreateEventInstance` (thread-local) | — | — | — | — | — | — | — | — |
 | `DaqCreateAndTriggerEvent` (inline) | — | — | — | — | — | — | ✅ | — |
 | `DaqTriggerEvent` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `DaqTriggerEventExt` (relative base addr) | — | — | — | — | ✅ | — | ✅ | — |

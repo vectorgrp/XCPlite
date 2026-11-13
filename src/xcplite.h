@@ -219,7 +219,7 @@ bool XcpCheckDaqLists(uint8_t daq_state, tXcpEventId event_id);
 
 typedef struct {
     uint32_t cycle_time_ns; // Cycle time in nanoseconds, 0 means sporadic event
-    uint16_t index;         // Event instance index, 0 = single instance, 1.. = multiple instances
+    uint16_t context;       // Context id of the event, 0 = no context, 1.. = event belongs to this context (see ctx.h)
     uint16_t daq_first;     // First associated DAQ list, linked list
     uint8_t flags;          // Control flags for the event
 #ifdef OPTION_SHM_MODE      // app_id in tXcpEvent
@@ -237,20 +237,47 @@ typedef struct {
     tXcpEvent event[XCP_MAX_EVENT_COUNT]; // event list
 } tXcpEventList;
 
-// Create an XCP event (internal use only, not thread safe)
-tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycle_time_ns, uint8_t priority);
+// Optional context list and span name list, see ctx.h
+#ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
+
+// A context is a named identity ("who is executing"), events may belong to a context
+// The context id is the position in the list + 1, 0 means no context
+typedef struct {
+    char name[XCP_MAX_CONTEXT_NAME + 1]; // Context name
+#ifdef OPTION_SHM_MODE                   // app_id in tXcpContext
+    uint8_t app_id;                      // In SHM mode, the context has an application id
+#endif
+} tXcpContext;
+
+typedef struct {
+    atomic_uint_fast16_t count;                 // number of contexts
+    tXcpContext context[XCP_MAX_CONTEXT_COUNT]; // context list
+} tXcpContextList;
+
+// Span names, the span id is the position in the list, id 0 is reserved for "no span"
+#define XCP_MAX_SPAN_NAME 31
+typedef struct {
+    atomic_uint_fast16_t count;                           // number of span names including id 0
+    char name[XCP_MAX_SPAN_COUNT][XCP_MAX_SPAN_NAME + 1]; // span names
+} tXcpSpanList;
+
+#endif // XCP_ENABLE_DAQ_CONTEXT_LIST
+
+// Create an XCP event (internal use only, not thread safe, no check for an existing event)
+// context is the context id of the event, 0 for an event without context
+tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t context, uint32_t cycle_time_ns, uint8_t priority);
 
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1)
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing*/);
 
-// Add a measurement event to event list, return event number (0..MAX_EVENT-1), thread safe, if name exists, an instance id is appended to the name
-tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
+// Get the context id of an event (1..), return 0 if the event has no context or is not found
+uint16_t XcpGetEventContext(tXcpEventId event);
 
-// Add a measurement event instance with a given instance index, return the existing event if name and index already exist, thread safe
-tXcpEventId XcpCreateEventWithIndex(const char *name, uint16_t index, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
+// Find an event by name and context id (0 = event without context), returns XCP_UNDEFINED_EVENT_ID if not found
+tXcpEventId XcpFindContextEvent(uint16_t context, const char *name);
 
-// Get the event index (1..), return 0 if not found
-uint16_t XcpGetEventIndex(tXcpEventId event);
+// Get the event name without the context name, returns NULL if not found
+const char *XcpGetEventBaseName(tXcpEventId event);
 
 // Get the event descriptor struct by id, returns NULL if not found
 const tXcpEvent *XcpGetEvent(tXcpEventId event);
@@ -278,6 +305,7 @@ const tXcpEventDescriptor *XcpGetEvent(tXcpEventId event);
 #endif // !XCP_ENABLE_DAQ_EVENT_LIST
 
 // Get event name by id, returns NULL if not found
+// For an event which belongs to a context, this is <context name>.<event name>, valid until the next call
 const char *XcpGetEventName(tXcpEventId event);
 // Get event cycle time by id, returns 0 if not found
 uint32_t XcpGetEventCycleTime(tXcpEventId event);
@@ -414,6 +442,12 @@ typedef struct XcpData {
     tXcpEventList event_list;
 #endif
 
+    /* Optional context list and span name list */
+#ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
+    tXcpContextList context_list;
+    tXcpSpanList span_list;
+#endif
+
     /* Optional calibration segment list */
 #ifdef XCP_ENABLE_CALSEG_LIST
     tXcpCalSegList cal_seg_list;
@@ -467,7 +501,7 @@ typedef struct XcpLocalData {
 
     // Static lifetime buffer for event names
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
-    char event_name_buf[XCP_MAX_EVENT_NAME + 8];
+    char event_name_buf[XCP_MAX_CONTEXT_NAME + 1 + XCP_MAX_EVENT_NAME + 1]; // <context name>.<event name>
 #endif
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103

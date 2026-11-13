@@ -125,7 +125,7 @@ endif()
 #     shm      -> hello_xcp (SHM mode), hello_xcp_cpp (SHM mode)
 #     rtos     -> freertos_demo (downloads FreeRTOS-Kernel via FetchContent)
 #   XCPLITE_BUILD_TESTS
-#     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp, persistence_test
+#     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp, persistence_test, context_test
 #     ptp      -> clock_test
 #     others   -> (none)
 #   XCPLITE_BUILD_TOOLS
@@ -246,7 +246,7 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
 endif()
 
 # xcplite sources
-set(xcplite_SOURCES src/xcpappl.c src/xcplite.c src/xcpethserver.c src/xcpethtl.c src/queue32m.c src/queue32.c src/queue64v.c src/queue64f.c src/shm.c src/cal.c src/a2l.c src/a2l_writer.c src/persistence.c src/platform.c src/sockets.c src/socket_raw.c src/socket_raw_hal_linux.c src/util.c )
+set(xcplite_SOURCES src/xcpappl.c src/xcplite.c src/xcpethserver.c src/xcpethtl.c src/queue32m.c src/queue32.c src/queue64v.c src/queue64f.c src/shm.c src/cal.c src/ctx.c src/a2l.c src/a2l_writer.c src/persistence.c src/platform.c src/sockets.c src/socket_raw.c src/socket_raw_hal_linux.c src/util.c )
 
 # Create xcplite library
 add_library(xcplite ${xcplite_SOURCES})
@@ -513,6 +513,9 @@ if(XCPLITE_BUILD_TESTS)
             set_tests_properties(checksum_${_checksum_case} PROPERTIES LABELS "unit" TIMEOUT 60)
         endforeach()
 
+        add_executable(context_test test/context_test/src/main.cpp)
+        target_link_libraries(context_test PRIVATE xcplite)
+
         # Test registration (default configuration)
         foreach(_xcp_unit_test
                 type_detection_test_c
@@ -524,7 +527,8 @@ if(XCPLITE_BUILD_TESTS)
                 cal_page_test
                 passive_test_c
                 passive_test_cpp
-                persistence_test)
+                persistence_test
+                context_test)
             add_test(NAME ${_xcp_unit_test} COMMAND ${_xcp_unit_test})
             set_tests_properties(${_xcp_unit_test} PROPERTIES LABELS "unit" TIMEOUT 60)
         endforeach()

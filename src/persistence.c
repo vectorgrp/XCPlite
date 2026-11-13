@@ -25,6 +25,7 @@
 #include <string.h>   // for strlen, strncpy
 
 #include "a2l.h"       // for A2lGetAppFilename
+#include "ctx.h"       // for XcpCreateContext, XcpGetContextName, declares nothing without OPTION_DAQ_CONTEXT_LIST
 #include "dbg_print.h" // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "shm.h"       // for shared memory management
@@ -57,11 +58,12 @@ static_assert(sizeof(tBinHeader) == 256, "Size of tBinHeader must be 256 bytes")
 
 typedef struct {
     uint16_t id;                                     // Event ID
-    uint16_t index;                                  // Event index
+    uint16_t index;                                  // Context id of the event when the file was written, 0 = no context (informative, the context name is relevant)
     uint32_t cycle_time_ns;                          // Cycle time in ns
     uint8_t priority;                                // Priority 0 = queued, 1 = pushing, 2 = realtime
     uint8_t app_id;                                  // App ID of the event owner in SHM mode, 0 in local mode
-    uint8_t reserved[128 - 2 - 2 - 4 - 1 - 1];       // Reserved for future use
+    char context[XCP_MAX_CONTEXT_NAME + 1];          // Context name, 0 terminated, empty for an event without context
+    uint8_t reserved[128 - 2 - 2 - 4 - 1 - 1 - (XCP_MAX_CONTEXT_NAME + 1)]; // Reserved for future use
     char name[XCP_MAX_EVENT_NAME + 1];               // Event name, 0 terminated
     uint8_t padding[128 - (XCP_MAX_EVENT_NAME + 1)]; // Reserved for longer event names up to 128 bytes
 } tBinEvent;
@@ -162,7 +164,17 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     desc.cycle_time_ns = event->cycle_time_ns;
     desc.priority = event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY ? 0xFF : 0x00;
     desc.id = event_id;
-    desc.index = XcpGetEventIndex(event_id);
+    // An event which belongs to a context is saved with the context name, the context list is rebuilt from the events when loading
+    desc.index = event->context;
+#ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
+    if (event->context != 0) {
+        const char *context_name = XcpGetContextName(event->context);
+        assert(context_name != NULL);
+        if (context_name != NULL) {
+            strncpy(desc.context, context_name, XCP_MAX_CONTEXT_NAME);
+        }
+    }
+#endif
     size_t written = fwrite(&desc, sizeof(tBinEvent), 1, file);
     if (written != 1) {
         DBG_PRINT_ERROR("Failed to write event descriptor to BIN file\n");
@@ -438,7 +450,23 @@ static bool load(const char *filename, const char *epk) {
         // XcpCreateIndexedEvent does not check for duplicate event names, the application id will be set below
         // Not thread safe, but called in XcpInit() before XCP is activated, so no concurrent access to event list here, and no need to lock the event list mutex
         // @@@@ TODO: Find a process safe solution for SHM mode
-        event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycle_time_ns, desc.priority);
+        // An event which belongs to a context: create the context or get the existing one with this name, the context id may differ from the saved one
+        uint16_t context = 0;
+        desc.context[XCP_MAX_CONTEXT_NAME] = 0;
+        if (desc.context[0] != 0) {
+#ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
+            context = XcpCreateContext(desc.context);
+#endif
+            if (context == 0) {
+                DBG_PRINTF_ERROR("Failed to create context '%s' of event '%s' from persistence file\n", desc.context, desc.name);
+                error_count++;
+            }
+        } else if (desc.index != 0) {
+            // Written by an older version with anonymous event instances (<name>_<index>), which are not supported anymore
+            DBG_PRINTF_ERROR("Event instance '%s_%u' in persistence file is not supported\n", desc.name, desc.index);
+            error_count++;
+        }
+        event_id = XcpCreateIndexedEvent(desc.name, context, desc.cycle_time_ns, desc.priority);
         if (event_id == XCP_UNDEFINED_EVENT_ID || event_id != desc.id) { // Should not happen
             DBG_PRINTF_ERROR("Failed to create event '%s' from persistence file\n", desc.name);
             error_count++;

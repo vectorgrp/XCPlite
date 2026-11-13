@@ -84,6 +84,8 @@
 #include "cal.h" // for XcpCalSegXxx
 #endif
 
+#include "ctx.h" // for XcpInitContextList, XcpGetContextName, declares nothing without OPTION_DAQ_CONTEXT_LIST
+
 #if defined(XCPTL_ENABLE_MULTICAST)
 #include "xcpethtl.h" // for ethernet specific transport layer functions XcpEthTl
 #endif
@@ -780,6 +782,9 @@ void XcpInitEventList(void) {
     // Reset event list count
     releaseEventCount(0);
     mutexInit(&local_mut.event_list_mutex, false, 1000);
+#ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
+    XcpInitContextList();
+#endif
 }
 
 // Get a pointer to the XCP event struct
@@ -817,58 +822,66 @@ uint8_t XcpGetEventAppId(tXcpEventId event) {
 }
 #endif // SHM_MODE
 
-// Get the full event name, including instance index postfix if applicable
+// Get the full event name, for an event which belongs to a context this is <context name>.<event name>
 // Result has lifetime until next call of XcpGetEventName()
 const char *XcpGetEventName(tXcpEventId event) {
     if (!isActivated() || event >= getEventCount())
         return NULL;
+#ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
     const tXcpEvent *e = &shared.event_list.event[event];
-    if (e->index > 0) {
-        // Event instance, append instance index to the name
-        SNPRINTF(local_mut.event_name_buf, sizeof(local.event_name_buf), "%s_%u", e->name, e->index);
-        return local.event_name_buf;
+    if (e->context > 0) {
+        const char *context_name = XcpGetContextName(e->context);
+        if (context_name != NULL) {
+            SNPRINTF(local_mut.event_name_buf, sizeof(local.event_name_buf), "%s.%s", context_name, e->name);
+            return local.event_name_buf;
+        }
     }
+#endif
     return (const char *)&shared.event_list.event[event].name;
 }
 
-// Get the event index (1..), return 0 if not found
-uint16_t XcpGetEventIndex(tXcpEventId event) {
+// Get the event name without the context name
+const char *XcpGetEventBaseName(tXcpEventId event) {
     if (!isActivated() || event >= getEventCount())
-        return 0;
-    return shared.event_list.event[event].index;
+        return NULL;
+    return (const char *)&shared.event_list.event[event].name;
 }
 
+// Get the context id of an event (1..), return 0 if the event has no context or is not found
+uint16_t XcpGetEventContext(tXcpEventId event) {
+    if (!isActivated() || event >= getEventCount())
+        return 0;
+    return shared.event_list.event[event].context;
+}
+
+// Find an event by name and context id (0 = event without context), return XCP_UNDEFINED_EVENT_ID if not found
 // @@@@ TODO: Not process-safe
-static tXcpEventId XcpFindEventInstances(const char *name, uint16_t *pcount) {
-    uint16_t id = XCP_UNDEFINED_EVENT_ID;
-    if (pcount != NULL)
-        *pcount = 0;
+tXcpEventId XcpFindContextEvent(uint16_t context, const char *name) {
     if (isActivated()) {
         uint16_t count = acquireEventCount();
         for (uint16_t i = 0; i < count; i++) {
 #ifdef OPTION_SHM_MODE // find only events owned by this application process
-            if (shared.event_list.event[i].app_id == XcpShmGetAppId() && strcmp(shared.event_list.event[i].name, name) == 0) {
-#else
-            if (strcmp(shared.event_list.event[i].name, name) == 0) {
+            if (shared.event_list.event[i].app_id != XcpShmGetAppId())
+                continue;
 #endif
-                if (pcount != NULL)
-                    *pcount += 1;
-                if (id == XCP_UNDEFINED_EVENT_ID)
-                    id = i; // Remember the first found event
+            if (shared.event_list.event[i].context == context && strcmp(shared.event_list.event[i].name, name) == 0) {
+                return i;
             }
         }
     }
-    return id;
+    return XCP_UNDEFINED_EVENT_ID;
 }
 
-// Find an event by name, return XCP_UNDEFINED_EVENT_ID if not found
+// Find an event without context by name, return XCP_UNDEFINED_EVENT_ID if not found
+// Events which belong to a context are not found, an event <name> and context events <context>.<name> may coexist
 // Thread safe
-tXcpEventId XcpFindEvent(const char *name) { return XcpFindEventInstances(name, NULL); }
+tXcpEventId XcpFindEvent(const char *name) { return XcpFindContextEvent(0, name); }
 
 // Create an XCP event
-// Not thread safe
+// context is the context id of the event, 0 for an event without context
+// Not thread safe, no check for an existing event with this name
 // Returns the new XCP event id or XCP_UNDEFINED_EVENT_ID when out of memory
-tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycle_time_ns, uint8_t priority) {
+tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t context, uint32_t cycle_time_ns, uint8_t priority) {
 
     if (!isActivated()) {
         return XCP_UNDEFINED_EVENT_ID; // Uninitialized
@@ -891,7 +904,7 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
     }
 
     // Caller is responsible for thread safety
-    shared_mut_safe.event_list.event[e].index = index; // Index of the event instance
+    shared_mut_safe.event_list.event[e].context = context; // Context id of the event, 0 = no context
     strncpy(shared_mut_safe.event_list.event[e].name, name, XCP_MAX_EVENT_NAME);
     shared_mut_safe.event_list.event[e].name[XCP_MAX_EVENT_NAME] = 0;
     shared_mut_safe.event_list.event[e].flags = (priority > 0) ? XCP_DAQ_EVENT_FLAG_PRIORITY : 0;
@@ -908,60 +921,8 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
 
     releaseEventCount(e + 1); // Publish new event, visibility assured, when others acquire the event count, but overall function not thread safe, must be called with locked mutex
 
-    DBG_PRINTF3("Create Event %u: %s index=%u, cycle=%uns, prio=%u\n", e, shared.event_list.event[e].name, index, cycle_time_ns, priority);
+    DBG_PRINTF3("Create Event %u: %s context=%u, cycle=%uns, prio=%u\n", e, shared.event_list.event[e].name, context, cycle_time_ns, priority);
     return e;
-}
-
-// Add a measurement event to event list, return event id (0..MAX_EVENT-1),
-// If name exists, an event instance index is generated (and only in A2L appended to the event name)
-// Thread safe by mutex
-// @@@@ TODO: Find a process safe solution for SHM mode
-tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns, uint8_t priority) {
-
-    if (!isActivated()) {
-        return XCP_UNDEFINED_EVENT_ID; // Uninitialized
-    }
-
-    uint16_t count = 0;
-    mutexLock(&local_mut.event_list_mutex);
-    XcpFindEventInstances(name, &count);
-    // @@@@ TODO: Use preloaded event instances instead of creating a new instance
-    // Event instances have no identity, could use any unused preload event instance with this name
-    tXcpEventId id = XcpCreateIndexedEvent(name, count + 1, cycle_time_ns, priority);
-    mutexUnlock(&local_mut.event_list_mutex);
-    return id;
-}
-
-// Add a measurement event instance with a given instance index to the event list, return event id (0..MAX_EVENT-1)
-// If an event with this name and index already exists (for example preloaded from the binary persistence file), just return the existing id
-// The index gives the event instance an identity, index 0 is the event without instance index
-// Thread safe by mutex
-tXcpEventId XcpCreateEventWithIndex(const char *name, uint16_t index, uint32_t cycle_time_ns, uint8_t priority) {
-
-    if (!isActivated()) {
-        return XCP_UNDEFINED_EVENT_ID; // Uninitialized
-    }
-
-    assert(name != NULL);
-
-    mutexLock(&local_mut.event_list_mutex);
-    tXcpEventId id = XCP_UNDEFINED_EVENT_ID;
-    uint16_t count = acquireEventCount();
-    for (uint16_t i = 0; i < count; i++) {
-#ifdef OPTION_SHM_MODE // find only events owned by this application process
-        if (shared.event_list.event[i].app_id != XcpShmGetAppId())
-            continue;
-#endif
-        if (shared.event_list.event[i].index == index && strcmp(shared.event_list.event[i].name, name) == 0) {
-            id = i;
-            break;
-        }
-    }
-    if (id == XCP_UNDEFINED_EVENT_ID) {
-        id = XcpCreateIndexedEvent(name, index, cycle_time_ns, priority);
-    }
-    mutexUnlock(&local_mut.event_list_mutex);
-    return id;
 }
 
 // Add a measurement event to the event list, return event id (0..MAX_EVENT-1)
@@ -974,14 +935,12 @@ tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns, uint8_t pri
         return XCP_UNDEFINED_EVENT_ID; // Uninitialized
     }
 
-    uint16_t count = 0;
     mutexLock(&local_mut.event_list_mutex);
-    tXcpEventId id = XcpFindEventInstances(name, &count);
+    tXcpEventId id = XcpFindContextEvent(0, name);
     if (id != XCP_UNDEFINED_EVENT_ID) {
         mutexUnlock(&local_mut.event_list_mutex);
         DBG_PRINTF5("Event '%s' already defined, id=%u\n", name, id);
-        assert(count == 1); // Creating additional event instances is not supported, use XcpCreateEventInstance
-        return id;          // Event already exists, return the existing event id, event could be preloaded from binary freeze file for A2L stability
+        return id; // Event already exists, return the existing event id, event could be preloaded from binary freeze file for A2L stability
     }
     id = XcpCreateIndexedEvent(name, 0, cycle_time_ns, priority);
     mutexUnlock(&local_mut.event_list_mutex);
@@ -2583,7 +2542,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             CRM_LEN = CRM_GET_DAQ_EVENT_INFO_LEN;
             CRM_GET_DAQ_EVENT_INFO_PROPERTIES = DAQ_EVENT_PROPERTIES_DAQ | DAQ_EVENT_PROPERTIES_EVENT_CONSISTENCY;
             CRM_GET_DAQ_EVENT_INFO_MAX_DAQ_LIST = 0xFF;
-            CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH = (uint8_t)STRNLEN(eventName, XCP_MAX_EVENT_NAME);
+            CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH = (uint8_t)STRNLEN(eventName, XCP_MAX_CONTEXT_NAME + 1 + XCP_MAX_EVENT_NAME); // may be <context name>.<event name>
             CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = (uint8_t)timeCycle;
             CRM_GET_DAQ_EVENT_INFO_TIME_UNIT = timeUnit;
             CRM_GET_DAQ_EVENT_INFO_PRIORITY = XcpGetEventPriority(eventNumber);

@@ -133,6 +133,9 @@
 #undef OPTION_DAQ_EVENT_COUNT
 #define OPTION_DAQ_EVENT_COUNT 16
 
+// Contexts and spans are supported in the default configuration only
+#undef OPTION_DAQ_CONTEXT_LIST
+
 // OPTION_QUEUE_32 is MANDATORY on 32-bit Cortex-M4:
 // The 64-bit lockless queue variants use 64-bit atomics
 #undef OPTION_QUEUE_64_VAR_SIZE

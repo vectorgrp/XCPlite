@@ -49,9 +49,12 @@
 // Events
 
 // DAQ event management
-// Enables tXcpEvent, XcpCreateIndexedEvent, XcpCreateEvent, XcpCreateEventInstance, XcpGetEventCount, XcpFindEvent, XcpGetEventName, XcpGetEventIndex, XcpGetEvent
+// Enables tXcpEvent, XcpCreateIndexedEvent, XcpCreateEvent, XcpGetEventCount, XcpFindEvent, XcpGetEventName, XcpGetEventContext, XcpGetEvent
 // Optional, event trigger function not supported without OPTION_DAQ_EVENT_LIST are: DaqEventVar, DaqTriggerEventExt_s
 #undef OPTION_DAQ_EVENT_LIST
+
+// Contexts and spans are supported in the default configuration only
+#undef OPTION_DAQ_CONTEXT_LIST
 
 //-------------------------------------------------------------------------------
 // A2L / ELF — generated externally from ELF by xcpclient; disable on-target features

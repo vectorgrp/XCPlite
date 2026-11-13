@@ -43,6 +43,10 @@
 // Maximum length of event name without the trailing 0
 #define XCP_MAX_EVENT_NAME 15
 
+// Maximum length of a context name without the trailing 0
+// An event which belongs to a context is named <context name>.<event name>
+#define XCP_MAX_CONTEXT_NAME 15
+
 // Enable event list (Always enable for XCPlite, disabled for Rust xcp-lite)
 #ifdef OPTION_DAQ_EVENT_LIST
 
@@ -79,6 +83,29 @@
 #endif
 
 #endif // !defined(OPTION_DAQ_EVENT_LIST)
+
+// Enable the context list and the span name list (contexts and spans, see ctx.h and xcplib_context.hpp)
+#ifdef OPTION_DAQ_CONTEXT_LIST
+
+#ifndef OPTION_DAQ_EVENT_LIST
+#error "OPTION_DAQ_CONTEXT_LIST requires OPTION_DAQ_EVENT_LIST"
+#endif
+
+#define XCP_ENABLE_DAQ_CONTEXT_LIST
+
+#if defined(OPTION_DAQ_CONTEXT_COUNT) && (OPTION_DAQ_CONTEXT_COUNT > 0)
+#define XCP_MAX_CONTEXT_COUNT OPTION_DAQ_CONTEXT_COUNT
+#else
+#error "Please define OPTION_DAQ_CONTEXT_COUNT"
+#endif
+
+#if defined(OPTION_DAQ_SPAN_COUNT) && (OPTION_DAQ_SPAN_COUNT > 1)
+#define XCP_MAX_SPAN_COUNT OPTION_DAQ_SPAN_COUNT
+#else
+#error "Please define OPTION_DAQ_SPAN_COUNT"
+#endif
+
+#endif // OPTION_DAQ_CONTEXT_LIST
 
 /*----------------------------------------------------------------------------*/
 // Enable calibration segments

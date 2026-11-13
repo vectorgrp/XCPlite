@@ -74,6 +74,7 @@ Legend for **Type**:
 | `passive_test_c` | C | default | unit | yes (`unit`) | — | `XCP_MODE_DEACTIVATE` passive-mode contract ([passive_test/](passive_test/)) |
 | `passive_test_cpp` | C++ | default | unit | yes (`unit`) | — | Passive-mode contract via the C++ API |
 | `persistence_test` | C | default | unit | yes (`unit`) | writes a `.bin` file to the working directory | Calibration segment freeze and reload through the binary persistence file, also right after `XcpBinWrite()` ([persistence_test/](persistence_test/)) |
+| `context_test` | C++ | default | unit | yes (`unit`) | writes a `.bin` file to the working directory | Contexts, context events (`<context>.<event>`) and span names: idempotent creation, lookup rules, `DaqEventCtxVar` per context and code location, reload through the binary persistence file, limits ([context_test/](context_test/)) |
 | `cal_test` | C++ | default | unit (+opt. server) | yes (`unit;calibration`) | — hermetic by default; `--server` adds CANape/`xcpclient` | Calibration-segment RCU correctness + multi-thread stress; **self-terminates** ([cal_test/](cal_test/)) |
 | `cal_page_test` | C | default | unit | yes (`unit`) | — | Rejects truncated COPY_CAL_PAGE commands without modifying calibration data; verifies valid copies still work |
 | `a2l_test` | C | default | unit+tool | yes if [`a2ltool`](https://crates.io/crates/a2ltool) on `PATH` | `a2ltool` | Generates an A2L and validates it with an external checker ([a2l_test/](a2l_test/)) |

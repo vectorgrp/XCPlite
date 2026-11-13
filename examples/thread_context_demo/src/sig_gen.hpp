@@ -12,9 +12,7 @@ Depending on calibration parameters ampl, phase, offset and period in struct Sig
 #include <cstdint> // for uintxx_t
 #include <thread>  // for thread
 
-#include "xcplib.hpp" // for xcp::CalSeg
-
-#include "xcp_context.hpp" // for xcp::Context
+#include "xcplib.hpp" // for xcp::CalSeg, xcp::Context
 
 //-----------------------------------------------------------------------------------------------
 

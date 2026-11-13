@@ -198,13 +198,12 @@ THREAD_FUNC_RETURN task(void *p) {
 
     // Instrumentation: Events and measurement variables
     // Register task local variables counter and channelx with stack addressing mode
-    DaqCreateEventInstance(task);
-    tXcpEventId task_event_id = DaqGetEventInstanceId(task);
-
-    // Build the task name from the event index
-    uint16_t task_index = XcpGetEventIndex(task_event_id); // Get the event index of this event instance
+    // Each task thread has its own event task_<task_index>
+    static atomic_uint_fast16_t task_count = 0;
+    uint16_t task_index = (uint16_t)(atomic_fetch_add(&task_count, 1) + 1);
     char task_name[16 + 1];
     snprintf(task_name, sizeof(task_name), "task_%u", task_index);
+    tXcpEventId task_event_id = XcpCreateEvent(task_name, 0, 0);
 
     // Create measurement variables for this task instance
     A2lLock();

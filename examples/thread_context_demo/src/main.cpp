@@ -56,7 +56,7 @@ int main() {
 
     // Enable A2L generation
     // Set mode to write once to create stable A2L files, this also enables calibration segment persistence and freeze support
-    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT /*| A2L_MODE_AUTO_GROUPS*/)) {
+    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -88,9 +88,6 @@ int main() {
         // Poll once to register the instrumentation in Poll
         (void)signal_generator_1.Poll();
         (void)signal_generator_2.Poll();
-
-        // Create the A2L conversion for the span names
-        xcp::A2lCreateSpanConversion();
 
         // Main loop
         std::cout << "Starting main loop..." << std::endl;

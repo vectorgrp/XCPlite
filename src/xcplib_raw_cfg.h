@@ -37,6 +37,9 @@
 #undef OPTION_ENABLE_UDP
 #define OPTION_ENABLE_UDP_RAW
 
+// Contexts and spans are supported in the default configuration only
+#undef OPTION_DAQ_CONTEXT_LIST
+
 // This configuration uses the built in Linux AF_PACKET backend (src/socket_raw_hal_linux.c).
 // A project which supplies its own Ethernet HAL out of tree - for example an ASAM CMP backend -
 // defines OPTION_UDP_RAW_HAL_EXTERNAL in ITS OWN configuration override header instead, and links

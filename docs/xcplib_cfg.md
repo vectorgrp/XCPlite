@@ -100,10 +100,13 @@ Exactly one epoch and one resolution option must be defined.
 
 | Parameter | Description |
 |-----------|-------------|
-| `OPTION_DAQ_EVENT_LIST` | Enables DAQ event management: dynamic event creation at runtime, per thread event instances, `XcpCreateEvent`, `XcpFindEvent`, ... Mandatory for most XCPlite examples; when off, `OPTION_SECTION_REGISTRATION` is mandatory (default: defined, undefined in `no_a2l`) |
+| `OPTION_DAQ_EVENT_LIST` | Enables DAQ event management: dynamic event creation at runtime, `XcpCreateEvent`, `XcpFindEvent`, ... Mandatory for most XCPlite examples; when off, `OPTION_SECTION_REGISTRATION` is mandatory (default: defined, undefined in `no_a2l`) |
 | `OPTION_DAQ_EVENT_COUNT` | Maximum number of DAQ events (must be even, max 1000), needs `OPTION_DAQ_EVENT_COUNT * 2` bytes of memory. Without `OPTION_DAQ_EVENT_LIST`, it bounds the event number and is used for optimization (default: 16) |
 | `OPTION_DAQ_MEM_SIZE` | Memory bytes used for XCP DAQ tables. Each ODT entry (measurement signal) needs 6 bytes, each ODT 8 bytes, each DAQ list 12 bytes (default: 512 × 6) |
 | `OPTION_DAQ_ASYNC_EVENT` | Creates a cyclic default event `async` with event id 0 and 1 ms cycle time for asynchronous data acquisition, requires `OPTION_DAQ_EVENT_LIST` (default: undefined) |
+| `OPTION_DAQ_CONTEXT_LIST` | Enables contexts and spans: a context list and a span name list next to the event list, events which belong to a context (`<context>.<event>`), `XcpCreateContext`, `XcpCreateContextEvent`, `XcpRegisterSpanName` and the C++ API in `xcplib_context.hpp` (`xcp::Context`, `xcp::Scope`, `DaqSpan`, `DaqEventCtxVar`). Requires `OPTION_DAQ_EVENT_LIST` and on-target A2L generation (default: defined, undefined in all other configurations) |
+| `OPTION_DAQ_CONTEXT_COUNT` | Maximum number of contexts, 16 bytes of memory per context (default: 8) |
+| `OPTION_DAQ_SPAN_COUNT` | Maximum number of different span names including the reserved span id 0, 32 bytes of memory per span name (default: 32) |
 
 ### Transmit Queue Options
 
@@ -286,6 +289,9 @@ In all schemes the address extensions 0x02 to 0x0F are used for dynamic (event b
 |-----------|-------------|
 | `XCP_ENABLE_DAQ_EVENT_LIST` | Enables event list management, enabled by `OPTION_DAQ_EVENT_LIST` |
 | `XCP_MAX_EVENT_COUNT` | Maximum number of DAQ events, equals `OPTION_DAQ_EVENT_COUNT`, must be even and <= 1024 (`XCP_DYN_ADDR_EVENT_BITS`). Optimizes the DAQ list to event association lookup (default: 16) |
+| `XCP_ENABLE_DAQ_CONTEXT_LIST` | Enables the context list and the span name list, enabled by `OPTION_DAQ_CONTEXT_LIST` |
+| `XCP_MAX_CONTEXT_COUNT`, `XCP_MAX_SPAN_COUNT` | Equal `OPTION_DAQ_CONTEXT_COUNT` and `OPTION_DAQ_SPAN_COUNT` |
+| `XCP_MAX_CONTEXT_NAME` | Maximum length of a context name (15) |
 | `XCP_MAX_EVENT_NAME` | Maximum length for event names in characters (default: 15) |
 | `XCP_ENABLE_DAQ_EVENT_INFO` | Enables XCP_GET_EVENT_INFO command |
 | `XCP_DAQ_MEM_SIZE` | Memory for DAQ tables, equals `OPTION_DAQ_MEM_SIZE`. Each ODT entry needs 6 bytes (5 without `XCP_ENABLE_DAQ_ADDREXT`), each ODT 8 bytes, each DAQ list 12 bytes |
