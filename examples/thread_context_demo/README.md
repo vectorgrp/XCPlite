@@ -167,8 +167,8 @@ Persistence
   bytes of the event record, the context list is rebuilt from the
   events on load. BIN_VERSION is unchanged. A file which contains
   anonymous event instances is rejected.
-- tools/bintool is not updated yet and shows the event name without
-  the context name.
+- tools/bintool shows an event which belongs to a context as
+  <context>.<event>, with the context name and id.
 
 Other
 - daq_test: each task thread creates a plain event task_<n>.
@@ -184,7 +184,6 @@ Other
 
 ### Postponed 
 
-tools/bintool: read the context name from the event record and show <context>.<event>.
 SHM configuration: enable OPTION_DAQ_CONTEXT_LIST there, bump SHM_VERSION, make context creation process safe, and test with shmtool and xcpdaemon.
 
 ### Not verified
@@ -219,12 +218,66 @@ bugfix/daq_event_template (once-flag fix for DaqEventVar)
 
 
 
+## Memory consumption
+
+Memory is almost entirely fixed by three configuration options in `xcplib_cfg.h`. The number of
+`DaqEventCtxVar` code locations matters mainly because each one needs event list entries.
+The sizes are measured on a 64 bit build of the default configuration.
+
+Fixed, allocated whether or not a context is used:
+
+| Setting | Default | Per entry | Total |
+|---|---|---|---|
+| `OPTION_DAQ_EVENT_COUNT` | 16 | 28 bytes per event | 452 bytes |
+| `OPTION_DAQ_CONTEXT_COUNT` | 8 | 16 bytes per context | 130 bytes |
+| `OPTION_DAQ_SPAN_COUNT` | 32 | 32 bytes per span name | 1026 bytes |
+| Event name buffer | | | 32 bytes |
+
+The context feature itself adds about 1.2 KB with the defaults, most of it is the span name table.
+
+Per use, in the application:
+
+| Item | Size | Count |
+|---|---|---|
+| `DaqEventCtxVar` code location (event id cache) | 2 x (`OPTION_DAQ_CONTEXT_COUNT` + 1) = 18 bytes | per code location |
+| Mutex for the first-time registration | 64 bytes on macOS, 40 bytes on Linux | per distinct combination of measurement types, not per code location |
+| `xcp::Context` object | 24 bytes | per context |
+| Current context and span | 16 bytes thread-local | per thread which uses a scope or a span |
+| `DaqSpan` code location | 2 bytes and a static initialization guard | per code location |
+
+The number of events is what has to be planned. With C contexts and L `DaqEventCtxVar` code locations:
+
+```
+events = C (one spans event per context) + C x L + code locations also executed without a context + other events
+```
+
+Only combinations which are actually executed create an event. Worst case with the default of 8 contexts:
+
+| Code locations L | Events needed | Event list | Fits the default of 16 events |
+|---|---|---|---|
+| 1 | 16 | 448 bytes | yes, with no other event |
+| 2 | 24 | 672 bytes | no |
+| 4 | 40 | 1.1 KB | no |
+| 8 | 72 | 2.0 KB | no |
+| 16 | 136 | 3.8 KB | no |
+
+This demo has 2 contexts, 3 code locations and the event `mainloop`, which is 9 events. The limit is
+1000 events (`OPTION_DAQ_EVENT_COUNT`). When the event list is full, `DaqEventCtxVar` measures nothing
+for this context and code location, and tries to create the event again on every call.
+
+Not affected by the number of contexts or code locations:
+
+- `OPTION_DAQ_MEM_SIZE` (3072 bytes) is used with 6 bytes per signal which the tool selects for
+  measurement, independent of how many signals are declared.
+- The A2L generator writes to the file, it does not keep the declarations in memory.
+- The binary persistence file grows by 256 bytes per event.
+
 ## Open questions
 
 - Should a context capture the current context when the instance does not know its own name?
 - How far should the naming follow OTel? An OTel tracer has a name but no id, it is only a factory for
   spans. The trace id belongs to the trace, which is the set of all spans sharing that id.
-- Contexts in the SHM configuration, context names in `tools/bintool`.
+- Contexts in the SHM configuration.
 - A group per context in the A2L file, containing the event groups of the context.
 - Optional connection to a real OTel backend, on target through opentelemetry-cpp or off target by
   exporting span records from xcpclient.

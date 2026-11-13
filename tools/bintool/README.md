@@ -93,28 +93,24 @@ EVENTS:
 Event 0:
   Name:         async
   ID:           0
-  Index:        0
   Cycle Time:   1000000 ns
   Priority:     0
 
 Event 1:
   Name:         mainloop
   ID:           1
-  Index:        0
   Cycle Time:   0 ns
   Priority:     0
 
 Event 2:
   Name:         SigGen1
   ID:           2
-  Index:        0
   Cycle Time:   0 ns
   Priority:     0
 
 Event 3:
   Name:         SigGen2
   ID:           3
-  Index:        0
   Cycle Time:   0 ns
   Priority:     0
 
@@ -167,6 +163,18 @@ Segment 3:
     80030050:  00 00 00 00 00 00 00 00                           |........|
 
 
+```
+
+An event which belongs to a context (`OPTION_DAQ_CONTEXT_LIST`, see `examples/thread_context_demo`) is shown with its
+full name `<context>.<event>` and an additional line with the context name and the context id:
+
+```
+Event 2:
+  Name:         SigGen1.siggen
+  ID:           2
+  Context:      SigGen1 (1)
+  Cycle Time:   0 ns
+  Priority:     0
 ```
 
 

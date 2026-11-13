@@ -130,12 +130,13 @@ impl BinHeader {
 #[repr(C, packed)]
 struct EventDescriptorRaw {
     id: u16,                                 // Event ID
-    index: u16,                              // Event index
-    cycle_time_ns: u32,                      // Cycle time in nanoseconds
-    priority: u8,                            // Priority (0=queued, 1=pushing, 2=realtime)
-    app_id: u8,                              // App ID (v0x0205+, 0 in legacy)
-    reserved: [u8; 128 - 2 - 2 - 4 - 1 - 1], // Reserved for future use
-    name: [u8; 128],                         // Event name, null terminated
+    index: u16,         // Context id of the event when the file was written, 0 = no context
+    cycle_time_ns: u32, // Cycle time in nanoseconds
+    priority: u8,       // Priority (0=queued, 1=pushing, 2=realtime)
+    app_id: u8,         // App ID (v0x0205+, 0 in legacy)
+    context: [u8; 16],  // Context name, null terminated, empty for an event without context
+    reserved: [u8; 128 - 2 - 2 - 4 - 1 - 1 - 16], // Reserved for future use
+    name: [u8; 128],    // Event name, null terminated
 }
 
 /// Safe wrapper for EventDescriptorRaw
@@ -146,10 +147,20 @@ pub struct EventDescriptor {
     pub cycle_time_ns: u32,
     pub priority: u8,
     pub app_id: u8,
-    pub name: String,
+    pub context: String, // Context name, empty for an event without context
+    pub name: String,    // Event name without the context name
 }
 
 impl EventDescriptor {
+    /// Full event name as shown in the A2L file: <context>.<name> for an event which belongs to a context
+    pub fn full_name(&self) -> String {
+        if self.context.is_empty() {
+            self.name.clone()
+        } else {
+            format!("{}.{}", self.context, self.name)
+        }
+    }
+
     pub fn read_from(file: &mut File) -> Result<Self, Bin2HexError> {
         // Read raw struct directly from file using unsafe
         let raw: EventDescriptorRaw = unsafe {
@@ -161,10 +172,13 @@ impl EventDescriptor {
             raw
         };
 
-        // Extract name
-        let name = String::from_utf8_lossy(&raw.name)
-            .trim_end_matches('\0')
-            .to_string();
+        // Extract name and context name, each ends at the first null byte
+        let cstr = |bytes: &[u8]| {
+            let len = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+            String::from_utf8_lossy(&bytes[..len]).to_string()
+        };
+        let name = cstr(&raw.name);
+        let context = cstr(&raw.context);
 
         // Copy values from packed struct to avoid unaligned access
         let id = raw.id;
@@ -179,6 +193,7 @@ impl EventDescriptor {
             cycle_time_ns,
             priority,
             app_id,
+            context,
             name,
         })
     }
@@ -188,6 +203,12 @@ impl EventDescriptor {
 
         // Create raw struct
         let mut raw: EventDescriptorRaw = unsafe { mem::zeroed() };
+        raw.app_id = self.app_id;
+
+        // Copy context name
+        let context_bytes = self.context.as_bytes();
+        let context_len = context_bytes.len().min(raw.context.len() - 1);
+        raw.context[..context_len].copy_from_slice(&context_bytes[..context_len]);
 
         // Set values
         raw.id = self.id;

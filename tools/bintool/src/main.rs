@@ -104,7 +104,7 @@ fn read_bin_file(
     for i in 0..header.event_count {
         let event = EventDescriptor::read_from(&mut file)?;
         if verbose {
-            println!("Read Event {}: {}", i, event.name);
+            println!("Read Event {}: {}", i, event.full_name());
         }
         events.push(event);
     }
@@ -197,9 +197,14 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
 
         for (idx, event) in events.iter().enumerate() {
             println!("Event {}:", idx);
-            println!("  Name:         {}", event.name);
+            println!("  Name:         {}", event.full_name());
             println!("  ID:           {}", event.id);
-            println!("  Index:        {}", event.index);
+            if !event.context.is_empty() {
+                println!("  Context:      {} ({})", event.context, event.index);
+            } else if event.index != 0 {
+                // Written by an older XCPlite version with anonymous event instances <name>_<index>
+                println!("  Index:        {}", event.index);
+            }
             println!("  Cycle Time:   {} ns", event.cycle_time_ns);
             println!("  Priority:     {}", event.priority);
             if header.app_count > 0 {
