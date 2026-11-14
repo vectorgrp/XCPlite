@@ -45,3 +45,4 @@ wlan.h
 /docs/rcu_improvements/CAL_RCU_IMPROVEMENT.md
 /docs/rcu_improvements/rcu.h
 /docs/rcu_improvements/review.md
+/trace.json

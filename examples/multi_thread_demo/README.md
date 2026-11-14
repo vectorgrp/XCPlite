@@ -1,6 +1,8 @@
 # multi_thread_demo — Worker Threads
 
-Demonstrates XCP measurement of work distributed over a fixed set of worker threads.
+Demonstrates triggering the same event from multiple threads.  
+
+The example use case shows measurement of work distributed over a fixed set of worker threads.
 The main loop starts batches of work items; worker threads fetch work items from a shared
 lock-free counter, execute them and report completion. A single global event, triggered by
 any worker, measures each completed work item.

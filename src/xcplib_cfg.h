@@ -160,6 +160,14 @@
 // Needs 32 bytes of memory per span name
 #define OPTION_DAQ_SPAN_COUNT (32)
 
+// Record the thread with each span begin and end
+// Adds the measurement <context name>.thread to the spans event of a context, a small index (1..255) of the thread which began or ended the span
+// A context may be attached to several threads at the same time, the thread index is needed to tell their spans apart,
+// for example to export the spans to a trace viewer (xcpclient --perfetto)
+// The size of the span record does not change, the span nesting level is reduced from 16 to 8 bit
+// (Needs OPTION_DAQ_CONTEXT_LIST)
+#define OPTION_DAQ_SPAN_THREAD
+
 // Memory bytes used for XCP DAQ tables
 // 6 bytes per measurement signal (ODT entry) needed
 #define OPTION_DAQ_MEM_SIZE (512 * 6)

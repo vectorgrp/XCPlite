@@ -376,7 +376,10 @@ mod tests {
         assert_eq!(a2l_type(1, A2lTypeEncoding::Unsigned).decode(&[0xFF]), Some(A2lValue::Unsigned(255)));
         assert_eq!(a2l_type(1, A2lTypeEncoding::Signed).decode(&[0xFF]), Some(A2lValue::Signed(-1)));
         assert_eq!(a2l_type(2, A2lTypeEncoding::Signed).decode(&[0xFE, 0xFF, 0x55]), Some(A2lValue::Signed(-2)));
-        assert_eq!(a2l_type(4, A2lTypeEncoding::Unsigned).decode(&[0x78, 0x56, 0x34, 0x12]), Some(A2lValue::Unsigned(0x12345678)));
+        assert_eq!(
+            a2l_type(4, A2lTypeEncoding::Unsigned).decode(&[0x78, 0x56, 0x34, 0x12]),
+            Some(A2lValue::Unsigned(0x12345678))
+        );
         assert_eq!(a2l_type(8, A2lTypeEncoding::Unsigned).decode(&u64::MAX.to_le_bytes()), Some(A2lValue::Unsigned(u64::MAX)));
         assert_eq!(a2l_type(8, A2lTypeEncoding::Signed).decode(&i64::MIN.to_le_bytes()), Some(A2lValue::Signed(i64::MIN)));
         assert_eq!(a2l_type(4, A2lTypeEncoding::Float).decode(&0.1f32.to_le_bytes()), Some(A2lValue::Float(0.1)));

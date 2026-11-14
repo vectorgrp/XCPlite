@@ -1,11 +1,10 @@
 # thread_context_demo — context and spans for multiple instances
 
-Experimental. Explores how XCPlite can measure the same code when it runs for several class instances
+Experimental. Demonstrates a concept how XCPlite can measure individual time series when code runs in several class instances
 or in several threads, using a concept borrowed from OpenTelemetry (OTel): context, scope and span.
 
-The API is part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp)
-(included by `xcplib.hpp`). It needs the option `OPTION_DAQ_CONTEXT_LIST`, which is enabled in the default
-configuration only.
+The API extensions are part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp)
+(included by `xcplib.hpp`). It needs the option `OPTION_DAQ_CONTEXT_LIST`, which is enabled in the default and the shm configuration with dynamic A2L generation.
 
 ---
 
@@ -16,8 +15,8 @@ running its own thread. Instrumented in the obvious way, with one `DaqEventVar(s
 in the task function, both instances trigger the same event `siggen` and the tool receives one signal
 `value_` with the values of both instances mixed.
 
-The existing solutions (`cpp_demo`, `multi_thread_demo`) need the instrumented code to know its instance
-and pass the name along: one event per instance, measurements registered with the instance name as
+The existing solution (see `cpp_demo`) need the instrumented code to know its instance
+and pass the name along: one dynamic created event per instance, and measurements registered with the instance name as
 prefix. Shared helper functions, which do not know for which instance they are working, can not be
 attributed at all.
 
@@ -48,7 +47,7 @@ in [src/sig_gen.cpp](src/sig_gen.cpp) is instrumented without knowing its instan
 | `SigGen1.siggen`, `SigGen2.siggen` | `SigGen1.value_`, `SigGen2.value_` | the task thread of each instance |
 | `SigGen1.clip`, `SigGen2.clip` | `SigGen1.input`, `SigGen1.clipped` (same for `SigGen2`) | the shared function `Clip()` |
 | `SigGen1.poll`, `SigGen2.poll` | `SigGen1.polled`, `SigGen2.polled` | the main thread, method `Poll()` attaches the context of its instance |
-| `SigGen1.spans`, `SigGen2.spans` | `.span`, `.level`, `.span_dt` | begin and end of each span in this context |
+| `SigGen1.spans`, `SigGen2.spans` | `.span`, `.level`, `.span_dt`, `.thread` | begin and end of each span in this context |
 | `mainloop` | `channel1`, `channel2` | the main loop |
 
 The span signals of one context show the sequence calc (level 1), clip (level 2), calc, none, with the
@@ -58,11 +57,38 @@ duration of the span that just ended in `span_dt`. Span names are displayed thro
 The event names carry the context name, so the event list and the event groups of the tool show what an
 event contains (`SigGen1.siggen` instead of a numbered event instance).
 
+`.thread` is a small index of the thread which began or ended the span (`OPTION_DAQ_SPAN_THREAD`, enabled by default). The indices
+are assigned in the order in which the threads begin their first span. In this demo `SigGen1` is executed by two threads, its task
+thread and the main thread which calls `Poll()`. The thread index tells their spans apart.
+
 Test with xcpclient:
 
 ```bash
 xcpclient --udp --mea '.*' --time 5 --csv mea.csv
 ```
+
+## Viewing the spans in Perfetto
+
+xcpclient can write the measurement as a trace file for [Perfetto](https://ui.perfetto.dev):
+
+```bash
+xcpclient --udp --mea '.*' --time 5 --perfetto trace.json
+```
+
+Open `trace.json` with "Open trace file" in the Perfetto UI. Each context is shown as a process: `SigGen1` and `SigGen2` have a track
+for their task thread with the nested spans `calc` and `clip`, and a track for the main thread with the span `poll`. The signals of a
+context (`SigGen1.value_`, `SigGen1.clipped`, ...) are counter tracks in the process of their context, `channel1` and `channel2` are in
+the process `thread_context_demo`. Details are in the [xcpclient README](../../tools/xcpclient/README.md).
+
+Overview of about 500 ms: the main loop signals `channel1` and `channel2`, below them the context `SigGen1` with the spans of its task
+thread (`thread 1`), the spans of the main thread (`thread 3`) and its signals.
+
+<img src="perfetto1.png" alt="Perfetto overview: signals and span tracks of the context SigGen1" width="900">
+
+Zoomed in to 40 ms: `clip` is nested in `calc` in the task thread of each context, `poll` is executed by the main thread for both
+contexts, one after the other, and overlaps the spans of the task threads.
+
+<img src="perfetto2.png" alt="Perfetto zoomed in: nested spans calc and clip, poll in the main thread, for SigGen1 and SigGen2" width="900">
 
 ## How it differs from OpenTelemetry
 
@@ -98,6 +124,8 @@ including a receiver for visualisation, are in the header of [otel/src/main.cpp]
 - **A2L timing.** Contexts, context-aware events and spans must have been executed once before the A2L
   file is finalized.
 - **Span duration.** `span_dt` belongs to the span that just ended, the end sample does not name it.
+- **Thread index.** `.thread` is an index local to the process, not the thread id of the operating system, and limited to 255 threads.
+  Without `OPTION_DAQ_SPAN_THREAD`, the spans of several threads in one context can not be told apart.
 - **Attach starts without a span.** The current span of the capturing thread is not carried over.
 - **Default and shm configuration only.** Needs runtime event creation and on-target A2L generation.
   In SHM mode, each application has its own namespace for context names, see [docs/SHM.md](../../docs/SHM.md).
@@ -243,6 +271,7 @@ Per use, in the application:
 | Mutex for the first-time registration | 64 bytes on macOS, 40 bytes on Linux | per distinct combination of measurement types, not per code location |
 | `xcp::Context` object | 24 bytes | per context |
 | Current context and span | 16 bytes thread-local | per thread which uses a scope or a span |
+| Thread index (`OPTION_DAQ_SPAN_THREAD`) | 1 byte thread-local | per thread which uses a span |
 | `DaqSpan` code location | 2 bytes and a static initialization guard | per code location |
 
 The number of events is what has to be planned. With C contexts and L `DaqEventCtxVar` code locations:

@@ -172,6 +172,11 @@ Options:
           
           [default: ""]
 
+      --perfetto <FILE>
+          Save measurement data to a trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev). Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks. The span signals of a context (<context>.span, .level, .span_dt, .thread) must be measured, for example with --mea ".*". May be combined with --csv
+          
+          [default: ""]
+
       --list-cal <LIST_CAL>
           Lists all specified calibration variables (regex) found in the A2L file
           
@@ -252,6 +257,30 @@ With ELF file given, creates an A2L file from the ELF file and XCP server inform
 xcpclient --udp --elf build/hello_xcp --mea "counter" --verbose 2
 ```
 
+
+### Export spans and signals to Perfetto
+
+`--perfetto <file>` writes the measurement as a trace file in the Chrome Trace Event JSON format. Open it with <https://ui.perfetto.dev> ("Open trace file"), the file is processed locally in the browser.
+
+```bash
+xcpclient --udp --mea '.*' --time 5 --perfetto trace.json
+```
+
+| In Perfetto | From XCP |
+|---|---|
+| Process | A context (`xcp::Context`, for example `SigGen1`). Signals which do not belong to a context are in a process named after the ECU |
+| Thread track | A thread which executed spans in the context (`thread 1`, `thread 2`, ...), from the signal `<context>.thread` |
+| Slice | A span (`DaqSpan`), nested spans are stacked |
+| Counter track | A numeric signal as physical value, with its unit |
+| State track | An enum signal, one slice per state, named with the enum label |
+
+- The span signals of a context (`<context>.span`, `.level`, `.span_dt`, `.thread`) must be selected for measurement. A signal is assigned to a context by its name prefix `<context>.`, and only if the span signals of this context are measured.
+- `<context>.thread` needs `OPTION_DAQ_SPAN_THREAD` on the target (default). Without it, there is one track `spans` per context. This is correct as long as a context is executed by one thread at a time, otherwise spans are cut and xcpclient prints a warning with the number of samples which did not fit.
+- Lost samples and a measurement which starts inside a span are handled: the open spans are resynchronised to the nesting level of the next sample, a span the begin of which was not seen is named `(unknown)`. Spans which are still open at the end of the measurement end at the last sample of their track.
+- Timestamps are relative to the start of the measurement, with ns resolution.
+- A span is written when it ends, so the file is not sorted by time. Perfetto sorts on import.
+
+See `examples/thread_context_demo` for contexts and spans.
 
 ### Upload the A2L file to be used from the target
 

@@ -31,6 +31,9 @@ mod xcp_test_executor;
 
 mod a2l_fix;
 
+mod perfetto;
+use perfetto::PerfettoWriter;
+
 use xcp_registry::McA2mlMode;
 use xcp_registry::McEvent;
 use xcp_test_executor::test_executor;
@@ -311,6 +314,14 @@ struct Args {
     #[arg(long, default_value = "")]
     csv: String,
 
+    // --perfetto
+    /// Save measurement data to a trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev).
+    /// Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks.
+    /// The span signals of a context (<context>.span, .level, .span_dt, .thread) must be measured, for example with --mea ".*".
+    /// May be combined with --csv.
+    #[arg(long, default_value = "", value_name = "FILE")]
+    perfetto: String,
+
     // --list-cal
     /// Lists all specified calibration variables (regex) found in the A2L file
     #[arg(long, default_value = "")]
@@ -382,10 +393,12 @@ struct DaqDecoder {
     timestamp_extender: DaqTimestampExtender, // 32 to 64 bit timestamp extension, shared by all DAQ lists
     log_measurements: bool,
     csv_writer: Option<std::io::BufWriter<std::fs::File>>,
+    perfetto_writer: Option<PerfettoWriter<std::io::BufWriter<std::fs::File>>>,
+    last_timestamp_ns: u64, // Newest timestamp of all DAQ lists
 }
 
 impl DaqDecoder {
-    pub fn new(log_measurements: bool, csv_filename: &str) -> DaqDecoder {
+    pub fn new(log_measurements: bool, csv_filename: &str, perfetto_filename: &str) -> DaqDecoder {
         let csv_writer = if csv_filename.is_empty() {
             None
         } else {
@@ -400,6 +413,20 @@ impl DaqDecoder {
                 }
             }
         };
+        let perfetto_writer = if perfetto_filename.is_empty() {
+            None
+        } else {
+            match PerfettoWriter::create(perfetto_filename) {
+                Ok(w) => {
+                    info!("Perfetto trace output to file: {}", perfetto_filename);
+                    Some(w)
+                }
+                Err(e) => {
+                    error!("Failed to create Perfetto trace file '{}': {}", perfetto_filename, e);
+                    None
+                }
+            }
+        };
         DaqDecoder {
             daq_odt_entries: None,
             timestamp_resolution: 0,
@@ -410,6 +437,15 @@ impl DaqDecoder {
             timestamp_extender: DaqTimestampExtender::new(0),
             log_measurements,
             csv_writer,
+            perfetto_writer,
+            last_timestamp_ns: 0,
+        }
+    }
+
+    // Set the ECU name, used as process name in the Perfetto trace for signals which do not belong to a context
+    pub fn set_ecu_name(&mut self, name: &str) {
+        if let Some(ref mut writer) = self.perfetto_writer {
+            writer.set_ecu_name(name);
         }
     }
 }
@@ -418,6 +454,11 @@ impl XcpDaqDecoder for DaqDecoder {
     // Set start time and init
     fn start(&mut self, daq_odt_entries: Vec<Vec<OdtEntry>>, timestamp: u64) {
         // Init
+        // The timestamp resolution is known, set_daq_properties is called at connect
+        self.last_timestamp_ns = timestamp * self.timestamp_resolution;
+        if let Some(ref mut writer) = self.perfetto_writer {
+            writer.start(&daq_odt_entries, self.last_timestamp_ns);
+        }
         self.daq_odt_entries = Some(daq_odt_entries);
         self.event_count = 0;
         self.byte_count = 0;
@@ -436,6 +477,11 @@ impl XcpDaqDecoder for DaqDecoder {
         // Flush CSV output
         if let Some(ref mut writer) = self.csv_writer {
             let _ = writer.flush();
+        }
+        // Complete the Perfetto trace file
+        if let Some(ref mut writer) = self.perfetto_writer {
+            writer.stop(self.last_timestamp_ns);
+            info!("Perfetto trace: {} spans written", writer.span_count());
         }
     }
 
@@ -493,7 +539,11 @@ impl XcpDaqDecoder for DaqDecoder {
         let t_ns = t * self.timestamp_resolution;
         let delta_us = (t.saturating_sub(t_last) * self.timestamp_resolution) / 1000;
 
-        if self.csv_writer.is_none() {
+        self.last_timestamp_ns = self.last_timestamp_ns.max(t_ns);
+
+        // Print to the console, if there is no output file
+        let console = self.csv_writer.is_none() && self.perfetto_writer.is_none();
+        if console {
             println!("EVENT: daq={}, odt={}, lost={}, t={}ns (+{}us)", daq, odt, lost, t_ns, delta_us);
         }
 
@@ -501,7 +551,12 @@ impl XcpDaqDecoder for DaqDecoder {
         {
             let daq_list = &self.daq_odt_entries.as_ref().unwrap()[daq as usize];
 
-            for odt_entry in daq_list.iter() {
+            if let Some(ref mut writer) = self.perfetto_writer {
+                writer.sample(daq as usize, t_ns, daq_list, data);
+            }
+
+            let decode_values = console || self.csv_writer.is_some();
+            for odt_entry in daq_list.iter().filter(|_| decode_values) {
                 // Physical value: factor and offset applied, the label of an enum value
                 let value_str = match odt_entry.decode(data) {
                     Some(value) => value.to_string(),
@@ -514,6 +569,7 @@ impl XcpDaqDecoder for DaqDecoder {
 
                 if let Some(ref mut writer) = self.csv_writer {
                     let _ = writeln!(writer, "{},{},{},{},{}", t_ns, daq, odt_entry.name, csv_field(&value_str), csv_field(unit));
+                } else if !console {
                 } else if unit.is_empty() {
                     println!(" {} = {}", odt_entry.name, value_str);
                 } else {
@@ -592,6 +648,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
         time,
         cal: cal_args,
         csv: csv_filename,
+        perfetto: perfetto_filename,
         yes,
         ..
     } = args;
@@ -625,7 +682,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
             // Connect to the XCP server
             // Print protocol information
             info!("XCP Connect using {}", protocol);
-            let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new(true, &csv_filename)));
+            let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new(true, &csv_filename, &perfetto_filename)));
             match xcp_client.connect(connect_mode, Arc::clone(&daq_decoder), ServTextDecoder::new()).await {
                 Ok(_) => {
                     info!("Connected to XCP server at {}", dest_addr);
@@ -646,6 +703,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 Ok((_, Some(id))) => {
                     ecu_name = id;
                     info!("  GET_ID IDT_ASCII = {}", ecu_name);
+                    daq_decoder.lock().set_ecu_name(&ecu_name);
                 }
                 Err(e) => {
                     error!("GET_ID IDT_ASCII failed, Error: {}", e);
@@ -1374,6 +1432,7 @@ struct ConfigFile {
     default_event: Option<DefaultEvent>,
     time: Option<u64>,
     csv: Option<String>,
+    perfetto: Option<String>,
     list_cal: Option<String>,
     cal: Option<Vec<String>>,
     elf_skip_no_metadata: Option<bool>,
@@ -1431,6 +1490,7 @@ fn merge_config(matches: &clap::ArgMatches, config: ConfigFile, args: &mut Args)
     }
     apply!(time);
     apply!(csv);
+    apply!(perfetto);
     apply!(list_cal);
     apply!(cal);
     apply!(elf_skip_no_metadata);

@@ -10,6 +10,8 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V2.3.4]
 
+- xcpclient: new option `--perfetto <file>`, writes spans and measurement signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`
+- New option `OPTION_DAQ_SPAN_THREAD` (default: defined): the span record of a context has the new measurement `<context>.thread`, a small index of the thread which began or ended the span. `<context>.level` is reduced from 16 to 8 bit, the size of the span record is unchanged
 - xcpclient: print values in physical unit or as enum strings in console and csv 
 - xcpclient: improved timestamp wraparound detection
 - xcpclient: `--mea` shows physical values (factor and offset applied, enum labels) with their unit, the CSV file has a new column `unit`

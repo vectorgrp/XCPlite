@@ -480,7 +480,7 @@ Included by `xcplib.hpp`. Requires **`OPTION_DAQ_CONTEXT_LIST`** and `OPTION_ENA
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `xcp::Context(name)` | class | Named context, creates the event `<name>.spans` with the measurements `<name>.span`, `.level`, `.span_dt`. `id()`, `name()`, `event()`, static `GetCurrent()` | `OPTION_DAQ_CONTEXT_LIST` | thread_context_demo |
+| `xcp::Context(name)` | class | Named context, creates the event `<name>.spans` with the measurements `<name>.span`, `.level`, `.span_dt` and, with `OPTION_DAQ_SPAN_THREAD`, `.thread`. `id()`, `name()`, `event()`, static `GetCurrent()` | `OPTION_DAQ_CONTEXT_LIST` | thread_context_demo |
 | `xcp::Scope(context)` | class | Makes a context the current context of the calling thread, restores the previous one in the destructor | as above | thread_context_demo |
 | `DaqEventCtxVar(name, A2L_MEAS(...), ...)` | macro | Like `DaqEventVar`, in the current context: event `<context>.<name>`, measurements `<context>.<variable>`, created once per context and code location. Without a current context like `DaqEventVar` | as above | thread_context_demo |
 | `DaqEventCtxVar_(context, name, ...)` | macro | As above, with an explicit context pointer | as above | — |

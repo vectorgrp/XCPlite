@@ -107,6 +107,7 @@ Exactly one epoch and one resolution option must be defined.
 | `OPTION_DAQ_CONTEXT_LIST` | Enables contexts and spans: a context list and a span name list next to the event list, events which belong to a context (`<context>.<event>`), `XcpCreateContext`, `XcpCreateContextEvent`, `XcpRegisterSpanName` and the C++ API in `xcplib_context.hpp` (`xcp::Context`, `xcp::Scope`, `DaqSpan`, `DaqEventCtxVar`). Requires `OPTION_DAQ_EVENT_LIST` and on-target A2L generation (default: defined, also in the `shm` configuration, undefined in `ptp`, `raw`, `no_a2l` and `rtos`) |
 | `OPTION_DAQ_CONTEXT_COUNT` | Maximum number of contexts, 16 bytes of memory per context (default: 8) |
 | `OPTION_DAQ_SPAN_COUNT` | Maximum number of different span names including the reserved span id 0, 32 bytes of memory per span name (default: 32) |
+| `OPTION_DAQ_SPAN_THREAD` | Records the thread with each span begin and end: adds the measurement `<context>.thread` to the `spans` event of a context, a small index (1..255) of the triggering thread, assigned in the order in which the threads begin their first span. Needed to tell the spans of several threads in the same context apart, for example for `xcpclient --perfetto`. The span record stays 8 bytes, `<context>.level` is reduced from 16 to 8 bit. Requires `OPTION_DAQ_CONTEXT_LIST` (default: defined) |
 
 ### Transmit Queue Options
 

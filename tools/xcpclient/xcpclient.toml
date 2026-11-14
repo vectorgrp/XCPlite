@@ -128,8 +128,11 @@ mea = []
 time = 0
 
 # Write measurement data to this CSV file instead of the console
-# Format per row: time_ns,daq,name,value
+# Format per row: time_ns,daq,name,value,unit
 csv = ""
+
+# Write measurement data to this trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev)
+perfetto = ""
 
 #-----------------------------------------------------------------------------
 # Test

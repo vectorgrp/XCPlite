@@ -64,21 +64,21 @@ int main() {
     {
         // Simplified signal generator C++ class taken from cpp_demo
         const signal_generator::SignalParametersT kSignalParameters1 = {
-            .ampl = 12.5,
+            .ampl = 50,
             .phase = 0.0,
             .offset = 0.0,
             .period = 1.0,                                          // s
-            .delay_us = 1000,                                       // us
+            .delay_us = 5000,                                       // us
             .signal_type = signal_generator::SignalTypeT::TRIANGLE, // Type of the signal
         };
         signal_generator::SignalGenerator signal_generator_1("SigGen1", &kSignalParameters1);
 
         const signal_generator::SignalParametersT kSignalParameters2 = {
-            .ampl = 80.0,
-            .phase = kPi / 2,
+            .ampl = 110.0,
+            .phase = 0.0,
             .offset = 0.0,
-            .period = 10.0,                                     // s
-            .delay_us = 1000,                                   // us
+            .period = 0.5,                                      // s
+            .delay_us = 5000,                                   // us
             .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
         };
         signal_generator::SignalGenerator signal_generator_2("SigGen2", &kSignalParameters2);
@@ -105,7 +105,7 @@ int main() {
             );
 
             // std::cout << channel1 << " , " << channel2 << std::endl;
-            sleepUs(100000);
+            sleepUs(20000); // 20ms
 
         } // while (running)
 

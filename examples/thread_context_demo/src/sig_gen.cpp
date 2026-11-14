@@ -21,7 +21,7 @@ namespace signal_generator {
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double k2Pi = (kPi * 2);
-constexpr double kClipLimit = 60.0; // Output limit in Volt
+constexpr double kClipLimit = 100.0; // Output limit in Volt
 
 // Shared helper function, called by all signal generator instances
 // It does not know for which instance it is working, the context-aware instrumentation gets the instance from the current context of the thread
@@ -33,6 +33,7 @@ static double Clip(double input) {
     if (clipped < -kClipLimit)
         clipped = -kClipLimit;
     DaqEventCtxVar(clip, A2L_MEAS_PHYS(input, "Clip function input", "Volt", -100.0, +100.0), A2L_MEAS_PHYS(clipped, "Clip function output", "Volt", -100.0, +100.0));
+    sleepUs(1000); // 1ms @@@@ TEST: Simulate some more expensive work
     return clipped;
 }
 
@@ -85,6 +86,7 @@ double SignalGenerator::Poll() const {
     xcp::Scope scope(context_);
     DaqSpan(poll);
     double polled = output_.load(std::memory_order_relaxed);
+    sleepUs(1000); // 1ms @@@@ TEST: Simulate some more expensive work
     DaqEventCtxVar(poll, A2L_MEAS_PHYS(polled, "Value polled by another thread", "Volt", -100.0, +100.0));
     return polled;
 }
@@ -125,6 +127,7 @@ void SignalGenerator::Task() {
                 v = sin((normalized_time_ * k2Pi) + p->phase);
                 break;
             }
+            sleepUs(2000); // 2ms @@@@ TEST: Simulate some more expensive work
             value_ = Clip((p->ampl * v) + p->offset);
             output_.store(value_, std::memory_order_relaxed); // Publish for GetValue() called from other threads
         }
