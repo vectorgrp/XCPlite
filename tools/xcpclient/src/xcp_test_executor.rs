@@ -74,7 +74,7 @@ impl XcpTextDecoder for ServTextDecoder {
 // Handle incoming DAQ data
 // Create some test diagnostic data
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct DaqDecoder {
     pub timestamp_resolution: u64,
     pub tot_events: u32,
@@ -83,7 +83,9 @@ pub struct DaqDecoder {
     pub counter_errors: u32,
     pub daq_max: u16,
     pub odt_max: u8,
-    pub daq_timestamp: u64,
+    pub daq_timestamp: Vec<u64>,                  // Last timestamp of each DAQ list, to check for declining and stuck timestamps
+    pub timestamp_extender: DaqTimestampExtender, // 32 to 64 bit timestamp extension, shared by all DAQ lists
+    pub start_timestamp: u64,
     pub daq0_events: u32,
     pub max_counter: u32,
     pub last_counter: u32,
@@ -99,7 +101,9 @@ impl DaqDecoder {
             counter_errors: 0,
             daq_max: 0,
             odt_max: 0,
-            daq_timestamp: 0,
+            daq_timestamp: Vec::new(),
+            timestamp_extender: DaqTimestampExtender::new(0),
+            start_timestamp: 0,
             daq0_events: 0,
             max_counter: 0,
             last_counter: 0,
@@ -117,7 +121,9 @@ impl XcpDaqDecoder for DaqDecoder {
         self.counter_errors = 0;
         self.daq_max = 0;
         self.odt_max = 0;
-        self.daq_timestamp = timestamp;
+        self.daq_timestamp.clear();
+        self.timestamp_extender = DaqTimestampExtender::new(timestamp);
+        self.start_timestamp = timestamp;
         self.daq0_events = 0;
         self.max_counter = 0;
         self.last_counter = 0;
@@ -161,20 +167,18 @@ impl XcpDaqDecoder for DaqDecoder {
         // Decode raw timestamp as u64
         // Check declining and stuck timestamps
         if odt == 0 {
-            let t_last = self.daq_timestamp;
-            let tl = (t_last & 0xFFFFFFFF) as u32;
-            let mut th = (t_last >> 32) as u32;
-            if timestamp_raw < tl {
-                th += 1;
+            if self.daq_timestamp.len() <= daq as usize {
+                self.daq_timestamp.resize(daq as usize + 1, self.start_timestamp);
             }
-            let t = (timestamp_raw as u64) | ((th as u64) << 32);
+            let t_last = self.daq_timestamp[daq as usize];
+            let t = self.timestamp_extender.extend(timestamp_raw);
             if t < t_last {
                 warn!("Timestamp of daq {} declining {} -> {}", daq, t_last, t);
             }
             if t == t_last {
                 warn!("Timestamp of daq {} stuck at {}", daq, t);
             }
-            self.daq_timestamp = t;
+            self.daq_timestamp[daq as usize] = t;
         }
 
         // Hardcoded decoding of daq 0 counter data

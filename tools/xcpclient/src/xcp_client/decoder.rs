@@ -19,6 +19,87 @@ pub struct OdtEntry {
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
+// DaqTimestampExtender — extends the 32 bit raw DAQ timestamps of all DAQ lists to 64 bit
+
+/// Extends 32 bit raw DAQ timestamps to 64 bit
+///
+/// There is one reference for all DAQ lists, the newest timestamp seen so far. A raw timestamp is placed at the position
+/// nearest to the reference, by the signed 32 bit difference to the lower half of the reference.
+/// The order of the timestamps is guaranteed only within a DAQ list, a sample of another DAQ list may be older than the
+/// reference. It gets a negative difference and is placed behind the reference, it does not count as a wraparound.
+///
+/// Precondition: Every timestamp is within half the 32 bit range (2.147s with 1ns ticks) of the newest timestamp seen before.
+/// So at least one sample of any DAQ list is needed in this time, a DAQ list on its own may be silent for any time.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DaqTimestampExtender {
+    reference: u64,
+}
+
+impl DaqTimestampExtender {
+    /// Create with the 64 bit raw timestamp of the measurement start as reference
+    pub fn new(start_raw64: u64) -> DaqTimestampExtender {
+        DaqTimestampExtender { reference: start_raw64 }
+    }
+
+    /// Extend a 32 bit raw timestamp to 64 bit
+    pub fn extend(&mut self, timestamp_raw: u32) -> u64 {
+        let delta = timestamp_raw.wrapping_sub(self.reference as u32) as i32;
+        let t = if delta >= 0 {
+            self.reference + delta as u64
+        } else {
+            self.reference.saturating_sub(delta.unsigned_abs() as u64)
+        };
+        if t > self.reference {
+            self.reference = t;
+        }
+        t
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_daq_timestamp_extender() {
+        // Monotonic timestamps of one DAQ list, with wraparound
+        let mut e = DaqTimestampExtender::new(0x1_FFFF_FF00);
+        assert_eq!(e.extend(0xFFFF_FF10), 0x1_FFFF_FF10);
+        assert_eq!(e.extend(0x0000_0010), 0x2_0000_0010); // wraparound
+        assert_eq!(e.extend(0x0000_0020), 0x2_0000_0020);
+
+        // A sample of another DAQ list, taken before the wraparound, arrives after it
+        assert_eq!(e.extend(0xFFFF_FFF0), 0x1_FFFF_FFF0);
+        // The reference has not moved back
+        assert_eq!(e.extend(0x0000_0030), 0x2_0000_0030);
+
+        // Equal timestamps
+        assert_eq!(e.extend(0x0000_0030), 0x2_0000_0030);
+
+        // A DAQ list which has been silent for many wraparounds, the other DAQ lists kept the reference up to date
+        let mut e = DaqTimestampExtender::new(0);
+        let mut t: u64 = 0;
+        for _ in 0..20 {
+            t += 0x4000_0000; // a quarter of the 32 bit range
+            assert_eq!(e.extend(t as u32), t);
+        }
+        assert_eq!(e.extend((t - 5) as u32), t - 5); // silent DAQ list, slightly older than the reference
+        assert_eq!(e.extend((t + 5) as u32), t + 5);
+
+        // Limits of the window: just below half the range ahead and half the range behind
+        let mut e = DaqTimestampExtender::new(0x5_0000_0000);
+        assert_eq!(e.extend(0x7FFF_FFFF), 0x5_7FFF_FFFF);
+        let mut e = DaqTimestampExtender::new(0x5_0000_0000);
+        assert_eq!(e.extend(0x8000_0000), 0x4_8000_0000);
+
+        // First samples are older than a small start reference, no underflow
+        let mut e = DaqTimestampExtender::new(0x10);
+        assert_eq!(e.extend(0xFFFF_FFF0), 0);
+        assert_eq!(e.extend(0x20), 0x20);
+    }
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------
 // XcpTextDecoder — receives XCP service-text messages from the server
 
 pub trait XcpTextDecoder {

@@ -368,7 +368,8 @@ struct DaqDecoder {
     daq_header_size: u8,
     event_count: usize,
     byte_count: usize,
-    daq_timestamp: [u64; MAX_EVENT],
+    daq_timestamp: [u64; MAX_EVENT],          // Last timestamp of each DAQ list, to check for monotonic timestamps
+    timestamp_extender: DaqTimestampExtender, // 32 to 64 bit timestamp extension, shared by all DAQ lists
     log_measurements: bool,
     csv_writer: Option<std::io::BufWriter<std::fs::File>>,
 }
@@ -396,6 +397,7 @@ impl DaqDecoder {
             event_count: 0,
             byte_count: 0,
             daq_timestamp: [0; MAX_EVENT],
+            timestamp_extender: DaqTimestampExtender::new(0),
             log_measurements,
             csv_writer,
         }
@@ -412,6 +414,7 @@ impl XcpDaqDecoder for DaqDecoder {
         for t in self.daq_timestamp.iter_mut() {
             *t = timestamp;
         }
+        self.timestamp_extender = DaqTimestampExtender::new(timestamp);
 
         // Write CSV header
         if let Some(ref mut writer) = self.csv_writer {
@@ -464,14 +467,10 @@ impl XcpDaqDecoder for DaqDecoder {
         assert!(odt == 0);
 
         // Decode full 64 bit daq timestamp
+        // The extension uses the newest timestamp of all DAQ lists as reference, the order is checked for each DAQ list on its own
         let t_last = self.daq_timestamp[daq as usize];
         let t: u64 = if odt == 0 {
-            let tl = (t_last & 0xFFFFFFFF) as u32;
-            let mut th = (t_last >> 32) as u32;
-            if timestamp_raw < tl {
-                th += 1;
-            }
-            let t = (timestamp_raw as u64) | ((th as u64) << 32);
+            let t = self.timestamp_extender.extend(timestamp_raw);
             if t < t_last {
                 warn!("Timestamp of daq {} declining {} -> {}", daq, t_last, t);
             }
@@ -482,7 +481,7 @@ impl XcpDaqDecoder for DaqDecoder {
         };
 
         let t_ns = t * self.timestamp_resolution;
-        let delta_us = ((t - t_last) * self.timestamp_resolution) / 1000;
+        let delta_us = (t.saturating_sub(t_last) * self.timestamp_resolution) / 1000;
 
         if self.csv_writer.is_none() {
             println!("EVENT: daq={}, odt={}, lost={}, t={}ns (+{}us)", daq, odt, lost, t_ns, delta_us);
