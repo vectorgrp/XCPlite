@@ -1,10 +1,11 @@
 # thread_context_demo — context and spans for multiple instances
 
-Experimental. Demonstrates a concept how XCPlite can measure individual time series when code runs in several class instances
+Experimental. Demonstrates how XCPlite can measure individual time series when the same code runs for several class instances
 or in several threads, using a concept borrowed from OpenTelemetry (OTel): context, scope and span.
 
 The API extensions are part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp)
-(included by `xcplib.hpp`). It needs the option `OPTION_DAQ_CONTEXT_LIST`, which is enabled in the default and the shm configuration with dynamic A2L generation.
+(included by `xcplib.hpp`). They need the option `OPTION_DAQ_CONTEXT_LIST`, which is enabled in the default and the shm
+configuration, the configurations with on-target A2L generation.
 
 ---
 
@@ -15,8 +16,8 @@ running its own thread. Instrumented in the obvious way, with one `DaqEventVar(s
 in the task function, both instances trigger the same event `siggen` and the tool receives one signal
 `value_` with the values of both instances mixed.
 
-The existing solution (see `cpp_demo`) need the instrumented code to know its instance
-and pass the name along: one dynamic created event per instance, and measurements registered with the instance name as
+The existing solution (see `cpp_demo`) needs the instrumented code to know its instance
+and pass the name along: one dynamically created event per instance, and measurements registered with the instance name as
 prefix. Shared helper functions, which do not know for which instance they are working, can not be
 attributed at all.
 
@@ -58,10 +59,28 @@ The event names carry the context name, so the event list and the event groups o
 event contains (`SigGen1.siggen` instead of a numbered event instance).
 
 `.thread` is a small index of the thread which began or ended the span (`OPTION_DAQ_SPAN_THREAD`, enabled by default). The indices
-are assigned in the order in which the threads begin their first span. In this demo `SigGen1` is executed by two threads, its task
-thread and the main thread which calls `Poll()`. The thread index tells their spans apart.
+are assigned in the order in which the threads begin their first span. In this demo each context is executed by two threads, its
+task thread and the main thread which calls `Poll()`. The thread index tells their spans apart.
 
-Test with xcpclient:
+The spans of the demo contain sleeps of 1 ms (`clip`, `poll`) and 2 ms (`calc`) to simulate work, so that they are easy to see
+in a trace viewer.
+
+## Building and running
+
+```bash
+./build.sh examples
+./build/thread_context_demo
+```
+
+Or with CMake directly:
+
+```bash
+cmake -B build -S . -DXCPLITE_BUILD_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target thread_context_demo
+./build/thread_context_demo
+```
+
+Measure all signals with xcpclient for 5 seconds into a CSV file:
 
 ```bash
 xcpclient --udp --mea '.*' --time 5 --csv mea.csv
@@ -85,8 +104,8 @@ thread (`thread 1`), the spans of the main thread (`thread 3`) and its signals.
 
 <img src="perfetto1.png" alt="Perfetto overview: signals and span tracks of the context SigGen1" width="900">
 
-Zoomed in to 40 ms: `clip` is nested in `calc` in the task thread of each context, `poll` is executed by the main thread for both
-contexts, one after the other, and overlaps the spans of the task threads.
+Zoomed in to 40 ms: `clip` is nested in `calc` in the task thread of each context. `poll` is executed by the main thread for both
+contexts, one after the other, independent of the task threads, so it may overlap their spans.
 
 <img src="perfetto2.png" alt="Perfetto zoomed in: nested spans calc and clip, poll in the main thread, for SigGen1 and SigGen2" width="900">
 
@@ -112,139 +131,36 @@ detach at the end) and spans with nesting are taken over unchanged. Three things
 for reading. It is not built by the XCPlite build and has not been compiled. Build and run notes,
 including a receiver for visualisation, are in the header of [otel/src/main.cpp](otel/src/main.cpp).
 
-## Findings and limitations
-
-- **Event budget.** One event per context, plus one per context and context-aware code location
-  (9 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 16 by default). The number of contexts is limited
-  by `OPTION_DAQ_CONTEXT_COUNT` (8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (32).
-- **Monotonic timestamps.** The timestamps of an XCP event must be monotonic. A context can be attached
-  to several threads at the same time (task thread and `Poll()` from the main thread), so the span events
-  of a context are serialized with a spin lock. A context-aware event must not be triggered concurrently
-  by several threads in the same context at the same code location.
-- **A2L timing.** Contexts, context-aware events and spans must have been executed once before the A2L
-  file is finalized.
-- **Span duration.** `span_dt` belongs to the span that just ended, the end sample does not name it.
-- **Thread index.** `.thread` is an index local to the process, not the thread id of the operating system, and limited to 255 threads.
-  Without `OPTION_DAQ_SPAN_THREAD`, the spans of several threads in one context can not be told apart.
-- **Attach starts without a span.** The current span of the capturing thread is not carried over.
-- **Default and shm configuration only.** Needs runtime event creation and on-target A2L generation.
-  In SHM mode, each application has its own namespace for context names, see [docs/SHM.md](../../docs/SHM.md).
-- **Library implementation.** The context names are kept in a context list in the C core
-  ([src/ctx.c](../../src/ctx.c)), an event stores the id of its context. The binary persistence file
-  stores the context name with each event, so event ids are stable across restarts. There is no C
-  instrumentation API for contexts.
-- **Names.** Context and event names are limited to 15 characters each.
-
-
 ---
 
-## Building
+## Implementation notes
 
-```bash
-./build.sh examples
-./build/thread_context_demo
-```
+An event index > 0 always means a context. The library knows the context names, and an event which belongs to a context is named
+`<context>.<event>` in the A2L event list, the event groups, `conv.events` and `GET_DAQ_EVENT_INFO` (`SigGen1.siggen`).
 
-Or with CMake directly:
+Library
 
-```bash
-cmake -B build -S . -DXCPLITE_BUILD_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --target thread_context_demo
-./build/thread_context_demo
-```
-
----
-
-#
-
-## Implementation notes 
-
-Contexts and spans in the library, anonymous event instances removed
-
-An event index > 0 now always means a context. The library knows the
-context names, and an event which belongs to a context is named
-<context>.<event> in the A2L event list, the event groups, conv.events
-and GET_DAQ_EVENT_INFO (SigGen1.siggen instead of siggen_1).
-
-New
-- Option OPTION_DAQ_CONTEXT_LIST with OPTION_DAQ_CONTEXT_COUNT (8) and
-  OPTION_DAQ_SPAN_COUNT (32). Enabled in the default configuration,
-  undefined in shm, ptp, raw, no_a2l and rtos.
-- src/ctx.c, src/ctx.h: context list and span name list next to the
-  event list. XcpCreateContext, XcpGetContextName, XcpGetContextCount,
-  XcpCreateContextEvent, XcpRegisterSpanName.
-- inc/xcplib_context.hpp, included by xcplib.hpp: xcp::Context,
-  xcp::Scope, xcp::Span, DaqSpan, DaqEventCtxVar, DaqEventCtxVar_.
-  Moved from the prototype in examples/thread_context_demo. There is
-  no C instrumentation API for contexts.
-- The span event of a context is <context>.spans.
-- The A2L writer creates conv.spans at finalize from the registered
-  span names, xcp::A2lCreateSpanConversion() is gone.
-- test/context_test, registered with CTest (unit).
-
-Breaking
-- Removed XcpCreateEventInstance, DaqCreateEventInstance,
-  DaqGetEventInstanceId, XcpCreateEventWithIndex and XcpGetEventIndex.
-  XcpGetEventContext returns the context id of an event.
-- XcpFindEvent and XcpCreateEvent consider events without context
-  only, so an event <name> and <context>.<name> can coexist.
-- The A2L short name of an event is its name without the context.
+- Options `OPTION_DAQ_CONTEXT_LIST`, `OPTION_DAQ_CONTEXT_COUNT` (8), `OPTION_DAQ_SPAN_COUNT` (32) and `OPTION_DAQ_SPAN_THREAD`,
+  see [docs/xcplib_cfg.md](../../docs/xcplib_cfg.md). Enabled in the default and the shm configuration, undefined in ptp, raw,
+  no_a2l and rtos.
+- [src/ctx.c](../../src/ctx.c), `src/ctx.h`: context list and span name list next to the event list. `XcpCreateContext`,
+  `XcpGetContextName`, `XcpGetContextCount`, `XcpCreateContextEvent`, `XcpRegisterSpanName`.
+- [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp), included by `xcplib.hpp`: `xcp::Context`, `xcp::Scope`, `xcp::Span`,
+  `DaqSpan`, `DaqEventCtxVar`, `DaqEventCtxVar_`. There is no C instrumentation API for contexts.
+- The span event of a context is `<context>.spans`. A sample is the state after a span begin or end: `span`, `level`, `span_dt`
+  and, with `OPTION_DAQ_SPAN_THREAD`, `thread`. The record has 8 bytes with and without the option, `level` has 8 bit with the
+  option and 16 bit without.
+- The A2L writer creates `conv.spans` at finalize from the registered span names.
+- `XcpFindEvent` and `XcpCreateEvent` consider events without context only, so an event `<name>` and `<context>.<name>` can
+  coexist. `XcpGetEventContext` returns the context id of an event. The A2L short name of an event is its name without the context.
+- Test: `test/context_test`, registered with CTest (unit).
 
 Persistence
-- The context name is stored with each event in previously reserved
-  bytes of the event record, the context list is rebuilt from the
-  events on load. BIN_VERSION is unchanged. A file which contains
-  anonymous event instances is rejected.
-- tools/bintool shows an event which belongs to a context as
-  <context>.<event>, with the context name and id.
 
-Other
-- daq_test: each task thread creates a plain event task_<n>.
-- thread_context_demo uses the library API, A2L fixture regenerated.
-- Documentation updated: API_OVERVIEW, TECHNICAL, xcplib_cfg,
-  CHANGELOG, example and test READMEs, CLAUDE.md.
-
-
-
-
-
-## Remaining todos, grouped by how soon they matter.
-
-### Postponed 
-
-SHM configuration: make context and event creation process safe (two applications must not create contexts or events at the same time), test with xcpdaemon.
-
-### Not verified
-
-Windows/MSVC build of xcplib_context.hpp and context_test.
-Linux build (gcc and clang) and a run on the Pi. Everything was built and run on macOS only.
-ptp, raw and rtos configurations were not built after the change; only shm and no_a2l were.
-clang-tidy (./build.sh lib tidy) on ctx.c.
-
-
-### Known gaps in the feature
-
-.bin/.hex matching in test/test_examples.sh still does not cover fixed-version file names, so cpp_demo.hex is not compared.
-span_dt is not attributed to a span name; the end sample only carries the duration.
-Two xcp::Context objects with the same name share the context but not the spin lock, so their span events are not serialized. Currently only documented as “create one object per name”.
-DaqSpan executed before XcpInit keeps span id 0 permanently, because the id is a function-local static.
-A context-aware event triggered concurrently by several threads in the same context at the same code location can produce non-monotonic timestamps. Only the span event is serialized.
-No CANape project for thread_context_demo.
-The OTel version in examples/thread_context_demo/otel/ is still uncompiled.
-
-### Open design questions
-
-A parent group per context in the A2L file, containing its event groups.
-Whether a class instance that does not know its name should capture the current context.
-How far the naming should follow OTel (trace id, span id).
-Optional bridge to a real OTel backend.
-Contexts for no_a2l/rtos (needs link-time registration and xcpclient support).
-
-### Separate from this branch
-
-bugfix/daq_event_template (once-flag fix for DaqEventVar)
-
-
+- The context name is stored with each event in the binary persistence file, the context list is rebuilt from the events on load.
+- `tools/bintool` shows an event which belongs to a context as `<context>.<event>`, with the context name and id.
+- The demo uses `A2L_MODE_WRITE_ONCE`: after a change which affects the A2L file without a new EPK, for example toggling
+  `OPTION_DAQ_SPAN_THREAD`, delete the `.a2l` and `.bin` file in the working directory.
 
 ## Memory consumption
 
@@ -301,15 +217,66 @@ Not affected by the number of contexts or code locations:
 - The A2L generator writes to the file, it does not keep the declarations in memory.
 - The binary persistence file grows by 256 bytes per event.
 
+## Findings and limitations
+
+- **Event budget.** One event per context, plus one per context and context-aware code location
+  (9 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 16 by default). The number of contexts is limited
+  by `OPTION_DAQ_CONTEXT_COUNT` (8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (32).
+- **Monotonic timestamps.** The timestamps of an XCP event must be monotonic. A context can be attached
+  to several threads at the same time (task thread and `Poll()` from the main thread), so the span events
+  of a context are serialized with a spin lock. A context-aware event must not be triggered concurrently
+  by several threads in the same context at the same code location.
+- **A2L timing.** Contexts, context-aware events and spans must have been executed once before the A2L
+  file is finalized.
+- **Span duration.** `span_dt` belongs to the span that just ended, the end sample does not name it.
+- **Thread index.** `.thread` is an index local to the process, not the thread id of the operating system, and limited to 255 threads.
+  Without `OPTION_DAQ_SPAN_THREAD`, the spans of several threads in one context can not be told apart.
+- **Attach starts without a span.** The current span of the capturing thread is not carried over.
+- **Default and shm configuration only.** Needs runtime event creation and on-target A2L generation.
+  In SHM mode, each application has its own namespace for context names, see [docs/SHM.md](../../docs/SHM.md).
+- **Library implementation.** The context names are kept in a context list in the C core
+  ([src/ctx.c](../../src/ctx.c)), an event stores the id of its context. The binary persistence file
+  stores the context name with each event, so event ids are stable across restarts. There is no C
+  instrumentation API for contexts.
+- **Names.** Context and event names are limited to 15 characters each.
+
 ## Open questions
 
 - Should a context capture the current context when the instance does not know its own name?
 - How far should the naming follow OTel? An OTel tracer has a name but no id, it is only a factory for
   spans. The trace id belongs to the trace, which is the set of all spans sharing that id.
+- SHM configuration: how to make context and event creation process safe? Two applications must not create contexts or events at
+  the same time. Not tested with xcpdaemon yet.
+
+## Remaining todos
+
+- `.bin`/`.hex` matching in `test/test_examples.sh` does not cover fixed-version file names, so `cpp_demo.hex` is not compared.
+- `span_dt` is not attributed to a span name, the end sample only carries the duration.
+- Two `xcp::Context` objects with the same name share the context but not the spin lock, so their span events are not serialized.
+  Currently only documented as "create one object per name".
+- `DaqSpan` executed before `XcpInit` keeps span id 0 permanently, because the id is a function-local static.
+- A context-aware event triggered concurrently by several threads in the same context at the same code location can produce
+  non-monotonic timestamps. Only the span event is serialized.
+- Update the CANape project for thread_context_demo.
+- The OTel version in [otel/](otel/) has never been compiled.
+
+## Possible follow-ups
+
+- Perfetto native protobuf format, if the JSON files get too large (about 90 bytes per span or signal sample).
+- A `--raw` switch in xcpclient for unconverted values in console and CSV.
+- Contexts and spans for no_a2l/rtos targets (needs link-time registration).
 - A group per context in the A2L file, containing the event groups of the context.
 - Optional connection to a real OTel backend, on target through opentelemetry-cpp or off target by
   exporting span records from xcpclient.
 
+## Things to know about xcpclient
 
+- **Span signals must be measured.** `--perfetto` finds a context by its signals `<context>.span`, `.level` and `.span_dt`. Other
+  signals are assigned to a context only by the name prefix `<context>.`.
+- **Trace timestamps** are relative to the measurement start. The file is not sorted by time, Perfetto sorts on import.
+- **Timestamp extension.** At least one sample of any event is needed every 2.147 s (with 1 ns ticks), otherwise the 64 bit
+  timestamp is ambiguous.
+- **Bool signals are enums.** `conv.bool` is read as `0 "false" 1 "true"`, so bools are printed as labels and are state tracks
+  in Perfetto.
+- **CSV format.** The CSV file has the columns `time_ns,daq,name,value,unit`, the values are physical values or enum labels.
 
-  
