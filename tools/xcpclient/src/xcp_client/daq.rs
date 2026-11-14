@@ -42,7 +42,8 @@ impl XcpClient {
                     size: instance.value_size(),
                     encoding: instance.value_type().into(),
                 };
-                let o = XcpClientMeasurementObject::new(name, a2l_addr, a2l_type);
+                let conversion = A2lConversion::from(instance.get_mc_support_data());
+                let o = XcpClientMeasurementObject::new(name, a2l_addr, a2l_type, conversion);
                 debug!("Create measurement object {}: addr = {:08X} type = {:?}", name, a2l_addr.addr, a2l_type);
                 debug!("-> {:?} ", o);
                 self.measurement_object_list.push(o);
@@ -154,6 +155,7 @@ impl XcpClient {
                         name: m.name.clone(),
                         a2l_type,
                         a2l_addr,
+                        conversion: m.conversion.clone(),
                         offset: odt_size,
                     });
 

@@ -168,7 +168,7 @@ Options:
           [default: 0]
 
       --csv <CSV>
-          Save measurement data to a CSV file. If not specified, data is printed to the console. CSV format: time_ns,daq,name,value  (one row per measurement sample)
+          Save measurement data to a CSV file. If not specified, data is printed to the console. CSV format: time_ns,daq,name,value,unit  (one row per measurement sample). Values are physical values (factor and offset applied), the value of an enum is its label
           
           [default: ""]
 

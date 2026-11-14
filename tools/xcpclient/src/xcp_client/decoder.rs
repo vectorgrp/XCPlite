@@ -3,7 +3,7 @@
 
 #![allow(dead_code)]
 
-use super::types::{A2lAddr, A2lType};
+use super::types::{A2lAddr, A2lConversion, A2lType, A2lValue};
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
 // OdtEntry — describes one DAQ signal entry in an ODT
@@ -15,7 +15,22 @@ pub struct OdtEntry {
     pub name: String,
     pub a2l_type: A2lType,
     pub a2l_addr: A2lAddr,
-    pub offset: u16, // offset from data start, not including daq header and timestamp
+    pub conversion: A2lConversion, // conversion from raw to physical value
+    pub offset: u16,               // offset from data start, not including daq header and timestamp
+}
+
+impl OdtEntry {
+    /// Decode the raw value of this entry from the DAQ data (without daq header and timestamp)
+    /// Returns None for a blob or when the data is too short
+    pub fn decode_raw(&self, data: &[u8]) -> Option<A2lValue> {
+        self.a2l_type.decode(data.get(self.offset as usize..)?)
+    }
+
+    /// Decode the physical value of this entry from the DAQ data (without daq header and timestamp)
+    /// Returns None for a blob or when the data is too short
+    pub fn decode(&self, data: &[u8]) -> Option<A2lValue> {
+        self.decode_raw(data).map(|raw| self.conversion.convert(raw))
+    }
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------

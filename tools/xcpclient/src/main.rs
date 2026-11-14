@@ -306,7 +306,8 @@ struct Args {
 
     // --csv
     /// Save measurement data to a CSV file. If not specified, data is printed to the console.
-    /// CSV format: time_ns,daq,name,value  (one row per measurement sample).
+    /// CSV format: time_ns,daq,name,value,unit  (one row per measurement sample).
+    /// Values are physical values (factor and offset applied), the value of an enum is its label.
     #[arg(long, default_value = "")]
     csv: String,
 
@@ -361,6 +362,15 @@ impl ToLogLevelFilter for u8 {
 // Prints the decoded data to the console
 
 const MAX_EVENT: usize = 64;
+
+// Quote a CSV field, if it contains a separator, a quote or a line break
+fn csv_field(s: &str) -> std::borrow::Cow<'_, str> {
+    if s.contains([',', '"', '\n', '\r']) {
+        std::borrow::Cow::Owned(format!("\"{}\"", s.replace('"', "\"\"")))
+    } else {
+        std::borrow::Cow::Borrowed(s)
+    }
+}
 
 struct DaqDecoder {
     daq_odt_entries: Option<Vec<Vec<OdtEntry>>>,
@@ -418,7 +428,7 @@ impl XcpDaqDecoder for DaqDecoder {
 
         // Write CSV header
         if let Some(ref mut writer) = self.csv_writer {
-            let _ = writeln!(writer, "time_ns,daq,name,value");
+            let _ = writeln!(writer, "time_ns,daq,name,value,unit");
         }
     }
 
@@ -492,47 +502,22 @@ impl XcpDaqDecoder for DaqDecoder {
             let daq_list = &self.daq_odt_entries.as_ref().unwrap()[daq as usize];
 
             for odt_entry in daq_list.iter() {
-                let value_size = odt_entry.a2l_type.size;
-                let mut value_offset = odt_entry.offset as usize + value_size - 1;
-                let mut value: u64 = 0;
-                loop {
-                    value |= data[value_offset] as u64;
-                    if value_offset == odt_entry.offset as usize {
-                        break;
-                    };
-                    value <<= 8;
-                    value_offset -= 1;
-                }
-
-                let value_str = match odt_entry.a2l_type.encoding {
-                    A2lTypeEncoding::Signed => match value_size {
-                        1 => format!("{}", value as u8 as i8),
-                        2 => format!("{}", value as u16 as i16),
-                        4 => format!("{}", value as u32 as i32),
-                        8 => format!("{}", value as i64),
-                        _ => {
-                            warn!("Unsupported signed value size {}", value_size);
-                            String::new()
-                        }
-                    },
-                    A2lTypeEncoding::Unsigned => format!("{}", value),
-                    A2lTypeEncoding::Float => {
-                        if value_size == 4 {
-                            format!("{}", f32::from_bits(value as u32))
-                        } else {
-                            format!("{}", f64::from_bits(value))
-                        }
-                    }
-                    A2lTypeEncoding::Blob => {
-                        warn!("Blob not supported");
+                // Physical value: factor and offset applied, the label of an enum value
+                let value_str = match odt_entry.decode(data) {
+                    Some(value) => value.to_string(),
+                    None => {
+                        warn!("{}: {} not supported", odt_entry.name, odt_entry.a2l_type);
                         String::new()
                     }
                 };
+                let unit = odt_entry.conversion.unit();
 
                 if let Some(ref mut writer) = self.csv_writer {
-                    let _ = writeln!(writer, "{},{},{},{}", t_ns, daq, odt_entry.name, value_str);
-                } else {
+                    let _ = writeln!(writer, "{},{},{},{},{}", t_ns, daq, odt_entry.name, csv_field(&value_str), csv_field(unit));
+                } else if unit.is_empty() {
                     println!(" {} = {}", odt_entry.name, value_str);
+                } else {
+                    println!(" {} = {} {}", odt_entry.name, value_str, unit);
                 }
             }
         }
@@ -1550,6 +1535,14 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_csv_field() {
+        assert_eq!(csv_field("1.5"), "1.5");
+        assert_eq!(csv_field("stand by"), "stand by");
+        assert_eq!(csv_field("a,b"), "\"a,b\"");
+        assert_eq!(csv_field("a\"b"), "\"a\"\"b\"");
+    }
 
     #[test]
     fn test_default_event_parse() {

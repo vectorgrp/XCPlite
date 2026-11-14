@@ -10,6 +10,9 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V2.3.4]
 
+- xcpclient: print values in physical unit or as enum strings in console and csv 
+- xcpclient: improved timestamp wraparound detection
+- xcpclient: `--mea` shows physical values (factor and offset applied, enum labels) with their unit, the CSV file has a new column `unit`
 - New: contexts and spans (C++ API, default and shm configuration, new option `OPTION_DAQ_CONTEXT_LIST`), see `examples/thread_context_demo`. `xcp::Context`, `xcp::Scope`, `DaqSpan` and `DaqEventCtxVar` in the new header `xcplib_context.hpp` (included by `xcplib.hpp`) separate the measurement data of the same code running for several class instances or threads. An event which belongs to a context is named `<context>.<event>` in the A2L file, in the event groups and in `GET_DAQ_EVENT_INFO`. C core in the new file `src/ctx.c`: `XcpCreateContext`, `XcpCreateContextEvent`, `XcpGetContextName`, `XcpGetContextCount`, `XcpRegisterSpanName`.
 - Breaking: anonymous event instances (`<name>_<index>`) are removed: `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex` do not exist anymore. Create an event per instance by name (`XcpCreateEvent`, `DaqCreateEvent_s`) or use contexts. `XcpGetEventContext` returns the context id of an event. `XcpFindEvent` finds events without context only.
 - The binary persistence file stores the context name with each event, in previously reserved bytes of the event record. The file version is unchanged; a file which contains anonymous event instances is rejected. `tools/bintool` shows such an event as `<context>.<event>` with its context name.
