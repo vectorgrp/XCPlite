@@ -258,6 +258,29 @@ xcpclient --udp --elf build/hello_xcp --mea "counter" --verbose 2
 ```
 
 
+#### Measurement limits
+
+The console output shows each sample with the name of its event:
+
+```
+EVENT: SigGen1.clip (id=2, daq=2), lost=0, t=3855188843115083ns (+3473us)
+ SigGen1.input = -17.514199949800968 Volt
+ SigGen1.clipped = -17.514199949800968 Volt
+```
+
+Signals of an event which are adjacent in memory (same address extension, no gap between them) are merged and measured with one ODT entry, for example the members of a struct or the elements of an array. This saves DAQ memory and copy operations in the XCP server. Gaps are not bridged, a struct with members which are not measured needs an ODT entry for each run of measured members.
+
+xcpclient uses one DAQ list with one ODT (one DAQ packet) for up to 123 ODT entries of an event. An event with more ODT entries, or with more signal bytes than fit into one DAQ packet, gets as many DAQ lists as needed. The XCP server samples all DAQ lists of an event with the same timestamp. In the console output and in the CSV file such an event appears once per DAQ list, with the same event name and timestamp and a different `daq` number.
+
+A signal can not be split over several ODT entries, ODTs or DAQ lists. xcpclient reports a signal which is too large as an error and does not start the measurement. There are two limits, both are properties of the XCP server:
+
+- The maximum size of an ODT entry (`MAX_ODT_ENTRY_SIZE_DAQ` from `GET_DAQ_RESOLUTION_INFO`). In XCPlite this is `XCP_MAX_ODT_ENTRY_SIZE` (248 bytes). It is the limit for merged signals as well. The protocol limit is 255 bytes, a larger signal can not be measured as one signal.
+- The payload of a DAQ packet, `MAX_DTO` without the 4 byte header and the 4 byte timestamp. In XCPlite this is `XCPTL_MAX_DTO_SIZE - 8`, 1016 bytes by default and 240 bytes with `OPTION_QUEUE_64_FIX_SIZE`. If a signal does not fit, `XCPTL_MAX_DTO_SIZE` has to be increased.
+
+Structs and arrays are not affected, they are measured as their basic type elements (`points_._0.x`, `parameters.counter_max`).
+
+The number of signals which can be measured at the same time is limited by the DAQ memory of the XCP server. XCPlite needs 6 bytes per ODT entry and 20 bytes per DAQ list of `OPTION_DAQ_MEM_SIZE` (default 12288 bytes, about 2000 signals when no signals can be merged). The server rejects a larger measurement with a memory overflow error. xcpclient uses at most 1024 DAQ lists.
+
 ### Export spans and signals to Perfetto
 
 `--perfetto <file>` writes the measurement as a trace file in the Chrome Trace Event JSON format. Open it with <https://ui.perfetto.dev> ("Open trace file"), the file is processed locally in the browser.

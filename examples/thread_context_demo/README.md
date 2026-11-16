@@ -212,7 +212,7 @@ for this context and code location, and tries to create the event again on every
 
 Not affected by the number of contexts or code locations:
 
-- `OPTION_DAQ_MEM_SIZE` (13200 bytes) is used with 6 bytes per signal which the tool selects for
+- `OPTION_DAQ_MEM_SIZE` (12288 bytes) is used with 6 bytes per signal which the tool selects for
   measurement, independent of how many signals are declared.
 - The A2L generator writes to the file, it does not keep the declarations in memory.
 - The binary persistence file grows by 256 bytes per event.

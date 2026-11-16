@@ -29,7 +29,6 @@ constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
 // Size of the point cloud
 // Each point has 4 measurement signals (x, y, z, r)
-// Measuring all 2052 signals with xcpclient (17 DAQ lists) needs more than 12652 bytes of OPTION_DAQ_MEM_SIZE in xcplib_cfg.h
 constexpr size_t OPTION_POINT_COUNT = 512;
 
 //-----------------------------------------------------------------------------------------------------

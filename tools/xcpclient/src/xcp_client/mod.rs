@@ -128,6 +128,7 @@ pub struct XcpClient {
 
     timestamp_resolution_ns: u64,
     daq_header_size: u8,
+    max_odt_entry_size: u8, // Maximum size of an ODT entry (signal) in bytes, from GET_DAQ_RESOLUTION_INFO
 
     socket: Option<XcpSocket>,
     receive_task: Option<tokio::task::JoinHandle<()>>,
@@ -177,6 +178,7 @@ impl XcpClient {
             transport_layer_version: 0,
             timestamp_resolution_ns: 1,
             daq_header_size: 4,
+            max_odt_entry_size: 255,
             registry: None,
             calibration_object_list: Vec::new(),
             measurement_object_list: Vec::new(),

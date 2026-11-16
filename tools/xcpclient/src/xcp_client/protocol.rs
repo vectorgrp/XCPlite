@@ -386,6 +386,11 @@ impl XcpClient {
         }
         self.timestamp_resolution_ns = timestamp_resolution_ns;
 
+        // Maximum size of an ODT entry (signal)
+        if max_size_daq > 0 {
+            self.max_odt_entry_size = max_size_daq;
+        }
+
         debug!(
             "GET_DAQ_RESOLUTION_INFO granularity_daq={} max_size_daq={} timestamp_mode={} timestamp_resolution={}ns",
             granularity_daq, max_size_daq, timestamp_mode, timestamp_resolution_ns
