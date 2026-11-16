@@ -34,6 +34,18 @@ impl OdtEntry {
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
+// XcpDaqList — describes one DAQ list
+
+/// DAQ list information
+/// A DAQ list is attached to exactly one event and has one ODT
+#[derive(Debug)]
+pub struct XcpDaqList {
+    pub event_id: u16,              // id of the event the DAQ list is attached to
+    pub event_name: Option<String>, // unique name of the event (with instance index), None if the event is not in the registry event list
+    pub entries: Vec<OdtEntry>,     // signals of the DAQ list
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------
 // DaqTimestampExtender — extends the 32 bit raw DAQ timestamps of all DAQ lists to 64 bit
 
 /// Extends 32 bit raw DAQ timestamps to 64 bit
@@ -141,8 +153,8 @@ pub trait XcpDaqDecoder {
     fn decode(&mut self, lost: u32, data: &[u8]);
 
     /// Measurement start
-    /// Decoding information: ODT entry table and 64 bit start timestamp
-    fn start(&mut self, odt_entries: Vec<Vec<OdtEntry>>, timestamp_raw64: u64);
+    /// Decoding information: DAQ lists (event and ODT entry table, index is the DAQ list number) and 64 bit start timestamp
+    fn start(&mut self, daq_lists: Vec<XcpDaqList>, timestamp_raw64: u64);
 
     /// Measurement stop
     fn stop(&mut self) {}

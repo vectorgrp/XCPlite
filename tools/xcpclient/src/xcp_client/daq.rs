@@ -11,6 +11,12 @@ use std::error::Error;
 
 use super::*;
 
+// Limits of the DAQ setup
+const MAX_DAQ_COUNT: usize = 1024; // DAQ lists, one for each event
+const MAX_ODT_ENTRY_COUNT: usize = 0x7B; // ODT entries (signals) in an ODT
+const MAX_ODT_ENTRY_SIZE: usize = 255; // Size of an ODT entry (signal) in bytes
+const DAQ_TIMESTAMP_SIZE: usize = 4; // Size of the timestamp in the first ODT of a DAQ list
+
 impl XcpClient {
     //------------------------------------------------------------------------
     // XcpMeasurementObject, XcpMeasurementObjectHandle (index pointer to XcpMeasurementObject)
@@ -57,6 +63,69 @@ impl XcpClient {
     }
 
     //------------------------------------------------------------------------
+    // DAQ limits
+
+    /// Unique name of an event from the registry event list (with instance index), None if the event is not in the list
+    fn event_name(&self, event: u16) -> Option<String> {
+        self.registry
+            .as_ref()
+            .and_then(|reg| reg.event_list.find_event_id(event).map(|e| e.get_unique_name(reg).into_owned()))
+    }
+
+    /// Check the measurement object list against the limits of the DAQ setup, before any DAQ command is sent to the XCP server
+    /// event_list are the event ids with their signal count
+    /// Restriction: Only one ODT per DAQ list supported yet, so all signals of an event have to fit into one ODT
+    fn check_daq_limits(&self, event_list: &[(u16, u16)]) -> Result<(), Box<dyn Error>> {
+        if event_list.len() > MAX_DAQ_COUNT {
+            return Err(format!(
+                "Too many events to measure: {} events, each needs a DAQ list, limit is {} DAQ lists",
+                event_list.len(),
+                MAX_DAQ_COUNT
+            )
+            .into());
+        }
+
+        // Signal size
+        for m in &self.measurement_object_list {
+            if m.a2l_type.size > MAX_ODT_ENTRY_SIZE {
+                return Err(format!(
+                    "Measurement object {} is too large: {} bytes, limit is {} bytes",
+                    m.name, m.a2l_type.size, MAX_ODT_ENTRY_SIZE
+                )
+                .into());
+            }
+        }
+
+        // Payload of the ODT: MAX_DTO without the DAQ header and the timestamp, which is in the first ODT of a DAQ list
+        let max_odt_size = (self.max_dto_size as usize).saturating_sub(self.daq_header_size as usize + DAQ_TIMESTAMP_SIZE);
+        for &(event, count) in event_list {
+            let label = match self.event_name(event) {
+                Some(name) => format!("{} (id={})", name, event),
+                None => format!("id={}", event),
+            };
+            if count as usize > MAX_ODT_ENTRY_COUNT {
+                return Err(format!(
+                    "ODT overflow: {} signals on event {}, limit is {} signals per event (only one ODT per DAQ list supported)",
+                    count, label, MAX_ODT_ENTRY_COUNT
+                )
+                .into());
+            }
+            let mut odt_size: usize = 0;
+            for m in self.measurement_object_list.iter().filter(|m| m.a2l_addr.event == Some(event)) {
+                odt_size += m.a2l_type.size;
+                if odt_size > max_odt_size {
+                    return Err(format!(
+                        "ODT overflow: the signals on event {} need more than {} bytes (MAX_DTO={}), exceeded at {} (only one ODT per DAQ list supported)",
+                        label, max_odt_size, self.max_dto_size, m.name
+                    )
+                    .into());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    //------------------------------------------------------------------------
     // DAQ init, start, stop
 
     /// Get clock resolution in ns
@@ -70,7 +139,7 @@ impl XcpClient {
 
         // Init
         let signal_count = self.measurement_object_list.len();
-        let mut daq_odt_entries: Vec<Vec<OdtEntry>> = Vec::with_capacity(8);
+        let mut daq_lists: Vec<XcpDaqList> = Vec::with_capacity(8);
 
         // Store all events in a hashmap (eventnumber, signalcount)
         let mut event_map: HashMap<u16, u16> = HashMap::new();
@@ -97,8 +166,10 @@ impl XcpClient {
         }
         event_list.sort_by(|a, b| a.0.cmp(&b.0));
 
+        // Check the limits before the DAQ setup of the XCP server is changed
+        self.check_daq_limits(&event_list)?;
+
         // Alloc a DAQ list for each event
-        assert!(event_count <= 1024, "event_count > 1024");
         let daq_count: u16 = event_count;
         self.free_daq().await?;
         self.alloc_daq(daq_count).await?;
@@ -114,7 +185,6 @@ impl XcpClient {
         // Alloc ODT entries (signal count) for each ODT/DAQ list
         for daq in 0..daq_count {
             let odt_entry_count = event_list[daq as usize].1;
-            assert!(odt_entry_count < 0x7C, "odt_entry_count >= 0x7C");
             self.alloc_odt_entries(daq, 0, odt_entry_count as u8).await?;
             debug!("Alloc odt_entries: daq={}, odt={}, odt_entry_count={}", daq, 0, odt_entry_count);
         }
@@ -159,18 +229,18 @@ impl XcpClient {
                         offset: odt_size,
                     });
 
-                    let size = a2l_type.size;
-                    assert!(size < 256, "xcp_client currently supports only <256 byte values");
-                    self.write_daq(a2l_addr.ext, a2l_addr.addr, size as u8).await?;
-
+                    // Sizes are within the limits, see check_daq_limits
+                    self.write_daq(a2l_addr.ext, a2l_addr.addr, a2l_type.size as u8).await?;
                     odt_size += a2l_type.size as u16;
-                    if odt_size > self.max_dto_size - 6 {
-                        return Err(Box::new(XcpError::new(ERROR_ODT_SIZE, 0)) as Box<dyn Error>);
-                    }
                 }
             } // odt_entries
 
-            daq_odt_entries.push(odt_entries);
+            // Event name from the registry event list, for the DAQ decoder
+            daq_lists.push(XcpDaqList {
+                event_id: event,
+                event_name: self.event_name(event),
+                entries: odt_entries,
+            });
         }
 
         // Set DAQ list events
@@ -188,7 +258,7 @@ impl XcpClient {
 
         // Reset the DAQ decoder and set measurement start time
         let daq_clock = self.get_daq_clock_raw().await?;
-        self.daq_decoder.as_ref().unwrap().lock().start(daq_odt_entries, daq_clock);
+        self.daq_decoder.as_ref().unwrap().lock().start(daq_lists, daq_clock);
 
         // Send running=true throught the DAQ control channel to the receive task
         self.task_control.running = true;

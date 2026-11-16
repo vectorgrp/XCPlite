@@ -166,7 +166,7 @@
 // for example to export the spans to a trace viewer (xcpclient --perfetto)
 // The size of the span record does not change, the span nesting level is reduced from 16 to 8 bit
 // (Needs OPTION_DAQ_CONTEXT_LIST)
-#define OPTION_DAQ_SPAN_THREAD
+// #define OPTION_DAQ_SPAN_THREAD
 
 // Memory bytes used for XCP DAQ tables
 // 6 bytes per measurement signal (ODT entry) needed
@@ -226,9 +226,8 @@
 // #define OPTION_SECTION_REGISTRATION // Default is Off
 
 // With section registration off, the macros for event and calibration segment creation still work, but events and segments are created at runtime at the call site, not at compile
-// and link time and in XcpInit This may lead to unstable event and calibration segment numbering across application runs, when OPTION_ENABLE_PERSISTENCE is not enabled. The C macros
-// still create static marker variables to help offline A2L generators
-// DaqCreateEvent and its variants:
+// and link time and in XcpInit This may lead to unstable event and calibration segment numbering across application runs, when OPTION_ENABLE_PERSISTENCE is not enabled. The C
+// macros still create static marker variables to help offline A2L generators DaqCreateEvent and its variants:
 //   static const tXcpEventDescriptor evt__##event_name = <event_descriptor>; // at the call site of DaqCreateEvent
 // DaqTriggerEvent and its variants:
 //   static tXcpEventId trg__AAS__##event_name = <event_id>; // at the call site of DaqTriggerEvent

@@ -113,7 +113,7 @@ impl DaqDecoder {
 
 impl XcpDaqDecoder for DaqDecoder {
     // Set start time and reset
-    fn start(&mut self, _odt_entries: Vec<Vec<OdtEntry>>, timestamp: u64) {
+    fn start(&mut self, _daq_lists: Vec<XcpDaqList>, timestamp: u64) {
         DAQ_BYTES.store(0, std::sync::atomic::Ordering::Relaxed);
         self.tot_events = 0;
         self.tot_bytes = 0;

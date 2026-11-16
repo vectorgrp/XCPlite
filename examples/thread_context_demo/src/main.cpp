@@ -62,6 +62,9 @@ int main() {
     }
 
     {
+        auto mainloop_context = xcp::Context("Mainloop");
+        xcp::Scope mainloop_scope(mainloop_context);
+
         // Simplified signal generator C++ class taken from cpp_demo
         const signal_generator::SignalParametersT kSignalParameters1 = {
             .ampl = 50,

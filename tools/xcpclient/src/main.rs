@@ -372,8 +372,6 @@ impl ToLogLevelFilter for u8 {
 // Handle incoming DAQ data
 // Prints the decoded data to the console
 
-const MAX_EVENT: usize = 64;
-
 // Quote a CSV field, if it contains a separator, a quote or a line break
 fn csv_field(s: &str) -> std::borrow::Cow<'_, str> {
     if s.contains([',', '"', '\n', '\r']) {
@@ -384,12 +382,12 @@ fn csv_field(s: &str) -> std::borrow::Cow<'_, str> {
 }
 
 struct DaqDecoder {
-    daq_odt_entries: Option<Vec<Vec<OdtEntry>>>,
+    daq_lists: Option<Vec<XcpDaqList>>,
     timestamp_resolution: u64,
     daq_header_size: u8,
     event_count: usize,
     byte_count: usize,
-    daq_timestamp: [u64; MAX_EVENT],          // Last timestamp of each DAQ list, to check for monotonic timestamps
+    daq_timestamp: Vec<u64>,                  // Last timestamp of each DAQ list, to check for monotonic timestamps
     timestamp_extender: DaqTimestampExtender, // 32 to 64 bit timestamp extension, shared by all DAQ lists
     log_measurements: bool,
     csv_writer: Option<std::io::BufWriter<std::fs::File>>,
@@ -428,12 +426,12 @@ impl DaqDecoder {
             }
         };
         DaqDecoder {
-            daq_odt_entries: None,
+            daq_lists: None,
             timestamp_resolution: 0,
             daq_header_size: 0,
             event_count: 0,
             byte_count: 0,
-            daq_timestamp: [0; MAX_EVENT],
+            daq_timestamp: Vec::new(),
             timestamp_extender: DaqTimestampExtender::new(0),
             log_measurements,
             csv_writer,
@@ -452,19 +450,17 @@ impl DaqDecoder {
 
 impl XcpDaqDecoder for DaqDecoder {
     // Set start time and init
-    fn start(&mut self, daq_odt_entries: Vec<Vec<OdtEntry>>, timestamp: u64) {
+    fn start(&mut self, daq_lists: Vec<XcpDaqList>, timestamp: u64) {
         // Init
         // The timestamp resolution is known, set_daq_properties is called at connect
         self.last_timestamp_ns = timestamp * self.timestamp_resolution;
         if let Some(ref mut writer) = self.perfetto_writer {
-            writer.start(&daq_odt_entries, self.last_timestamp_ns);
+            writer.start(&daq_lists, self.last_timestamp_ns);
         }
-        self.daq_odt_entries = Some(daq_odt_entries);
+        self.daq_timestamp = vec![timestamp; daq_lists.len()];
+        self.daq_lists = Some(daq_lists);
         self.event_count = 0;
         self.byte_count = 0;
-        for t in self.daq_timestamp.iter_mut() {
-            *t = timestamp;
-        }
         self.timestamp_extender = DaqTimestampExtender::new(timestamp);
 
         // Write CSV header
@@ -519,8 +515,16 @@ impl XcpDaqDecoder for DaqDecoder {
             }
         }
 
-        assert!(daq < MAX_EVENT as u16);
-        assert!(odt == 0);
+        // Only DAQ lists of the measurement setup with a single ODT are expected, ignore anything else
+        if daq as usize >= self.daq_timestamp.len() || odt != 0 {
+            warn!(
+                "Unexpected DAQ packet ignored: daq={}, odt={}, {} DAQ lists with one ODT configured",
+                daq,
+                odt,
+                self.daq_timestamp.len()
+            );
+            return;
+        }
 
         // Decode full 64 bit daq timestamp
         // The extension uses the newest timestamp of all DAQ lists as reference, the order is checked for each DAQ list on its own
@@ -543,13 +547,17 @@ impl XcpDaqDecoder for DaqDecoder {
 
         // Print to the console, if there is no output file
         let console = self.csv_writer.is_none() && self.perfetto_writer.is_none();
+        let daq_list = &self.daq_lists.as_ref().unwrap()[daq as usize];
         if console {
-            println!("EVENT: daq={}, odt={}, lost={}, t={}ns (+{}us)", daq, odt, lost, t_ns, delta_us);
+            match &daq_list.event_name {
+                Some(name) => println!("EVENT: {} (id={}, daq={}), lost={}, t={}ns (+{}us)", name, daq_list.event_id, daq, lost, t_ns, delta_us),
+                None => println!("EVENT: id={}, daq={}, lost={}, t={}ns (+{}us)", daq_list.event_id, daq, lost, t_ns, delta_us),
+            }
         }
 
         // Decode all odt entries — for terminal (log_level >= 2) and/or CSV output
         {
-            let daq_list = &self.daq_odt_entries.as_ref().unwrap()[daq as usize];
+            let daq_list = &daq_list.entries;
 
             if let Some(ref mut writer) = self.perfetto_writer {
                 writer.sample(daq as usize, t_ns, daq_list, data);

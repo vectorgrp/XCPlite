@@ -29,7 +29,7 @@ use std::io::Write;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
-use crate::xcp_client::{A2lValue, OdtEntry};
+use crate::xcp_client::{A2lValue, OdtEntry, XcpDaqList};
 
 // Process id of the signals which do not belong to a context, the contexts follow
 // Above the thread ids, Perfetto marks a thread with the id of its process as main thread
@@ -235,8 +235,9 @@ impl<W: Write> PerfettoWriter<W> {
     }
 
     /// Start of the measurement
-    /// odt_entries are the signals of each DAQ list, start is the timestamp of the measurement start in ns
-    pub fn start(&mut self, odt_entries: &[Vec<OdtEntry>], start: u64) {
+    /// daq_lists are the signals of each DAQ list, start is the timestamp of the measurement start in ns
+    pub fn start(&mut self, daq_lists: &[XcpDaqList], start: u64) {
+        let odt_entries: Vec<&[OdtEntry]> = daq_lists.iter().map(|d| d.entries.as_slice()).collect();
         self.start = start;
         self.daq_lists.clear();
         self.span_tracks.clear();
@@ -250,7 +251,7 @@ impl<W: Write> PerfettoWriter<W> {
         // Contexts: the DAQ lists with a span record
         let mut contexts: Vec<(String, u32)> = Vec::new(); // Context name and pid
         let mut span_records = Vec::new();
-        for entries in odt_entries {
+        for entries in odt_entries.iter().copied() {
             let record = Self::find_span_record(entries);
             if let Some((context, ..)) = &record {
                 let pid = PID_ECU + 1 + contexts.len() as u32;
@@ -509,9 +510,18 @@ mod tests {
     fn run(odt_entries: Vec<Vec<OdtEntry>>, samples: &[(usize, u64, Vec<u8>)], stop: u64) -> (Vec<serde_json::Value>, u64, u64) {
         let mut writer = PerfettoWriter::new(Vec::new());
         writer.set_ecu_name("demo");
-        writer.start(&odt_entries, 1000);
+        let daq_lists: Vec<XcpDaqList> = odt_entries
+            .into_iter()
+            .enumerate()
+            .map(|(i, entries)| XcpDaqList {
+                event_id: i as u16,
+                event_name: None,
+                entries,
+            })
+            .collect();
+        writer.start(&daq_lists, 1000);
         for (daq, t, data) in samples {
-            writer.sample(*daq, *t, &odt_entries[*daq], data);
+            writer.sample(*daq, *t, &daq_lists[*daq].entries, data);
         }
         writer.stop(stop);
         let (spans, resyncs) = (writer.span_count(), writer.resync_count());
