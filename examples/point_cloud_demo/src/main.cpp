@@ -27,6 +27,11 @@ constexpr size_t OPTION_QUEUE_SIZE = (1024 * 64);
 constexpr int OPTION_LOG_LEVEL = 4;
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
+// Size of the point cloud
+// Each point has 4 measurement signals (x, y, z, r)
+// Measuring all 2052 signals with xcpclient (17 DAQ lists) needs more than 12652 bytes of OPTION_DAQ_MEM_SIZE in xcplib_cfg.h
+constexpr size_t OPTION_POINT_COUNT = 512;
+
 //-----------------------------------------------------------------------------------------------------
 
 namespace point_cloud {
@@ -439,7 +444,7 @@ int main() {
     }
 
     // Create a PointCloud instance with max N points
-    point_cloud::PointCloud<1000> point_cloud;
+    point_cloud::PointCloud<OPTION_POINT_COUNT> point_cloud;
 
     // Main loop
     std::cout << "\nStarting main loop... (Press Ctrl+C to exit)" << std::endl;

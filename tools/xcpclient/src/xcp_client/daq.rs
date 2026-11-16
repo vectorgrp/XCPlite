@@ -6,16 +6,83 @@
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
-use std::collections::HashMap;
 use std::error::Error;
 
 use super::*;
 
 // Limits of the DAQ setup
-const MAX_DAQ_COUNT: usize = 1024; // DAQ lists, one for each event
+const MAX_DAQ_COUNT: usize = 1024; // DAQ lists
 const MAX_ODT_ENTRY_COUNT: usize = 0x7B; // ODT entries (signals) in an ODT
 const MAX_ODT_ENTRY_SIZE: usize = 255; // Size of an ODT entry (signal) in bytes
 const DAQ_TIMESTAMP_SIZE: usize = 4; // Size of the timestamp in the first ODT of a DAQ list
+
+// Signals of the span record of a context: <context>.span, <context>.level, <context>.span_dt and <context>.thread
+const SPAN_RECORD_SUFFIXES: [&str; 4] = ["span", "level", "span_dt", "thread"];
+
+/// Distribute the measurement objects to DAQ lists
+/// Returns the event id and the measurement object indices of each DAQ list, sorted by event id
+///
+/// There is only one ODT per DAQ list. An event with more signals than fit into one ODT (max_odt_entry_count signals,
+/// max_odt_size bytes) gets as many DAQ lists as needed. The XCP server samples all DAQ lists of an event with the same timestamp.
+/// The order of the signals of an event is kept, with one exception: when an event is split, the span record of a context is
+/// moved to the front, because it has to be in one DAQ list (it is decoded as a whole).
+fn split_daq_lists(objects: &[XcpClientMeasurementObject], max_odt_entry_count: usize, max_odt_size: usize) -> Result<Vec<(u16, Vec<usize>)>, String> {
+    // Signal size
+    let max_size = MAX_ODT_ENTRY_SIZE.min(max_odt_size);
+    for m in objects {
+        if m.a2l_type.size > max_size {
+            return Err(format!(
+                "Measurement object {} is too large: {} bytes, limit is {} bytes",
+                m.name, m.a2l_type.size, max_size
+            ));
+        }
+    }
+
+    // Events, sorted by event id
+    let mut events: Vec<u16> = objects.iter().filter_map(|m| m.a2l_addr.event).collect();
+    events.sort_unstable();
+    events.dedup();
+
+    let mut daq_lists: Vec<(u16, Vec<usize>)> = Vec::new();
+    for event in events {
+        let mut indices: Vec<usize> = (0..objects.len()).filter(|&i| objects[i].a2l_addr.event == Some(event)).collect();
+
+        // Span record to the front, if the event does not fit into one DAQ list
+        let size: usize = indices.iter().map(|&i| objects[i].a2l_type.size).sum();
+        if indices.len() > max_odt_entry_count || size > max_odt_size {
+            let contexts: Vec<&str> = indices.iter().filter_map(|&i| objects[i].name.strip_suffix(".span")).collect();
+            let is_span_record = |i: usize| {
+                contexts.iter().any(|context| {
+                    objects[i]
+                        .name
+                        .strip_prefix(context)
+                        .and_then(|s| s.strip_prefix('.'))
+                        .is_some_and(|s| SPAN_RECORD_SUFFIXES.contains(&s))
+                })
+            };
+            indices.sort_by_key(|&i| !is_span_record(i)); // stable
+        }
+
+        // Fill the DAQ lists in order
+        let mut entries: Vec<usize> = Vec::new();
+        let mut odt_size: usize = 0;
+        for i in indices {
+            let size = objects[i].a2l_type.size;
+            if entries.len() >= max_odt_entry_count || odt_size + size > max_odt_size {
+                daq_lists.push((event, std::mem::take(&mut entries)));
+                odt_size = 0;
+            }
+            entries.push(i);
+            odt_size += size;
+        }
+        daq_lists.push((event, entries));
+    }
+
+    if daq_lists.len() > MAX_DAQ_COUNT {
+        return Err(format!("Too many DAQ lists needed: {}, limit is {}", daq_lists.len(), MAX_DAQ_COUNT));
+    }
+    Ok(daq_lists)
+}
 
 impl XcpClient {
     //------------------------------------------------------------------------
@@ -63,66 +130,13 @@ impl XcpClient {
     }
 
     //------------------------------------------------------------------------
-    // DAQ limits
+    // DAQ event names
 
     /// Unique name of an event from the registry event list (with instance index), None if the event is not in the list
     fn event_name(&self, event: u16) -> Option<String> {
         self.registry
             .as_ref()
             .and_then(|reg| reg.event_list.find_event_id(event).map(|e| e.get_unique_name(reg).into_owned()))
-    }
-
-    /// Check the measurement object list against the limits of the DAQ setup, before any DAQ command is sent to the XCP server
-    /// event_list are the event ids with their signal count
-    /// Restriction: Only one ODT per DAQ list supported yet, so all signals of an event have to fit into one ODT
-    fn check_daq_limits(&self, event_list: &[(u16, u16)]) -> Result<(), Box<dyn Error>> {
-        if event_list.len() > MAX_DAQ_COUNT {
-            return Err(format!(
-                "Too many events to measure: {} events, each needs a DAQ list, limit is {} DAQ lists",
-                event_list.len(),
-                MAX_DAQ_COUNT
-            )
-            .into());
-        }
-
-        // Signal size
-        for m in &self.measurement_object_list {
-            if m.a2l_type.size > MAX_ODT_ENTRY_SIZE {
-                return Err(format!(
-                    "Measurement object {} is too large: {} bytes, limit is {} bytes",
-                    m.name, m.a2l_type.size, MAX_ODT_ENTRY_SIZE
-                )
-                .into());
-            }
-        }
-
-        // Payload of the ODT: MAX_DTO without the DAQ header and the timestamp, which is in the first ODT of a DAQ list
-        let max_odt_size = (self.max_dto_size as usize).saturating_sub(self.daq_header_size as usize + DAQ_TIMESTAMP_SIZE);
-        for &(event, count) in event_list {
-            let label = match self.event_name(event) {
-                Some(name) => format!("{} (id={})", name, event),
-                None => format!("id={}", event),
-            };
-            if count as usize > MAX_ODT_ENTRY_COUNT {
-                return Err(format!(
-                    "ODT overflow: {} signals on event {}, limit is {} signals per event (only one ODT per DAQ list supported)",
-                    count, label, MAX_ODT_ENTRY_COUNT
-                )
-                .into());
-            }
-            let mut odt_size: usize = 0;
-            for m in self.measurement_object_list.iter().filter(|m| m.a2l_addr.event == Some(event)) {
-                odt_size += m.a2l_type.size;
-                if odt_size > max_odt_size {
-                    return Err(format!(
-                        "ODT overflow: the signals on event {} need more than {} bytes (MAX_DTO={}), exceeded at {} (only one ODT per DAQ list supported)",
-                        label, max_odt_size, self.max_dto_size, m.name
-                    )
-                    .into());
-                }
-            }
-        }
-        Ok(())
     }
 
     //------------------------------------------------------------------------
@@ -137,46 +151,22 @@ impl XcpClient {
     pub async fn start_measurement(&mut self) -> Result<(), Box<dyn Error>> {
         debug!("Start measurement");
 
-        // Init
-        let signal_count = self.measurement_object_list.len();
-        let mut daq_lists: Vec<XcpDaqList> = Vec::with_capacity(8);
+        // Distribute the signals to DAQ lists, an event may need more than one
+        // Limits are checked here, before the DAQ setup of the XCP server is changed
+        // Payload of the ODT: MAX_DTO without the DAQ header and the timestamp
+        let max_odt_size = (self.max_dto_size as usize).saturating_sub(self.daq_header_size as usize + DAQ_TIMESTAMP_SIZE);
+        let daq_list_plan = split_daq_lists(&self.measurement_object_list, MAX_ODT_ENTRY_COUNT, max_odt_size)?;
+        let daq_count: u16 = daq_list_plan.len() as u16;
+        debug!("daq count = {}", daq_count);
+        let mut daq_lists: Vec<XcpDaqList> = Vec::with_capacity(daq_list_plan.len());
 
-        // Store all events in a hashmap (eventnumber, signalcount)
-        let mut event_map: HashMap<u16, u16> = HashMap::new();
-        let mut min_event: u16 = 0xFFFF;
-        let mut max_event: u16 = 0;
-        for i in 0..signal_count {
-            let event = self.measurement_object_list[i].get_a2l_addr().event.unwrap();
-            if event < min_event {
-                min_event = event;
-            }
-            if event > max_event {
-                max_event = event;
-            }
-            let count = event_map.entry(event).or_insert(0);
-            *count += 1;
-        }
-        let event_count: u16 = event_map.len() as u16;
-        debug!("event/daq count = {}", event_count);
-
-        // Transform the event hashmap to a sorted array
-        let mut event_list: Vec<(u16, u16)> = Vec::new();
-        for (event, count) in event_map.into_iter() {
-            event_list.push((event, count));
-        }
-        event_list.sort_by(|a, b| a.0.cmp(&b.0));
-
-        // Check the limits before the DAQ setup of the XCP server is changed
-        self.check_daq_limits(&event_list)?;
-
-        // Alloc a DAQ list for each event
-        let daq_count: u16 = event_count;
+        // Alloc the DAQ lists
         self.free_daq().await?;
         self.alloc_daq(daq_count).await?;
         debug!("alloc_daq count={}", daq_count);
 
-        // Alloc one ODT for each DAQ list (event)
-        // @@@@ TODO Restriction: Only one ODT per DAQ list supported yet
+        // Alloc one ODT for each DAQ list
+        // Restriction: Only one ODT per DAQ list supported, an event with more signals has more than one DAQ list
         for daq in 0..daq_count {
             self.alloc_odt(daq, 1).await?;
             debug!("Alloc daq={}, odt_count={}", daq, 1);
@@ -184,56 +174,52 @@ impl XcpClient {
 
         // Alloc ODT entries (signal count) for each ODT/DAQ list
         for daq in 0..daq_count {
-            let odt_entry_count = event_list[daq as usize].1;
+            let odt_entry_count = daq_list_plan[daq as usize].1.len();
             self.alloc_odt_entries(daq, 0, odt_entry_count as u8).await?;
             debug!("Alloc odt_entries: daq={}, odt={}, odt_entry_count={}", daq, 0, odt_entry_count);
         }
 
-        // Create all ODT entries for each daq/event list and store information for the DAQ decoder
+        // Create all ODT entries for each DAQ list and store information for the DAQ decoder
         for daq in 0..daq_count {
-            let event = event_list[daq as usize].0;
-            let odt = 0; // Only one odt per daq list supported yet
-            let odt_entry_count = self.measurement_object_list.len();
+            let event = daq_list_plan[daq as usize].0;
+            let odt = 0; // Only one odt per daq list supported
 
             // Create ODT entries for this daq list
             let mut odt_entries = Vec::new();
             let mut odt_size: u16 = 0;
             self.set_daq_ptr(daq, odt, 0).await?;
-            for odt_entry in 0..odt_entry_count {
-                let m = &mut self.measurement_object_list[odt_entry];
+            for &i in &daq_list_plan[daq as usize].1 {
+                let m = &mut self.measurement_object_list[i];
                 let a2l_addr = m.a2l_addr;
-                if a2l_addr.event == Some(event) {
-                    // Only add signals for the daq list event
-                    let a2l_type: A2lType = m.a2l_type;
-                    m.daq = daq;
-                    m.odt = odt;
-                    m.offset = odt_size + 6;
+                let a2l_type: A2lType = m.a2l_type;
+                m.daq = daq;
+                m.odt = odt;
+                m.offset = odt_size + 6;
 
-                    debug!(
-                        "WRITE_DAQ {} daq={}, odt={},  type={:?}, size={}, ext={}, addr=0x{:08X}, offset={}",
-                        m.name,
-                        daq,
-                        odt,
-                        a2l_type.encoding,
-                        a2l_type.size,
-                        a2l_addr.ext,
-                        a2l_addr.addr,
-                        odt_size + 6
-                    );
+                debug!(
+                    "WRITE_DAQ {} daq={}, odt={},  type={:?}, size={}, ext={}, addr=0x{:08X}, offset={}",
+                    m.name,
+                    daq,
+                    odt,
+                    a2l_type.encoding,
+                    a2l_type.size,
+                    a2l_addr.ext,
+                    a2l_addr.addr,
+                    odt_size + 6
+                );
 
-                    odt_entries.push(OdtEntry {
-                        name: m.name.clone(),
-                        a2l_type,
-                        a2l_addr,
-                        conversion: m.conversion.clone(),
-                        offset: odt_size,
-                    });
+                odt_entries.push(OdtEntry {
+                    name: m.name.clone(),
+                    a2l_type,
+                    a2l_addr,
+                    conversion: m.conversion.clone(),
+                    offset: odt_size,
+                });
 
-                    // Sizes are within the limits, see check_daq_limits
-                    self.write_daq(a2l_addr.ext, a2l_addr.addr, a2l_type.size as u8).await?;
-                    odt_size += a2l_type.size as u16;
-                }
-            } // odt_entries
+                // Sizes are within the limits, see split_daq_lists
+                self.write_daq(a2l_addr.ext, a2l_addr.addr, a2l_type.size as u8).await?;
+                odt_size += a2l_type.size as u16;
+            }
 
             // Event name from the registry event list, for the DAQ decoder
             daq_lists.push(XcpDaqList {
@@ -245,7 +231,7 @@ impl XcpClient {
 
         // Set DAQ list events
         for daq in 0..daq_count {
-            let event = event_list[daq as usize].0;
+            let event = daq_list_plan[daq as usize].0;
             self.set_daq_list_mode(daq, event).await?;
             debug!("Set event: daq={}, event={}", daq, event);
         }
@@ -288,5 +274,62 @@ impl XcpClient {
         self.measurement_object_list.clear();
 
         res
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn object(name: &str, event: u16, size: usize) -> XcpClientMeasurementObject {
+        let a2l_addr = A2lAddr {
+            ext: 0,
+            addr: 0,
+            event: Some(event),
+        };
+        let a2l_type = A2lType {
+            size,
+            encoding: A2lTypeEncoding::Unsigned,
+        };
+        XcpClientMeasurementObject::new(name, a2l_addr, a2l_type, A2lConversion::default())
+    }
+
+    #[test]
+    fn test_split_daq_lists() {
+        // One DAQ list per event, sorted by event id, signal order kept
+        let objects = vec![object("b1", 7, 4), object("a1", 2, 8), object("b2", 7, 1)];
+        assert_eq!(split_daq_lists(&objects, 123, 1016).unwrap(), vec![(2, vec![1]), (7, vec![0, 2])]);
+
+        // Split by signal count
+        let objects: Vec<_> = (0..250).map(|i| object(&format!("s{}", i), 3, 1)).collect();
+        let daq_lists = split_daq_lists(&objects, 123, 1016).unwrap();
+        assert_eq!(daq_lists.iter().map(|d| (d.0, d.1.len())).collect::<Vec<_>>(), vec![(3, 123), (3, 123), (3, 4)]);
+        assert_eq!(daq_lists.iter().flat_map(|d| d.1.clone()).collect::<Vec<_>>(), (0..250).collect::<Vec<_>>());
+
+        // Split by size: 8+8 fits exactly, the 4 byte signal starts a new DAQ list
+        let objects = vec![object("a", 1, 8), object("b", 1, 8), object("c", 1, 4), object("d", 1, 8)];
+        assert_eq!(split_daq_lists(&objects, 123, 16).unwrap(), vec![(1, vec![0, 1]), (1, vec![2, 3])]);
+
+        // The span record of a context is moved to the front when the event is split
+        let objects = vec![
+            object("x", 1, 8),
+            object("ctx.span", 1, 1),
+            object("y", 1, 8),
+            object("ctx.level", 1, 1),
+            object("ctx.span_dt", 1, 4),
+            object("ctx.other", 1, 4),
+        ];
+        assert_eq!(split_daq_lists(&objects, 123, 16).unwrap(), vec![(1, vec![1, 3, 4, 0]), (1, vec![2, 5])]);
+        // Not split, order kept
+        assert_eq!(split_daq_lists(&objects, 123, 1016).unwrap(), vec![(1, vec![0, 1, 2, 3, 4, 5])]);
+
+        // Signal too large
+        assert!(split_daq_lists(&[object("big", 1, 256)], 123, 1016).is_err());
+        assert!(split_daq_lists(&[object("big", 1, 32)], 123, 16).is_err());
+
+        // Too many DAQ lists
+        let objects: Vec<_> = (0..MAX_DAQ_COUNT + 1).map(|i| object(&format!("s{}", i), 1, 1)).collect();
+        assert!(split_daq_lists(&objects, 1, 1016).is_err());
+        assert!(split_daq_lists(&objects[..MAX_DAQ_COUNT], 1, 1016).is_ok());
     }
 }

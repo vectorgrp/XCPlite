@@ -169,8 +169,9 @@
 // #define OPTION_DAQ_SPAN_THREAD
 
 // Memory bytes used for XCP DAQ tables
-// 6 bytes per measurement signal (ODT entry) needed
-#define OPTION_DAQ_MEM_SIZE (512 * 6)
+// 6 bytes per measurement signal (ODT entry), 8 bytes per ODT and 12 bytes per DAQ list needed
+// The default is sufficient for about 2100 signals, when the tool needs a DAQ list with one ODT for each 123 signals (xcpclient)
+#define OPTION_DAQ_MEM_SIZE (2200 * 6)
 
 // Create an cyclic default DAQ event with event id=0 for asynchronous data acquisition
 // May be used as default_event for xcpclient, since xcpclient V4.x explicitly specified as commandline option

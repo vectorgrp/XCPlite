@@ -10,7 +10,7 @@
 //   ./build/daq_config_test <case>   # run one case for step-by-step debugging
 //
 // References: ASAM XCP Protocol Layer 1.4.0, printed page numbers.
-// These fixtures use the default DAQ memory limit (3072 bytes), DTO size dependent cases adapt to XCPTL_MAX_DTO_SIZE.
+// The memory overflow cases adapt to the DAQ memory limit (XCP_DAQ_MEM_SIZE), DTO size dependent cases adapt to XCPTL_MAX_DTO_SIZE.
 // CTest isolates each case and times it out, including cycles inside XcpEventExt().
 
 #include <stdint.h> // for uintxx_t
@@ -335,26 +335,49 @@ static void test_daq_allocation_overflow(void) {
     reinitialize_and_measure();
 }
 
-// At the default 3072-byte pool, 24 + 200*8 fits; 24 + 400*8 does not.
+// Memory needed in the DAQ pool (XCP_DAQ_MEM_SIZE): 12 bytes per DAQ list, 8 bytes per ODT, 6 bytes per ODT entry (5 without XCP_ENABLE_DAQ_ADDREXT)
+#define TEST_DAQ_LIST_MEM_SIZE 12U
+#define TEST_ODT_MEM_SIZE 8U
+#ifdef XCP_ENABLE_DAQ_ADDREXT
+#define TEST_ODT_ENTRY_MEM_SIZE 6U
+#else
+#define TEST_ODT_ENTRY_MEM_SIZE 5U
+#endif
+
+// Allocate 200 ODTs per DAQ list until the pool overflows, independent of the pool size.
+// With a 3072-byte pool, 24 + 200*8 fits; 24 + 400*8 does not.
 // We do NOT retry ALLOC_ODT in the invalid old configuration.
 static void test_odt_allocation_overflow(void) {
-    CHECK(XCP_DAQ_MEM_SIZE == 3072);
-    CHECK(alloc_daq(2) == CRC_CMD_OK);
-    CHECK(alloc_odt(0, 200) == CRC_CMD_OK);
-    CHECK(alloc_odt(1, 200) == CRC_MEMORY_OVERFLOW);
+    const uint32_t odt_count = 200;
+    const uint16_t daq_count = (uint16_t)(XCP_DAQ_MEM_SIZE / (odt_count * TEST_ODT_MEM_SIZE) + 1); // One more than fits
+    bool overflow = false;
+    CHECK(alloc_daq(daq_count) == CRC_CMD_OK);
+    for (uint16_t daq = 0; daq < daq_count && !overflow; daq++) {
+        uint32_t size = daq_count * TEST_DAQ_LIST_MEM_SIZE + (daq + 1U) * odt_count * TEST_ODT_MEM_SIZE;
+        overflow = size >= XCP_DAQ_MEM_SIZE;
+        CHECK(alloc_odt(daq, (uint8_t)odt_count) == (overflow ? CRC_MEMORY_OVERFLOW : CRC_CMD_OK));
+    }
+    CHECK(overflow);
     expect_configuration_cleared();
     reinitialize_and_measure();
 }
 
-// 440 entries fit, 660 do not (5 or 6 bytes per entry). The failed allocation must
+// Allocate 220 ODT entries per ODT until the pool overflows, independent of the pool size.
+// With a 3072-byte pool, 440 entries fit, 660 do not (5 or 6 bytes per entry). The failed allocation must
 // leave the configuration unusable; recovery restarts all allocation phases.
 static void test_odt_entry_allocation_overflow(void) {
-    CHECK(XCP_DAQ_MEM_SIZE == 3072);
+    const uint32_t odt_entry_count = 220;
+    const uint8_t odt_count = (uint8_t)(XCP_DAQ_MEM_SIZE / (odt_entry_count * TEST_ODT_ENTRY_MEM_SIZE) + 1); // One more than fits
+    bool overflow = false;
+    CHECK(XCP_DAQ_MEM_SIZE / (odt_entry_count * TEST_ODT_ENTRY_MEM_SIZE) + 1 < 0x7C); // ODT count limit of a DAQ list
     CHECK(alloc_daq(1) == CRC_CMD_OK);
-    CHECK(alloc_odt(0, 3) == CRC_CMD_OK);
-    CHECK(alloc_odt_entry(0, 0, 220) == CRC_CMD_OK);
-    CHECK(alloc_odt_entry(0, 1, 220) == CRC_CMD_OK);
-    CHECK(alloc_odt_entry(0, 2, 220) == CRC_MEMORY_OVERFLOW);
+    CHECK(alloc_odt(0, odt_count) == CRC_CMD_OK);
+    for (uint8_t odt = 0; odt < odt_count && !overflow; odt++) {
+        uint32_t size = TEST_DAQ_LIST_MEM_SIZE + odt_count * TEST_ODT_MEM_SIZE + (odt + 1U) * odt_entry_count * TEST_ODT_ENTRY_MEM_SIZE;
+        overflow = size >= XCP_DAQ_MEM_SIZE;
+        CHECK(alloc_odt_entry(0, odt, (uint8_t)odt_entry_count) == (overflow ? CRC_MEMORY_OVERFLOW : CRC_CMD_OK));
+    }
+    CHECK(overflow);
     expect_configuration_cleared();
     reinitialize_and_measure();
 }
