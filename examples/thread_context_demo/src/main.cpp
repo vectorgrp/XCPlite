@@ -69,7 +69,7 @@ int main() {
         const signal_generator::SignalParametersT kSignalParameters1 = {
             .ampl = 50,
             .phase = 0.0,
-            .offset = 0.0,
+            .offset = -50.0,
             .period = 1.0,                                          // s
             .delay_us = 5000,                                       // us
             .signal_type = signal_generator::SignalTypeT::TRIANGLE, // Type of the signal
@@ -77,9 +77,9 @@ int main() {
         signal_generator::SignalGenerator signal_generator_1("SigGen1", &kSignalParameters1);
 
         const signal_generator::SignalParametersT kSignalParameters2 = {
-            .ampl = 110.0,
+            .ampl = 50.0,
             .phase = 0.0,
-            .offset = 0.0,
+            .offset = +50.0,
             .period = 0.5,                                      // s
             .delay_us = 5000,                                   // us
             .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
@@ -88,27 +88,37 @@ int main() {
 
         sleepUs(100000); // Wait a bit to let the signal generator threads initialize
 
-        // Poll once to register the instrumentation in Poll
-        (void)signal_generator_1.Poll();
-        (void)signal_generator_2.Poll();
-
         // Main loop
         std::cout << "Starting main loop..." << std::endl;
         double channel1, channel2;
         while (running) {
 
             // Poll the current values of signal generator 1+2
-            channel1 = signal_generator_1.Poll();
-            channel2 = signal_generator_2.Poll();
+            // Each poll in its own span, the span poll in SignalGenerator::Poll is nested in poll_1 or poll_2
+            {
+                DaqSpan(get_channel1);
+                sleepUs(100);
+                channel1 = signal_generator_1.Poll();
+                sleepUs(100);
+            }
+            {
+                DaqSpan(get_channel2);
+                sleepUs(100);
+                channel2 = signal_generator_2.Poll();
+                sleepUs(100);
+            }
 
-            // Trigger the XCP measurement event mainloop for local variables channel1 and channel2
-            DaqEventVar(mainloop,                                                                           //
-                        A2L_MEAS_PHYS(channel1, "Current value of signal generator 1", "Volt", -1.0, +1.0), //
-                        A2L_MEAS_PHYS(channel2, "Current value of signal generator 2", "Volt", -1.0, +1.0)  //
+            // Trigger the XCP measurement event mainloop for local variables 'channel1' and 'channel2' in context 'Mainloop' with event 'mainloop'
+            // DaqEventVar will also work, but the value will not be displayed in the Mainloop context track
+            DaqEventCtxVar(mainloop,                                                                                      //
+                           A2L_MEAS_PHYS(channel1, "Polled current value of signal generator 1", "Volt", -100.0, +100.0), //
+                           A2L_MEAS_PHYS(channel2, "Polled current value of signal generator 2", "Volt", -100.0, +100.0)  //
             );
 
-            // std::cout << channel1 << " , " << channel2 << std::endl;
-            sleepUs(20000); // 20ms
+            {
+                DaqSpan(work);
+                sleepUs(20000); // 20ms
+            }
 
         } // while (running)
 

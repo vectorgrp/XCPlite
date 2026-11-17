@@ -83,7 +83,9 @@ SignalGenerator::~SignalGenerator() {
 // Get the current value, called from other threads (the main loop)
 // The method attaches the context of its instance for the duration of the call, the context of the caller is restored on return
 double SignalGenerator::Poll() const {
-    xcp::Scope scope(context_);
+    // Attach the signal generator instance context, possible with OPTION_DAQ_SPAN_THREAD
+    // If not done, the trace will not contain the information which instance was polled, must be context of the caller
+    // xcp::Scope scope(context_);
     DaqSpan(poll);
     double polled = output_.load(std::memory_order_relaxed);
     sleepUs(1000); // 1ms @@@@ TEST: Simulate some more expensive work
