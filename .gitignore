@@ -46,3 +46,4 @@ wlan.h
 /docs/rcu_improvements/rcu.h
 /docs/rcu_improvements/review.md
 /trace.json
+/thread_context_demo.json

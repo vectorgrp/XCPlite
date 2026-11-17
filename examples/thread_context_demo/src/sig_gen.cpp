@@ -32,7 +32,10 @@ static double Clip(double input) {
         clipped = kClipLimit;
     if (clipped < -kClipLimit)
         clipped = -kClipLimit;
-    DaqEventCtxVar(clip, A2L_MEAS_PHYS(input, "Clip function input", "Volt", -100.0, +100.0), A2L_MEAS_PHYS(clipped, "Clip function output", "Volt", -100.0, +100.0));
+    DaqEventCtxVar(clip,                                                               //
+                   A2L_MEAS_PHYS(input, "Clip function input", "Volt", -100.0, +100.0) //
+                                                                                       // A2L_MEAS_PHYS(clipped, "Clip function output", "Volt", -100.0, +100.0) //
+    );
     sleepUs(1000); // 1ms @@@@ TEST: Simulate some more expensive work
     return clipped;
 }

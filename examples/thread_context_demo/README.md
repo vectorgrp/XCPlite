@@ -25,7 +25,7 @@ attributed at all.
 
 | Term | Meaning |
 |---|---|
-| `xcp::Context` | A named identity, "who is executing". One per class instance here (`SigGen1`, `SigGen2`). |
+| `xcp::Context` | A named identity, "who is executing". One per class instance here (`SigGen1`, `SigGen2`), and one for each phase of the main thread (`Startup`, `Mainloop`). |
 | `xcp::Scope` | Makes a context the current context of the calling thread and restores the previous one at the end of the block. The current context is in thread-local storage. |
 | `DaqEventCtxVar` | Context-aware variant of `DaqEventVar`. Uses a separate event and separate measurements for each context, the event is named `<context>.<event>`. |
 | `DaqSpan` | A named, timed section of code. Begin and end are recorded on the event `<context>.spans` of the current context. |
@@ -43,27 +43,45 @@ in [src/sig_gen.cpp](src/sig_gen.cpp) is instrumented without knowing its instan
 
 ## What the demo measures
 
+The demo has four contexts. `SigGen1` and `SigGen2` are the two signal generator instances, each attached to its own task thread.
+`Startup` and `Mainloop` are attached to the main thread, one after the other.
+
 | Event | Measurements | Triggered by |
 |---|---|---|
 | `SigGen1.siggen`, `SigGen2.siggen` | `SigGen1.value_`, `SigGen2.value_` | the task thread of each instance |
 | `SigGen1.clip`, `SigGen2.clip` | `SigGen1.input`, `SigGen1.clipped` (same for `SigGen2`) | the shared function `Clip()` |
-| `SigGen1.poll`, `SigGen2.poll` | `SigGen1.polled`, `SigGen2.polled` | the main thread, method `Poll()` attaches the context of its instance |
-| `SigGen1.spans`, `SigGen2.spans` | `.span`, `.level`, `.span_dt`, `.thread` | begin and end of each span in this context |
-| `mainloop` | `channel1`, `channel2` | the main loop |
+| `Mainloop.poll` | `Mainloop.polled` | the method `Poll()` of both instances, called by the main loop |
+| `Mainloop.mainloop` | `Mainloop.channel1`, `Mainloop.channel2`, `Mainloop.sum` | the main loop |
+| `Startup.spans`, `Mainloop.spans`, `SigGen1.spans`, `SigGen2.spans` | `.span`, `.level`, `.span_dt` | begin and end of each span in this context |
 
-The span signals of one context show the sequence calc (level 1), clip (level 2), calc, none, with the
+Spans:
+
+| Context | Spans | Executed by |
+|---|---|---|
+| `Startup` | `initialize`: creates the two signal generator instances and waits 100 ms | main thread, once |
+| `Mainloop` | `calc_sum` with the nested spans `get_channel1` and `get_channel2`, each with a nested `poll`, then `analyze` | main thread, every 15 ms |
+| `SigGen1`, `SigGen2` | `calc` with the nested span `clip` | task thread of the instance, every 5 ms |
+
+The span signals of one context show for example the sequence calc (level 1), clip (level 2), calc, none, with the
 duration of the span that just ended in `span_dt`. Span names are displayed through the enum conversion
 `conv.spans`, which the A2L generator creates from all span names registered when the A2L file is finalized.
 
 The event names carry the context name, so the event list and the event groups of the tool show what an
 event contains (`SigGen1.siggen` instead of a numbered event instance).
 
-`.thread` is a small index of the thread which began or ended the span (`OPTION_DAQ_SPAN_THREAD`, enabled by default). The indices
-are assigned in the order in which the threads begin their first span. In this demo each context is executed by two threads, its
-task thread and the main thread which calls `Poll()`. The thread index tells their spans apart.
+`Poll()` does not attach the context of its instance, it runs in the context of its caller. Its span `poll` is therefore nested in
+`get_channel1` or `get_channel2` in the context `Mainloop`, and the enclosing span tells which instance was polled. The event
+`Mainloop.poll` is triggered for both instances, so `Mainloop.polled` contains the values of both. The alternative is in the code
+as a comment: with `xcp::Scope scope(context_)` in `Poll()`, the span and the event belong to the context of the instance
+(`SigGen1.poll`, `SigGen1.polled`). The span is then not nested in the span of the caller, because attaching a context starts
+without a current span, and the context is executed by two threads, which needs `OPTION_DAQ_SPAN_THREAD` to tell their spans apart.
 
-The spans of the demo contain sleeps of 1 ms (`clip`, `poll`) and 2 ms (`calc`) to simulate work, so that they are easy to see
-in a trace viewer.
+`OPTION_DAQ_SPAN_THREAD` is not defined by default. With the option, the spans event of a context has the additional measurement
+`.thread`, a small index of the thread which began or ended the span. The indices are assigned in the order in which the threads
+begin their first span. In this demo each context is executed by one thread at a time, so the option is not needed.
+
+The spans of the demo contain sleeps to simulate work, so that they are easy to see in a trace viewer: 1 ms in `clip` and `poll`,
+2 ms in `calc`, 100 us before and after each `Poll()` and in `analyze`.
 
 ## Building and running
 
@@ -86,6 +104,25 @@ Measure all signals with xcpclient for 5 seconds into a CSV file:
 xcpclient --udp --mea '.*' --time 5 --csv mea.csv
 ```
 
+### Measuring the startup
+
+The span `initialize` in the context `Startup` is executed once, before the main loop. To get it into a measurement, the demo
+waits in `wait_xcp()` until the XCP client has started the measurement, and then begins with the startup.
+
+This works from the second run on. The demo uses `A2L_MODE_WRITE_ONCE`, so the A2L file and the binary persistence file of the
+first run are kept. In the next run, the events of all contexts are preloaded from the persistence file, and the client can set up
+the measurement before any instrumented code has been executed.
+
+1. First run: start the demo and stop it with Ctrl-C. There is no A2L file yet, the demo does not wait and prints
+   `First run, thread_context_demo_V0.9.a2l is generated now, restart to measure the startup`. The A2L file and the `.bin` file
+   are written at shutdown, or earlier when a client connects.
+2. Second run: start the demo again. It prints `Waiting for the XCP client to start the measurement (Ctrl-C to abort) ...`.
+3. Start the measurement with xcpclient or CANape. The demo continues with the startup and the main loop.
+
+Span ids are not stored in the persistence file, they are assigned in the order in which the spans are executed for the first time.
+The A2L file of the first run is valid for the second run only as long as this order is the same. The constructor of the signal
+generator waits for the first cycle of its task for this reason.
+
 ## Viewing the spans in Perfetto
 
 xcpclient can write the measurement as a trace file for [Perfetto](https://ui.perfetto.dev):
@@ -94,20 +131,20 @@ xcpclient can write the measurement as a trace file for [Perfetto](https://ui.pe
 xcpclient --udp --mea '.*' --time 5 --perfetto trace.json
 ```
 
-Open `trace.json` with "Open trace file" in the Perfetto UI. Each context is shown as a process: `SigGen1` and `SigGen2` have a track
-for their task thread with the nested spans `calc` and `clip`, and a track for the main thread with the span `poll`. The signals of a
-context (`SigGen1.value_`, `SigGen1.clipped`, ...) are counter tracks in the process of their context, `channel1` and `channel2` are in
-the process `thread_context_demo`. Details are in the [xcpclient README](../../tools/xcpclient/README.md).
+Open `trace.json` with "Open trace file" in the Perfetto UI. Each context is shown as a process with one track `spans` and a counter
+track for each of its signals:
 
-Overview of about 500 ms: the main loop signals `channel1` and `channel2`, below them the context `SigGen1` with the spans of its task
-thread (`thread 1`), the spans of the main thread (`thread 3`) and its signals.
+- `Startup`: the span `initialize`, if the measurement was started before the startup (see "Measuring the startup").
+- `Mainloop`: `calc_sum` with the nested spans `get_channel1` and `get_channel2`, a `poll` nested in each of them, followed by
+  `analyze`. The signals are `Mainloop.channel1`, `Mainloop.channel2`, `Mainloop.sum` and `Mainloop.polled`.
+- `SigGen1`, `SigGen2`: `calc` with the nested span `clip`, and the signals `.value_`, `.input` and `.clipped`.
 
-<img src="perfetto1.png" alt="Perfetto overview: signals and span tracks of the context SigGen1" width="900">
+The main loop and the two task threads run independently, so the spans of different contexts overlap in time.
+Details are in the [xcpclient README](../../tools/xcpclient/README.md).
 
-Zoomed in to 40 ms: `clip` is nested in `calc` in the task thread of each context. `poll` is executed by the main thread for both
-contexts, one after the other, independent of the task threads, so it may overlap their spans.
+<img src="perfetto1.png" alt="Perfetto overview: signals and span tracks of the contexts" width="900">
 
-<img src="perfetto2.png" alt="Perfetto zoomed in: nested spans calc and clip, poll in the main thread, for SigGen1 and SigGen2" width="900">
+<img src="perfetto2.png" alt="Perfetto zoomed in: nested spans of the contexts" width="900">
 
 ## How it differs from OpenTelemetry
 
@@ -142,7 +179,7 @@ Library
 
 - Options `OPTION_DAQ_CONTEXT_LIST`, `OPTION_DAQ_CONTEXT_COUNT` (8), `OPTION_DAQ_SPAN_COUNT` (32) and `OPTION_DAQ_SPAN_THREAD`,
   see [docs/xcplib_cfg.md](../../docs/xcplib_cfg.md). Enabled in the default and the shm configuration, undefined in ptp, raw,
-  no_a2l and rtos.
+  no_a2l and rtos. `OPTION_DAQ_SPAN_THREAD` is not defined by default.
 - [src/ctx.c](../../src/ctx.c), `src/ctx.h`: context list and span name list next to the event list. `XcpCreateContext`,
   `XcpGetContextName`, `XcpGetContextCount`, `XcpCreateContextEvent`, `XcpRegisterSpanName`.
 - [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp), included by `xcplib.hpp`: `xcp::Context`, `xcp::Scope`, `xcp::Span`,
@@ -160,7 +197,8 @@ Persistence
 - The context name is stored with each event in the binary persistence file, the context list is rebuilt from the events on load.
 - `tools/bintool` shows an event which belongs to a context as `<context>.<event>`, with the context name and id.
 - The demo uses `A2L_MODE_WRITE_ONCE`: after a change which affects the A2L file without a new EPK, for example toggling
-  `OPTION_DAQ_SPAN_THREAD`, delete the `.a2l` and `.bin` file in the working directory.
+  `OPTION_DAQ_SPAN_THREAD` or adding, renaming or reordering spans, delete the `.a2l` and `.bin` file in the working directory.
+- Span names and span ids are not stored in the binary persistence file.
 
 ## Memory consumption
 
@@ -206,7 +244,8 @@ Only combinations which are actually executed create an event. Worst case with t
 | 8 | 72 | 2.0 KB | no |
 | 16 | 136 | 3.8 KB | no |
 
-This demo has 2 contexts, 3 code locations and the event `mainloop`, which is 9 events. The limit is
+This demo has 4 contexts and 4 code locations, of which `clip` and `siggen` are executed in 2 contexts and `poll` and `mainloop` in one,
+which is 10 events. The limit is
 1000 events (`OPTION_DAQ_EVENT_COUNT`). When the event list is full, `DaqEventCtxVar` measures nothing
 for this context and code location, and tries to create the event again on every call.
 
@@ -220,14 +259,16 @@ Not affected by the number of contexts or code locations:
 ## Findings and limitations
 
 - **Event budget.** One event per context, plus one per context and context-aware code location
-  (9 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 16 by default). The number of contexts is limited
+  (10 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 16 by default). The number of contexts is limited
   by `OPTION_DAQ_CONTEXT_COUNT` (8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (32).
 - **Monotonic timestamps.** The timestamps of an XCP event must be monotonic. A context can be attached
-  to several threads at the same time (task thread and `Poll()` from the main thread), so the span events
+  to several threads at the same time (for example a task thread and a method called from another thread), so the span events
   of a context are serialized with a spin lock. A context-aware event must not be triggered concurrently
   by several threads in the same context at the same code location.
 - **A2L timing.** Contexts, context-aware events and spans must have been executed once before the A2L
-  file is finalized.
+  file is finalized. Code which runs only once at startup can be measured from the second run on, see "Measuring the startup".
+- **Span ids.** Span ids depend on the order in which the spans are executed for the first time. With `A2L_MODE_WRITE_ONCE`, this
+  order must not change between runs, otherwise `conv.spans` of the existing A2L file shows wrong span names.
 - **Span duration.** `span_dt` belongs to the span that just ended, the end sample does not name it.
 - **Thread index.** `.thread` is an index local to the process, not the thread id of the operating system, and limited to 255 threads.
   Without `OPTION_DAQ_SPAN_THREAD`, the spans of several threads in one context can not be told apart.
