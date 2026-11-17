@@ -46,7 +46,7 @@ Experimental changes based on named event context (work in progress):
 - New option `OPTION_DAQ_SPAN_THREAD` (default: undefined): The span record of a context has the additional measurement `<context>.thread`, a small index of the thread which began or ended the span. This is similar to the prior event instance indices. The perfetto json export (see below) creates automatic tracks per thread in this case. Experimental, might be removed again.
 
 
-Supporting changes in `xcpclient`:
+Supporting changes in `xcpclient` (xcpclient V4.1.0):
 
 - New option `--perfetto <file>`, extracts tracks, spans and measurement signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`.
 - Print values in physical unit or as enum strings in console and csv. Enum conversion is used to display span names. 

@@ -5,7 +5,7 @@ XCP test client and A2L generator implementation in Rust
 Used for integration testing and for uploading or generating A2L files.  
 Partial XCP implementation with hard-coded protocol settings for XCPlite.  
 
-XCP client v3.x for testing XCP servers and managing A2L and HEX files.
+XCP client v4.x for testing XCP servers and managing A2L and HEX files.
 
 This tool can:
 - Connect to XCP on Ethernet servers via TCP or UDP and show information about the XCP protocol and the target ECU
