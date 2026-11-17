@@ -141,9 +141,8 @@
 #define OPTION_DAQ_EVENT_LIST
 
 // Maximum number of DAQ events (integer value, must be even)
-// Needs OPTION_DAQ_EVENT_COUNT*2 bytes of memory
-// If OPTION_DAQ_EVENT_LIST is off, event number is bound which is used for optimization
-#define OPTION_DAQ_EVENT_COUNT (16)
+// If OPTION_DAQ_EVENT_LIST is off, event number is still bound and used for lookup optimization
+#define OPTION_DAQ_EVENT_COUNT (32)
 
 // Enable DAQ contexts and spans
 // A context is a named identity ("who is executing"), for example a class instance or a worker thread.

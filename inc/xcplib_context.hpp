@@ -104,9 +104,7 @@ inline uint8_t threadIndex() {
     return index;
 }
 
-inline SpanRecord makeSpanRecord(uint32_t span_dt, uint16_t span, uint16_t level) {
-    return SpanRecord{span_dt, span, (uint8_t)(level > 255 ? 255 : level), threadIndex()};
-}
+inline SpanRecord makeSpanRecord(uint32_t span_dt, uint16_t span, uint16_t level) { return SpanRecord{span_dt, span, (uint8_t)(level > 255 ? 255 : level), threadIndex()}; }
 
 #else
 
@@ -155,7 +153,8 @@ class Context {
             A2lCreateMeasurement_(name_, "level", xcp::a2l::GetTypeIdFromExpr(record.level), 1, &record.level, nullptr, 0, 255, "Current span nesting level");
             A2lCreateMeasurement_(name_, "span_dt", xcp::a2l::GetTypeIdFromExpr(record.span_dt), 1, &record.span_dt, "ns", 0, 4294967295.0, "Duration of the span that ended");
 #ifdef OPTION_DAQ_SPAN_THREAD
-            A2lCreateMeasurement_(name_, "thread", xcp::a2l::GetTypeIdFromExpr(record.thread), 1, &record.thread, nullptr, 0, 255, "Index of the thread which began or ended the span");
+            A2lCreateMeasurement_(name_, "thread", xcp::a2l::GetTypeIdFromExpr(record.thread), 1, &record.thread, nullptr, 0, 255,
+                                  "Index of the thread which began or ended the span");
 #endif
             A2lUnlock();
         }
@@ -215,7 +214,7 @@ class Scope {
 //-----------------------------------------------------------------------------------------------------
 // Span
 // Begin a span in the constructor, end it in the destructor
-// Without a current context, a span does nothing
+// Without a current context with its span event, a span does nothing
 
 class Span {
 
@@ -238,7 +237,7 @@ class Span {
         current.span = previous_span_;
         current.level--;
         // The duration is measured up to the end of the span, the timestamp of the end event is taken slightly later
-        const uint64_t dt = ApplXcpGetClock64() - begin_;
+        const uint64_t dt = ApplXcpGetClock64() - begin_; // @@@@ TODO: Take the timestamp only once
         current.context->TriggerSpanEvent(detail::makeSpanRecord(dt > UINT32_MAX ? UINT32_MAX : (uint32_t)dt, current.span, current.level));
     }
 
@@ -257,6 +256,7 @@ class Span {
 #define DaqSpan(name)                                                                                                                                                              \
     static const uint16_t span_id__##name = XcpRegisterSpanName(#name);                                                                                                            \
     xcp::Span span__##name(span_id__##name)
+// @@@@ TODO: Create a once pattern, avoid the repeated mutex to find the span name already exists
 
 //-----------------------------------------------------------------------------------------------------
 // Context-aware event trigger

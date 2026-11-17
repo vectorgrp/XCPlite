@@ -1,11 +1,16 @@
 # thread_context_demo — context and spans for multiple instances
 
-Experimental. Demonstrates how XCPlite can measure individual time series when the same code runs for several class instances
+Experimental PoC. Work in progress. Not optimized yet. 
+
+Demonstrates how XCPlite can measure individual time series when the same code runs for several class instances
 or in several threads, using a concept borrowed from OpenTelemetry (OTel): context, scope and span.
 
-The API extensions are part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp)
-(included by `xcplib.hpp`). They need the option `OPTION_DAQ_CONTEXT_LIST`, which is enabled in the default and the shm
-configuration, the configurations with on-target A2L generation.
+The API extensions are now part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp)
+(included by `xcplib.hpp`). They need the option `OPTION_DAQ_CONTEXT_LIST`, which is currently enabled in the default and the shm
+configuration, the configurations with on-target A2L generation. It costs nothing, when not used.  
+
+The old first C implementation of context and span in multi_thread_demo main.c has been replaced by this C++ example.
+
 
 ---
 
@@ -119,9 +124,6 @@ the measurement before any instrumented code has been executed.
 2. Second run: start the demo again. It prints `Waiting for the XCP client to start the measurement (Ctrl-C to abort) ...`.
 3. Start the measurement with xcpclient or CANape. The demo continues with the startup and the main loop.
 
-Span ids are not stored in the persistence file, they are assigned in the order in which the spans are executed for the first time.
-The A2L file of the first run is valid for the second run only as long as this order is the same. The constructor of the signal
-generator waits for the first cycle of its task for this reason.
 
 ## CANape
 
@@ -215,7 +217,7 @@ Fixed, allocated whether or not a context is used:
 
 | Setting | Default | Per entry | Total |
 |---|---|---|---|
-| `OPTION_DAQ_EVENT_COUNT` | 16 | 28 bytes per event | 452 bytes |
+| `OPTION_DAQ_EVENT_COUNT` | 32 | 28 bytes per event | 452 bytes |
 | `OPTION_DAQ_CONTEXT_COUNT` | 8 | 16 bytes per context | 130 bytes |
 | `OPTION_DAQ_SPAN_COUNT` | 32 | 32 bytes per span name | 1026 bytes |
 | Event name buffer | | | 32 bytes |
@@ -261,19 +263,16 @@ Not affected by the number of contexts or code locations:
 - The A2L generator writes to the file, it does not keep the declarations in memory.
 - The binary persistence file grows by 256 bytes per event.
 
-## Findings and limitations
 
-- **Event budget.** One event per context, plus one per context and context-aware code location
-  (10 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 16 by default). The number of contexts is limited
-  by `OPTION_DAQ_CONTEXT_COUNT` (8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (32).
-- **Monotonic timestamps.** The timestamps of an XCP event must be monotonic. A context can be attached
-  to several threads at the same time (for example a task thread and a method called from another thread), so the span events
-  of a context are serialized with a spin lock. A context-aware event must not be triggered concurrently
+## Limitations
+
+- **Lazy registration.** Contexts, context-aware events and spans must have been executed once before the A2L file is finalized. 
+- **Volatile A2l.** Span ids depend on the order in which the spans are executed for the first time. With `A2L_MODE_WRITE_ONCE`, this order must not change between runs, otherwise `conv.spans` of the existing A2L file shows wrong span names. Switch to `A2L_MODE_WRITE_ALWAYS`, if this can not be assured. With OPTION_OBSERVE_STARTUP, code which runs only once at startup can be measured from the second run on, see "Measuring the startup". Span creation order must be deterministic in this use case.
+- **Limited Event budget.** One event per context, plus one per context and context-aware code location
+  (10 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 32 by default). The number of contexts is limited
+  by `OPTION_DAQ_CONTEXT_COUNT` (default 8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (default 32).
+- **Monotonic timestamps.** The timestamps of an XCP event must be monotonic. A context-aware event must not be triggered concurrently
   by several threads in the same context at the same code location.
-- **A2L timing.** Contexts, context-aware events and spans must have been executed once before the A2L
-  file is finalized. Code which runs only once at startup can be measured from the second run on, see "Measuring the startup".
-- **Span ids.** Span ids depend on the order in which the spans are executed for the first time. With `A2L_MODE_WRITE_ONCE`, this
-  order must not change between runs, otherwise `conv.spans` of the existing A2L file shows wrong span names.
 - **Span duration.** `span_dt` belongs to the span that just ended, the end sample does not name it.
 - **Thread index.** `.thread` is an index local to the process, not the thread id of the operating system, and limited to 255 threads.
   Without `OPTION_DAQ_SPAN_THREAD`, the spans of several threads in one context can not be told apart.
@@ -282,21 +281,21 @@ Not affected by the number of contexts or code locations:
   In SHM mode, each application has its own namespace for context names, see [docs/SHM.md](../../docs/SHM.md).
 - **Library implementation.** The context names are kept in a context list in the C core
   ([src/ctx.c](../../src/ctx.c)), an event stores the id of its context. The binary persistence file
-  stores the context name with each event, so event ids are stable across restarts. There is no C
-  instrumentation API for contexts.
+  stores the context name with each event, so event ids are stable across restarts. 
+- **C++ only.** There is no C instrumentation API for contexts.
 - **Names.** Context and event names are limited to 15 characters each.
+
 
 ## Open questions
 
 - Should a context capture the current context when the instance does not know its own name?
 - How far should the naming follow OTel? An OTel tracer has a name but no id, it is only a factory for
-  spans. The trace id belongs to the trace, which is the set of all spans sharing that id.
+  spans. The trace id belongs to the trace, which is the set of all spans sharing that trace id.
 - SHM configuration: how to make context and event creation process safe? Two applications must not create contexts or events at
   the same time. Not tested with xcpdaemon yet.
 
 ## Remaining todos
 
-- `.bin`/`.hex` matching in `test/test_examples.sh` does not cover fixed-version file names, so `cpp_demo.hex` is not compared.
 - `span_dt` is not attributed to a span name, the end sample only carries the duration.
 - Two `xcp::Context` objects with the same name share the context but not the spin lock, so their span events are not serialized.
   Currently only documented as "create one object per name".
@@ -308,8 +307,8 @@ Not affected by the number of contexts or code locations:
 
 ## Possible follow-ups
 
+- Optimize: Avoid the repeated lookup of names
 - Perfetto native protobuf format, if the JSON files get too large (about 90 bytes per span or signal sample).
-- A `--raw` switch in xcpclient for unconverted values in console and CSV.
 - Contexts and spans for no_a2l/rtos targets (needs link-time registration).
 - A group per context in the A2L file, containing the event groups of the context.
 - Optional connection to a real OTel backend, on target through opentelemetry-cpp or off target by
@@ -320,9 +319,110 @@ Not affected by the number of contexts or code locations:
 - **Span signals must be measured.** `--perfetto` finds a context by its signals `<context>.span`, `.level` and `.span_dt`. Other
   signals are assigned to a context only by the name prefix `<context>.`.
 - **Trace timestamps** are relative to the measurement start. The file is not sorted by time, Perfetto sorts on import.
-- **Timestamp extension.** At least one sample of any event is needed every 2.147 s (with 1 ns ticks), otherwise the 64 bit
-  timestamp is ambiguous.
 - **Bool signals are enums.** `conv.bool` is read as `0 "false" 1 "true"`, so bools are printed as labels and are state tracks
   in Perfetto.
-- **CSV format.** The CSV file has the columns `time_ns,daq,name,value,unit`, the values are physical values or enum labels.
 
+
+
+
+## Old C version from multi_thread_demo 
+
+```c
+
+//-----------------------------------------------------------------------------------------------------
+// Thread context
+// Experimental
+
+#ifdef EXPERIMENTAL_THREAD_CONTEXT
+
+// Thread context structure
+typedef struct {
+    char name[MAX_THREAD_NAME_LENGTH + 1]; // Human-readable thread name
+    tXcpEventId id;                        // XCP event ID for this thread
+    tXcpEventId span_id;                   // XCP event ID for the current span
+    uint32_t level;                        // Current span level
+} tXcpContext;
+
+// Global thread-local context
+THREAD_LOCAL tXcpContext gXcpContext = {0};
+
+// Inline accessors for maximum performance
+static inline tXcpContext *XcpGetContext(void) { return &gXcpContext; }
+static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
+
+// Begin a span, create a span event once
+// Trigger the context event on entry
+#define BeginSpan(name)                                                                                                                                                            \
+    uint64_t span_t1 = ApplXcpGetClock64();                                                                                                                                        \
+    uint64_t span_dt;                                                                                                                                                              \
+    static _Atomic tXcpEventId span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
+    tXcpEventId old_span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                              \
+    if (atomic_compare_exchange_strong_explicit(&span_id, &old_span_id, 1, memory_order_relaxed, memory_order_relaxed)) {                                                          \
+        A2lLock();                                                                                                                                                                 \
+        span_id = XcpCreateEvent(name, 0, 0);                                                                                                                                      \
+        A2lSetStackAddrMode_i(span_id);                                                                                                                                            \
+        A2lCreatePhysMeasurementInstance(name, span_dt, "Span runtime", "ns", 0.0, 0.1000000);                                                                                     \
+        A2lUnlock();                                                                                                                                                               \
+    }                                                                                                                                                                              \
+    tXcpContext *ctx = XcpGetContext();                                                                                                                                            \
+    tXcpEventId previous_span_id = ctx->span_id;                                                                                                                                   \
+    ctx->span_id = span_id;                                                                                                                                                        \
+    ctx->level++;                                                                                                                                                                  \
+    XcpEventExtAt_Var(ctx->id, span_t1, 2, xcp_get_frame_addr(), (const uint8_t *)ctx);
+
+// End span
+// Trigger the span event and the context event on exit
+// Measure execution time of the span
+#define EndSpan()                                                                                                                                                                  \
+    uint64_t span_t2 = ApplXcpGetClock64();                                                                                                                                        \
+    span_dt = span_t2 - span_t1;                                                                                                                                                   \
+    XcpEventExtAt_Var(ctx->span_id, span_t2, 2, xcp_get_frame_addr(), (const uint8_t *)ctx);                                                                                       \
+    ctx->span_id = previous_span_id;                                                                                                                                               \
+    ctx->level--;                                                                                                                                                                  \
+    XcpEventExtAt_Var(ctx->id, span_t2, 2, xcp_get_frame_addr(), (const uint8_t *)ctx);
+
+// Create a named context
+// Create the context event (name is 'context_name'_'context_index')
+// Register the context struct  as A2L typedef instance tied to the context event
+static uint16_t XcpCreateContext(const char *context_name, uint16_t context_index) {
+
+    if (!XcpIsActivated()) {
+        return XCP_UNDEFINED_EVENT_ID; // Return undefined event ID if XCP is not activated
+    }
+
+    // Once:
+    // Create a typedef for the thread context
+    // Uses the predefined enum conversion rule for the event names
+    A2lOnce() {
+        A2lLock();
+        A2lTypedefBegin(tXcpContext, &gXcpContext, "A2L typedef for tXcpContext");
+        A2lTypedefPhysMeasurementComponent(span_id, "function span id", "conv.events", 0, 32);
+        A2lTypedefMeasurementComponent(level, "function span nesting level");
+        A2lTypedefEnd();
+        A2lUnlock();
+    }
+
+    // Init thread local context
+    // Create a unique name from index
+    // Create an XCP event for this context
+    snprintf(gXcpContext.name, sizeof(gXcpContext.name), "%s_%u", context_name, context_index);
+    gXcpContext.id = XcpCreateEvent(gXcpContext.name, 0, 0);
+    gXcpContext.span_id = gXcpContext.id;
+    gXcpContext.level = 0;
+
+    // Create a measurement typedef instance with the context name
+    A2lLock();
+    A2lSetRelativeAddrMode_i(gXcpContext.id, &gXcpContext); // Set relative addressing mode for the thread context
+    A2lCreateTypedefNamedInstance(gXcpContext.name, gXcpContext, tXcpContext, "Thread local context");
+    A2lUnlock();
+
+    printf("Thread context created: name = %s, id = %u\n", gXcpContext.name, gXcpContext.id);
+    return gXcpContext.id;
+}
+
+#else
+#define BeginSpan(name)
+#define EndSpan()
+#endif
+
+```

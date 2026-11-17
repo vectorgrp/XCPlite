@@ -29,6 +29,8 @@ void sleep(uint32_t us) {
 //-----------------------------------------------------------------------------------------------------
 // XCP
 
+// #define OPTION_OBSERVE_STARTUP // Wait for XCP client to observe initialization (needs deterministic span and context creation!)
+
 constexpr const char *OPTION_PROJECT_NAME = "thread_context_demo";
 constexpr const char OPTION_PROJECT_VERSION[] = "V100";
 constexpr bool OPTION_USE_TCP = false;
@@ -36,6 +38,13 @@ constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
 constexpr size_t OPTION_QUEUE_SIZE = (1024 * 64);
 constexpr int OPTION_LOG_LEVEL = 4;
+#ifdef OPTION_OBSERVE_STARTUP
+constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL);
+constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS);
+#else
+constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_LOCAL);
+constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS);
+#endif
 
 void init_xcp() {
 
@@ -44,7 +53,7 @@ void init_xcp() {
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    if (!XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL)) {
+    if (!XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, OPTION_XCP_MODE)) {
         std::cerr << "Failed to initialize XCP" << std::endl;
         exit(1);
     }
@@ -57,7 +66,7 @@ void init_xcp() {
 
     // Enable A2L generation
     // Set mode to write once to create stable A2L files, this also enables calibration segment persistence and freeze support
-    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_A2L_MODE)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         exit(1);
     }
@@ -69,8 +78,10 @@ void shutdown_xcp() {
     XcpEthServerShutdown(); // Stop the XCP server
 }
 
+#ifdef OPTION_OBSERVE_STARTUP
+
 // Wait until an XCP client has started the measurement, so the trace contains the startup
-// This is possible only when the A2L file of a previous run exists (A2L_MODE_WRITE_ONCE): The events of the contexts are then
+// This is possible only when the A2L file of a previous run exists (A2L_MODE_WRITE_ONCE,XCP_MODE_PERSISTENCE): The events of the contexts are then
 // preloaded from the binary persistence file and the client can set up the measurement before the instrumented code has been executed
 // In the first run, the A2L file is generated while the application runs, a connect would finalize it before anything is registered
 // Returns immediately in the first run, when XCP is not activated or on SIGINT/SIGTERM
@@ -90,6 +101,8 @@ void wait_xcp() {
     }
 }
 
+#endif
+
 //-----------------------------------------------------------------------------------------------------
 
 int main() {
@@ -99,7 +112,9 @@ int main() {
     signal(SIGTERM, sig_handler);
 
     init_xcp();
+#ifdef OPTION_OBSERVE_STARTUP
     wait_xcp();
+#endif
 
     auto startup_context = xcp::Context("Startup");
     xcp::Scope startup_scope(startup_context);
