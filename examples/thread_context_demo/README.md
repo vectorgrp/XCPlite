@@ -123,6 +123,11 @@ Span ids are not stored in the persistence file, they are assigned in the order 
 The A2L file of the first run is valid for the second run only as long as this order is the same. The constructor of the signal
 generator waits for the first cycle of its task for this reason.
 
+## CANape
+
+<img src="CANape.png" alt="CANape overview: signals and span tracks" width="900">
+
+
 ## Viewing the spans in Perfetto
 
 xcpclient can write the measurement as a trace file for [Perfetto](https://ui.perfetto.dev):
