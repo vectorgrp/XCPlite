@@ -347,7 +347,7 @@ xcpclient --udp --mea '.*' --time 5 --perfetto trace.json
 | State track | An enum signal, one slice per state, named with the enum label |
 
 - The span signals of a context (`<context>.span`, `.level`, `.span_dt`, `.thread`) must be selected for measurement. A signal is assigned to a context by its name prefix `<context>.`, and only if the span signals of this context are measured.
-- `<context>.thread` needs `OPTION_DAQ_SPAN_THREAD` on the target (default). Without it, there is one track `spans` per context. This is correct as long as a context is executed by one thread at a time, otherwise spans are cut and xcpclient prints a warning with the number of samples which did not fit.
+- `<context>.thread` needs `OPTION_DAQ_SPAN_THREAD` on the target (not defined by default). Without it, there is one track `spans` per context. This is correct as long as a context is executed by one thread at a time, otherwise spans are cut and xcpclient prints a warning with the number of samples which did not fit.
 - Lost samples and a measurement which starts inside a span are handled: the open spans are resynchronised to the nesting level of the next sample, a span the begin of which was not seen is named `(unknown)`. Spans which are still open at the end of the measurement end at the last sample of their track.
 - Timestamps are relative to the start of the measurement, with ns resolution.
 - A span is written when it ends, so the file is not sorted by time. Perfetto sorts on import.

@@ -44,7 +44,7 @@ DaqEventCtxVar(siggen, A2L_MEAS_PHYS(value_, ...));     // event SigGen1.siggen,
 
 With a current context, the instrumented code needs no instance parameter. The shared function `Clip()`
 in [src/sig_gen.cpp](src/sig_gen.cpp) is instrumented without knowing its instance and still delivers
-`SigGen1.clipped` and `SigGen2.clipped`.
+`SigGen1.input` and `SigGen2.input`.
 
 ## What the demo measures
 
@@ -54,7 +54,7 @@ The demo has four contexts. `SigGen1` and `SigGen2` are the two signal generator
 | Event | Measurements | Triggered by |
 |---|---|---|
 | `SigGen1.siggen`, `SigGen2.siggen` | `SigGen1.value_`, `SigGen2.value_` | the task thread of each instance |
-| `SigGen1.clip`, `SigGen2.clip` | `SigGen1.input`, `SigGen1.clipped` (same for `SigGen2`) | the shared function `Clip()` |
+| `SigGen1.clip`, `SigGen2.clip` | `SigGen1.input`, `SigGen2.input` | the shared function `Clip()` |
 | `Mainloop.poll` | `Mainloop.polled` | the method `Poll()` of both instances, called by the main loop |
 | `Mainloop.mainloop` | `Mainloop.channel1`, `Mainloop.channel2`, `Mainloop.sum` | the main loop |
 | `Startup.spans`, `Mainloop.spans`, `SigGen1.spans`, `SigGen2.spans` | `.span`, `.level`, `.span_dt` | begin and end of each span in this context |
@@ -152,7 +152,7 @@ track for each of its signals:
 - `Startup`: the span `initialize`, if the measurement was started before the startup (see "Measuring the startup").
 - `Mainloop`: `calc_sum` with the nested spans `get_channel1` and `get_channel2`, a `poll` nested in each of them, followed by
   `analyze`. The signals are `Mainloop.channel1`, `Mainloop.channel2`, `Mainloop.sum` and `Mainloop.polled`.
-- `SigGen1`, `SigGen2`: `calc` with the nested span `clip`, and the signals `.value_`, `.input` and `.clipped`.
+- `SigGen1`, `SigGen2`: `calc` with the nested span `clip`, and the signals `.value_` and `.input`.
 
 The main loop and the two task threads run independently, so the spans of different contexts overlap in time.
 Details are in the [xcpclient README](../../tools/xcpclient/README.md).
