@@ -177,6 +177,9 @@ detach at the end) and spans with nesting are taken over unchanged. Three things
   current span of a thread (scope). `DaqSpan` combines both, which is enough for synchronous sections in
   one thread. A span which begins in one thread and ends in another can not be expressed.
 
+The differences in the data model and in the treatment of time, order and causality are described in
+[docs/TIME_AND_CAUSALITY.md](../../docs/TIME_AND_CAUSALITY.md).
+
 ## OpenTelemetry version for comparison
 
 [otel/](otel/) contains the same demo instrumented with opentelemetry-cpp instead of XCP, as a reference
@@ -288,12 +291,18 @@ Not affected by the number of contexts or code locations:
 - **Event budget.** One event per context, plus one per context and context-aware code location
   (10 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 16 by default). The number of contexts is limited
   by `OPTION_DAQ_CONTEXT_COUNT` (8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (32).
-- **Declining timestamps.** The timestamps of an XCP event should not decline. A context can be attached
-  to several threads at the same time (for example a task thread and a method called from another thread). The order of the
-  samples is decided when the event is queued, after the timestamp was taken, so a thread which is overtaken in between
-  produces a sample with a declining timestamp. This applies to the span events of a context in which several threads work
-  at the same time, and to a context-aware event triggered by several threads in the same context at the same code location.
-  Nothing is serialized, a thread never waits for another one. `xcpclient` accepts a declining timestamp, other tools may not.
+- **One thread at a time.** A context should be executed by one thread at a time. Several threads may work in it one after
+  the other, the hand-over between them (a queue, a mutex, a join) keeps the timestamps of its events in order. A context
+  and its spans describe one track of activity. For a worker pool, use one context per worker.
+- **Declining timestamps.** The timestamps of an XCP event should not decline. If a context is attached
+  to several threads at the same time (for example a task thread and a method called from another thread), this is not
+  guaranteed. The order of the samples is decided when the event is queued, after the timestamp was taken, so a thread which
+  is overtaken in between produces a sample with a declining timestamp. This applies to the span events of a context in which
+  several threads work at the same time, and to a context-aware event triggered by several threads in the same context at the
+  same code location. Nothing is serialized, a thread never waits for another one. With the thread index
+  (`OPTION_DAQ_SPAN_THREAD`) the samples of each thread are still in order among themselves.
+  `xcpclient` accepts a declining timestamp, other tools may not. Background, what was tried and why there is no lock:
+  [docs/TIME_AND_CAUSALITY.md](../../docs/TIME_AND_CAUSALITY.md).
 - **First execution.** The first execution of a `DaqEventCtxVar` code location in a context creates the event and registers
   the measurements. One thread does this (event list mutex, A2L lock). Other threads which execute the code location in the same
   context at this moment do not wait, they skip this one trigger. There is no mutex and no compiler generated once guard at the

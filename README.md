@@ -219,6 +219,7 @@ For microcontroller builds, refer to the READMEs in the RTOS example folders.
 - **[Offline A2L Generation](docs/OFFLINE_A2L.md)** - A2L generation from the ELF file with xcpclient
 - **[Building](docs/BUILDING.md)** - Detailed build instructions
 - **[XCP Introduction](docs/XCP_INTRODUCTION.md)** - What is XCP?
+- **[Time, Order and Causality](docs/TIME_AND_CAUSALITY.md)** - XCP and OpenTelemetry compared: time series and traces, clocks, concurrency
 
 
 ## Other XCP Implementations

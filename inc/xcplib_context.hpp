@@ -51,10 +51,13 @@
 //   - The number of contexts is limited by OPTION_DAQ_CONTEXT_COUNT,
 //     the number of span names by OPTION_DAQ_SPAN_COUNT (not limited with OPTION_DAQ_SPAN_SECTION_REGISTRATION)
 //   - Attaching a context starts with no current span, the span of the capturing thread is not carried over
-//   - The timestamps of an XCP event should not decline. This is not guaranteed when several threads trigger the same event
-//     at the same time: the span events of a context in which several threads work, or a context-aware event at the same code
-//     location in the same context. A thread can be overtaken between taking the timestamp and queueing the event, its sample
-//     then has an older timestamp than the sample before. Nothing is serialized, a thread never waits for another one
+//   - A context should be executed by one thread at a time. Several threads may work in it one after the other, the hand-over
+//     between them keeps the timestamps of its events in order. A context and its spans describe one track of activity.
+//     When several threads trigger the same event at the same time (the span events of a context in which several threads
+//     work at once, or a context-aware event at the same code location in the same context), a thread can be overtaken between
+//     taking the timestamp and queueing the event, its sample then has an older timestamp than the sample before.
+//     Nothing is serialized, a thread never waits for another one. For a worker pool, use one context per worker, or rely on
+//     the thread index (OPTION_DAQ_SPAN_THREAD) to tell the threads apart. See docs/TIME_AND_CAUSALITY.md
 //-----------------------------------------------------------------------------------------------------
 
 #include <atomic>      // for std::atomic
