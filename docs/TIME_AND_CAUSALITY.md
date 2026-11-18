@@ -83,7 +83,7 @@ The result in the tool is a time series per signal: a list of (time, value) pair
 
 ### 2.2 The timestamp
 
-The timestamp is taken on the target, at the event, from a clock of the target. In XCPlite the clock has a resolution of 1 ns or 1 µs. 
+The timestamp is taken on the target, at the event, from a clock of the target. In XCPlite the clock has a resolution of 1 ns or 1 µs.
 
 ### 2.3 Which clock is it?
 
@@ -91,7 +91,7 @@ A timestamp is only useful if the tool knows which clock produced it. XCP theref
 
 - **Resolution and unit** of the timestamp.
 - **Current time on request.** With the command `GET_DAQ_CLOCK` the tool asks the target for its current event sampling clock value. By comparing it with its own reference clock, the tool learns offset and drift of the target clock and can map target timestamps to its own time base. This is called time correlation.
-- **Timestamp pairs as event.** the target transmit precise simulatanous captured pairs of its event sampling wall clock and a gPTP or PTP synchronized to the tool, and the tool correlates offset and drift.
+- **Timestamp pairs as event.** The target transmits pairs of timestamps, captured precisely at the same moment: one from its event sampling clock and one from a clock which is synchronized with the tool by gPTP or PTP. From these pairs the tool correlates offset and drift.
 - **Clock description.** With `TIME_CORRELATION_PROPERTIES` the target describes its clocks: a unique identifier of the clock, its epoch (TAI, UTC or arbitrary), its quality (stratum level), and whether it is synchronized to a grandmaster clock, for example by PTP, and to which one. Two devices which report the same grandmaster are in the same time domain, their timestamps can be compared directly.
 
 So XCP has two ways to bring several clocks together: correlate them afterwards in the tool, or synchronize them beforehand and tell the tool that they are synchronized. Both are part of the protocol. What XCPlite implements of this is listed in [6.8](#68-clocks-in-xcplite).
