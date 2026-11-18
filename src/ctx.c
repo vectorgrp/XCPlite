@@ -12,7 +12,17 @@
 |   A span is a named section of code. The span name gets a small id, which is measured on the "spans" event of a context
 |   and displayed with the enum conversion conv.spans, created by the A2L writer.
 |
-|   The lists are part of the XCP state (tXcpData), next to the event list.
+|   The context list is part of the XCP state (tXcpData), next to the event list.
+|   It is a lock-free and wait-free name list (namelist.h): contexts are created without a mutex, by any thread and any process.
+|
+|   Span names are registered in one of two ways:
+|     - OPTION_DAQ_SPAN_SECTION_REGISTRATION: at link time, the span names are constant descriptors in the linker section xcp_spans,
+|       the span id is the position in the section + 1. Deterministic ids, no registration at runtime, a span name which is used
+|       at several code locations may have several ids. ELF and Mach-O only, not in SHM mode.
+|     - Otherwise at runtime in a span name list in the XCP state, a name list like the context list. The ids are assigned in the
+|       order of the first execution, a span name has exactly one id.
+|   See docs/NAMELIST.md.
+|
 |   The application programming interface is C++ only, see xcplib_context.hpp.
 |   Enabled with OPTION_DAQ_CONTEXT_LIST, default and shm configuration only.
 |   In SHM mode, the lists are shared by all application processes: each application has its own namespace for context names,
@@ -32,12 +42,18 @@
 #include <assert.h>  // for assert
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uint8_t, uint16_t, ...
-#include <string.h>  // for strcmp, strncpy
+#include <string.h>  // for strnlen
+
+#if defined(OPTION_DAQ_SPAN_SECTION_REGISTRATION) && defined(__APPLE__)
+#include <mach-o/getsect.h> // for getsectiondata
+#include <mach-o/ldsyms.h>  // for _mh_execute_header
+#endif
 
 #include "ctx.h" // for the context list interface
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
-#include "platform.h"  // for atomics, mutex
+#include "namelist.h"  // for NameListRegister, NameListGetName, ...
+#include "platform.h"  // for mutex
 #include "shm.h"       // for XcpShmGetAppId, declares nothing outside SHM mode
 #include "xcplite.h"   // for tXcpData, tXcpLocalData, XcpCreateIndexedEvent, XcpFindContextEvent
 
@@ -54,62 +70,122 @@ extern tXcpData gXcpData;
 extern tXcpLocalData gXcpLocalData;
 #define local_mut gXcpLocalData // Mutable access to process-local state
 
-// The lists are modified under the event list mutex, entries are published by the count (acquire/release), like the event list
-#define acquireContextCount() (uint16_t)atomic_load_explicit(&shared.context_list.count, memory_order_acquire)
-#define releaseContextCount(n) atomic_store_explicit(&shared_mut.context_list.count, n, memory_order_release)
-#define acquireSpanCount() (uint16_t)atomic_load_explicit(&shared.span_list.count, memory_order_acquire)
-#define releaseSpanCount(n) atomic_store_explicit(&shared_mut.span_list.count, n, memory_order_release)
+// The context list is a lock-free and wait-free name list (namelist.h), the context id is the id in the name list + 1
+#define contextList() (&shared.context_list.list)
+#define contextListMut() (&shared_mut.context_list.list)
+
+#ifdef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
+// Link time registration: the span names are the descriptors in the linker section xcp_spans, set once by XcpInitContextList
+static const tXcpSpanDescriptor *gXcpSpanSectionBegin = NULL;
+static uint16_t gXcpSpanSectionCount = 0;
+
+static void initSpanSection(void) {
+
+    const tXcpSpanDescriptor *begin = NULL;
+    size_t size = 0;
+
+#if defined(__ELF__)
+    // The boundary symbols are declared weak: without any span in the program, the section does not exist and the symbols are NULL
+    const tXcpSpanDescriptor *start = __start_xcp_spans;
+    const tXcpSpanDescriptor *stop = __stop_xcp_spans;
+    if (start != NULL && stop != NULL && start < stop) {
+        begin = start;
+        size = (size_t)((const uint8_t *)stop - (const uint8_t *)start);
+    }
+#elif defined(__APPLE__)
+    // Looked up at runtime: without any span in the program, the section does not exist and a boundary symbol may not link
+    unsigned long section_size = 0;
+    begin = (const tXcpSpanDescriptor *)(void *)getsectiondata(&_mh_execute_header, "__DATA", "xcp_spans", &section_size);
+    size = (begin != NULL) ? (size_t)section_size : 0;
+#endif
+
+    // The section must be an array of descriptors without gaps
+    assert(size % sizeof(tXcpSpanDescriptor) == 0);
+    size_t count = size / sizeof(tXcpSpanDescriptor);
+    if (count > 0xFFFE) {
+        DBG_PRINTF_ERROR("too many span names in section xcp_spans (%u)\n", (unsigned int)count);
+        count = 0xFFFE;
+    }
+    gXcpSpanSectionBegin = begin;
+    gXcpSpanSectionCount = (uint16_t)count;
+
+    DBG_PRINTF3("Found %u span names in section xcp_spans\n", (unsigned int)count);
+    for (uint16_t i = 0; i < gXcpSpanSectionCount; i++) {
+        DBG_PRINTF5("  Span %u: %s\n", i + 1, begin[i].name);
+    }
+}
+
+#else
+
+// The span name list is a lock-free and wait-free name list (namelist.h), the span id is the id in the name list
+#define spanList() (&shared.span_list.list)
+#define spanListMut() (&shared_mut.span_list.list)
+
+#endif
 
 /****************************************************************************/
 /* Context list                                                             */
 /****************************************************************************/
 
 // Initialize the context list and the span name list
+// Called once by XcpInit, in SHM mode by the leader only, before the lists are used by other threads or processes
 void XcpInitContextList(void) {
 
-    releaseContextCount(0);
+    bool ok = NameListInit(contextListMut(), sizeof(shared_mut.context_list), XCP_MAX_CONTEXT_COUNT, XCP_NAMELIST_SPARE, XCP_MAX_CONTEXT_NAME + 1, 0);
+    assert(ok);
+    (void)ok;
+
+#ifdef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+    initSpanSection();
+#else
+    ok = NameListInit(spanListMut(), sizeof(shared_mut.span_list), XCP_MAX_SPAN_COUNT, XCP_NAMELIST_SPARE, XCP_MAX_SPAN_NAME + 1, 0);
+    assert(ok);
+    (void)ok;
 
     // Span id 0 is reserved for "no span"
-    strncpy(shared_mut.span_list.name[0], "none", XCP_MAX_SPAN_NAME);
-    shared_mut.span_list.name[0][XCP_MAX_SPAN_NAME] = 0;
-    releaseSpanCount(1);
+    uint32_t none = NameListRegister(spanListMut(), 0, "none", NULL, NULL);
+    assert(none == 0);
+    (void)none;
+#endif
 }
 
 // Get the number of contexts
 uint16_t XcpGetContextCount(void) {
     if (!XcpIsActivated())
         return 0;
-    return acquireContextCount();
+    return (uint16_t)NameListGetCount(contextList());
 }
 
 // Get the name of a context, returns NULL if not found
 const char *XcpGetContextName(uint16_t context) {
-    if (!XcpIsActivated() || context == XCP_UNDEFINED_CONTEXT || context > acquireContextCount())
+    if (!XcpIsActivated() || context == XCP_UNDEFINED_CONTEXT)
         return NULL;
-    return shared.context_list.context[context - 1].name;
+    return NameListGetName(contextList(), (uint32_t)context - 1);
 }
 
 #ifdef OPTION_SHM_MODE // get context application id
 // Get the application id of a context
 uint8_t XcpGetContextAppId(uint16_t context) {
-    if (!XcpIsActivated() || context == XCP_UNDEFINED_CONTEXT || context > acquireContextCount())
+    if (!XcpIsActivated() || context == XCP_UNDEFINED_CONTEXT)
         return 0;
-    return shared.context_list.context[context - 1].app_id;
+    return (uint8_t)NameListGetScope(contextList(), (uint32_t)context - 1);
 }
 #endif
 
 // Create a context or return the id of the existing context with this name
 // An existing context may have been preloaded from the binary persistence file
-// In SHM mode, the context list is shared by all application processes, each application has its own namespace for context names
-// Thread safe by mutex
-// @@@@ TODO: Not process safe in SHM mode, like the event list: two application processes must not create contexts or events at the same time
+// In SHM mode, the context list is shared by all application processes, each application has its own namespace for context names (the scope of the name)
+// Thread safe and process safe, lock-free and wait-free: all threads and processes get the same context id for the same name
 #ifdef OPTION_SHM_MODE // context of this application process
 static uint16_t createContext(const char *name, uint8_t app_id);
 uint16_t XcpCreateContext(const char *name) { return createContext(name, XcpShmGetAppId()); }
 uint16_t XcpCreateAppContext(const char *name, uint8_t app_id) { return createContext(name, app_id); }
 static uint16_t createContext(const char *name, uint8_t app_id) {
+    const uint32_t scope = app_id;
 #else
 uint16_t XcpCreateContext(const char *name) {
+    const uint32_t scope = 0;
 #endif
 
     if (!XcpIsActivated()) {
@@ -125,38 +201,17 @@ uint16_t XcpCreateContext(const char *name) {
         return XCP_UNDEFINED_CONTEXT;
     }
 
-    mutexLock(&local_mut.event_list_mutex);
-
-    // Find an existing context with this name
-    uint16_t count = acquireContextCount();
-    for (uint16_t i = 0; i < count; i++) {
-#ifdef OPTION_SHM_MODE // find only contexts owned by this application process
-        if (shared.context_list.context[i].app_id != app_id)
-            continue;
-#endif
-        if (strcmp(shared.context_list.context[i].name, name) == 0) {
-            mutexUnlock(&local_mut.event_list_mutex);
-            return (uint16_t)(i + 1);
-        }
-    }
-
-    // Create a new context
-    if (count >= XCP_MAX_CONTEXT_COUNT) {
-        mutexUnlock(&local_mut.event_list_mutex);
+    // Find the existing context with this name or create a new one
+    bool created = false;
+    uint32_t id = NameListRegister(contextListMut(), scope, name, NULL, &created);
+    if (id == NAMELIST_UNDEFINED) {
         DBG_PRINTF_ERROR("too many contexts, context '%s' not created (OPTION_DAQ_CONTEXT_COUNT=%u)\n", name, XCP_MAX_CONTEXT_COUNT);
         return XCP_UNDEFINED_CONTEXT;
     }
-    strncpy(shared_mut.context_list.context[count].name, name, XCP_MAX_CONTEXT_NAME);
-    shared_mut.context_list.context[count].name[XCP_MAX_CONTEXT_NAME] = 0;
-#ifdef OPTION_SHM_MODE // store the application id in the context
-    shared_mut.context_list.context[count].app_id = app_id;
-#endif
-    releaseContextCount(count + 1); // Publish the new context
-
-    mutexUnlock(&local_mut.event_list_mutex);
-
-    DBG_PRINTF3("Create Context %u: %s\n", count + 1, name);
-    return (uint16_t)(count + 1);
+    if (created) {
+        DBG_PRINTF3("Create Context %u: %s\n", (unsigned int)id + 1, name);
+    }
+    return (uint16_t)(id + 1);
 }
 
 // Create an event which belongs to a context or return the existing event with this name in this context
@@ -172,12 +227,12 @@ tXcpEventId XcpCreateContextEvent(uint16_t context, const char *name, uint32_t c
 
     assert(name != NULL);
 
-    if (context > acquireContextCount()) {
+    if (context > NameListGetCount(contextList())) {
         DBG_PRINTF_ERROR("context %u of event '%s' does not exist\n", context, name);
         return XCP_UNDEFINED_EVENT_ID;
     }
 #ifdef OPTION_SHM_MODE // the context must be owned by this application process
-    if (context != XCP_UNDEFINED_CONTEXT && shared.context_list.context[context - 1].app_id != XcpShmGetAppId()) {
+    if (context != XCP_UNDEFINED_CONTEXT && NameListGetScope(contextList(), (uint32_t)context - 1) != XcpShmGetAppId()) {
         DBG_PRINTF_ERROR("context %u of event '%s' belongs to another application\n", context, name);
         return XCP_UNDEFINED_EVENT_ID;
     }
@@ -193,27 +248,54 @@ tXcpEventId XcpCreateContextEvent(uint16_t context, const char *name, uint32_t c
 }
 
 /****************************************************************************/
-/* Span name list                                                           */
+/* Span names                                                               */
 /****************************************************************************/
+
+#ifdef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
+// Link time registration
+// The span names are constant data in the linker section xcp_spans, the span id is the position of the descriptor in the section + 1
+// There is no registration at runtime, see XCP_SPAN_SECTION_DECL and XCP_SPAN_SECTION_ID in xcplib.h
 
 // Get the number of span ids, including the reserved span id 0
 uint16_t XcpGetSpanCount(void) {
     if (!XcpIsActivated())
         return 0;
-    return acquireSpanCount();
+    return (uint16_t)(gXcpSpanSectionCount + 1);
+}
+
+// Get the name of a span id, returns NULL if not found
+// A span name which is used at several code locations may have several span ids
+const char *XcpGetSpanName(uint16_t span) {
+    if (!XcpIsActivated() || span > gXcpSpanSectionCount)
+        return NULL;
+    if (span == 0)
+        return "none";
+    return gXcpSpanSectionBegin[span - 1].name;
+}
+
+#else // OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
+// Runtime registration in the span name list
+
+// Get the number of span ids, including the reserved span id 0
+uint16_t XcpGetSpanCount(void) {
+    if (!XcpIsActivated())
+        return 0;
+    return (uint16_t)NameListGetCount(spanList());
 }
 
 // Get the name of a span id, returns NULL if not found
 const char *XcpGetSpanName(uint16_t span) {
-    if (!XcpIsActivated() || span >= acquireSpanCount())
+    if (!XcpIsActivated())
         return NULL;
-    return shared.span_list.name[span];
+    return NameListGetName(spanList(), span);
 }
 
 // Register a span name or return the id of the existing span name
 // Names longer than XCP_MAX_SPAN_NAME are truncated
 // Returns the span id (1..XCP_MAX_SPAN_COUNT-1) or 0 (no span) when out of memory
-// Thread safe by mutex
+// Thread safe and process safe, lock-free and wait-free: all threads and processes get the same span id for the same name
 uint16_t XcpRegisterSpanName(const char *name) {
 
     if (!XcpIsActivated()) {
@@ -221,36 +303,25 @@ uint16_t XcpRegisterSpanName(const char *name) {
     }
 
     assert(name != NULL);
-
-    char span_name[XCP_MAX_SPAN_NAME + 1];
-    strncpy(span_name, name, XCP_MAX_SPAN_NAME);
-    span_name[XCP_MAX_SPAN_NAME] = 0;
-
-    mutexLock(&local_mut.event_list_mutex);
-
-    // Find an existing span name
-    uint16_t count = acquireSpanCount();
-    for (uint16_t i = 1; i < count; i++) {
-        if (strcmp(shared.span_list.name[i], span_name) == 0) {
-            mutexUnlock(&local_mut.event_list_mutex);
-            return i;
-        }
-    }
-
-    // Register a new span name
-    if (count >= XCP_MAX_SPAN_COUNT) {
-        mutexUnlock(&local_mut.event_list_mutex);
-        DBG_PRINTF_ERROR("too many span names, span '%s' not registered (OPTION_DAQ_SPAN_COUNT=%u)\n", span_name, XCP_MAX_SPAN_COUNT);
+    if (name[0] == 0) {
+        DBG_PRINT_ERROR("span name is empty\n");
         return 0;
     }
-    memcpy(shared_mut.span_list.name[count], span_name, sizeof(span_name));
-    releaseSpanCount(count + 1); // Publish the new span name
 
-    mutexUnlock(&local_mut.event_list_mutex);
-
-    DBG_PRINTF3("Register span name %u: %s\n", count, span_name);
-    return count;
+    // Find the existing span name or register a new one
+    bool created = false;
+    uint32_t id = NameListRegister(spanListMut(), 0, name, NULL, &created);
+    if (id == NAMELIST_UNDEFINED) {
+        DBG_PRINTF_ERROR("too many span names, span '%.*s' not registered (OPTION_DAQ_SPAN_COUNT=%u)\n", XCP_MAX_SPAN_NAME, name, XCP_MAX_SPAN_COUNT);
+        return 0;
+    }
+    if (created) {
+        DBG_PRINTF3("Register span name %u: %.*s\n", (unsigned int)id, XCP_MAX_SPAN_NAME, name);
+    }
+    return (uint16_t)id;
 }
+
+#endif // !OPTION_DAQ_SPAN_SECTION_REGISTRATION
 
 #else
 

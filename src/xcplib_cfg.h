@@ -155,8 +155,21 @@
 // Needs 16 bytes of memory per context
 #define OPTION_DAQ_CONTEXT_COUNT (8)
 
+// Register the span names at link time in the linker section xcp_spans, instead of at runtime in a span name list
+// DaqSpan emits a constant descriptor with the span name, the span id is the position of the descriptor in the section + 1
+// - The span ids depend on the link order only, they are the same in every run of a binary (required for A2L_MODE_WRITE_ONCE)
+// - The conversion conv.spans is complete, also for spans which have not been executed yet
+// - No registration at runtime, no memory, the number of span names is not limited (OPTION_DAQ_SPAN_COUNT is not used)
+// - A span name used at several code locations may get several span ids
+// - With GCC, DaqSpan must not be used in inline functions, templates and member functions defined in the class body ("section type conflict")
+// Requires ELF or Mach-O sections, not available on Windows and in SHM mode, the option is ignored when it is not available
+// See docs/NAMELIST.md chapter 13
+// (Needs OPTION_DAQ_CONTEXT_LIST)
+#define OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
 // Maximum number of different span names, including the reserved span id 0 for "no span"
-// Needs 32 bytes of memory per span name
+// Needs about 45 bytes of memory per span name
+// (Not used with OPTION_DAQ_SPAN_SECTION_REGISTRATION)
 #define OPTION_DAQ_SPAN_COUNT (32)
 
 // Record the thread with each span begin and end
@@ -273,4 +286,10 @@
 
 #if defined(OPTION_SECTION_REGISTRATION) && (defined(_MSC_VER) || defined(OPTION_SHM_MODE))
 #error "OPTION_SECTION_REGISTRATION (link time registration of events and calibration segments) is not supported"
+#endif
+
+// Link time registration of span names needs contexts and ELF or Mach-O sections, each process would have its own span ids in SHM mode
+// Where it is not available, the span names are registered at runtime
+#if defined(OPTION_DAQ_SPAN_SECTION_REGISTRATION) && (!defined(OPTION_DAQ_CONTEXT_LIST) || defined(OPTION_SHM_MODE) || !(defined(__ELF__) || defined(__APPLE__)))
+#undef OPTION_DAQ_SPAN_SECTION_REGISTRATION
 #endif

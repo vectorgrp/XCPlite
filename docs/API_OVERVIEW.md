@@ -154,11 +154,11 @@ A context is a named identity ("who is executing"), an event may belong to a con
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `XcpCreateContext(name)` | function | Create a context, or return the id (1..) of the existing one with this name. Thread safe | `OPTION_DAQ_CONTEXT_LIST` | — (used by `xcp::Context`) |
+| `XcpCreateContext(name)` | function | Create a context, or return the id (1..) of the existing one with this name. Thread safe, lock-free | `OPTION_DAQ_CONTEXT_LIST` | — (used by `xcp::Context`) |
 | `XcpGetContextName(context)` | function | Name of a context | `OPTION_DAQ_CONTEXT_LIST` | — |
 | `XcpGetContextCount()` | function | Number of contexts | `OPTION_DAQ_CONTEXT_LIST` | — |
 | `XcpCreateContextEvent(context, name, cycle_ns, prio)` | function | Create the event `<context>.<name>`, or return the existing one with this name in this context. Thread safe | `OPTION_DAQ_CONTEXT_LIST` | — (used by `DaqEventCtxVar`) |
-| `XcpRegisterSpanName(name)` | function | Register a span name, returns the span id. The A2L generator creates `conv.spans` from the registered names | `OPTION_DAQ_CONTEXT_LIST` | — (used by `DaqSpan`) |
+| `XcpRegisterSpanName(name)` | function | Register a span name at runtime, returns the span id. The A2L generator creates `conv.spans` from the registered names. Thread safe, lock-free | `OPTION_DAQ_CONTEXT_LIST`, `!OPTION_DAQ_SPAN_SECTION_REGISTRATION` | — (used by `DaqSpan`) |
 
 ### 1.7 DAQ events: trigger functions
 
@@ -480,9 +480,10 @@ Included by `xcplib.hpp`. Requires **`OPTION_DAQ_CONTEXT_LIST`** and `OPTION_ENA
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `xcp::Context(name)` | class | Named context, creates the event `<name>.spans` with the measurements `<name>.span`, `.level`, `.span_dt` and, with `OPTION_DAQ_SPAN_THREAD`, `.thread`. `id()`, `name()`, `event()`, static `GetCurrent()` | `OPTION_DAQ_CONTEXT_LIST` | thread_context_demo |
+| `xcp::Context(name)` | class | Named context, creates the event `<name>.spans` with the measurements `<name>.span`, `.level`, `.span_dt` and, with `OPTION_DAQ_SPAN_THREAD`, `.thread`. `id()`, `name()`, `event()`, static `GetCurrent()`. Creating a context searches by name: create the object once and keep it. A default constructed context is created by its first `Create(name)` call | `OPTION_DAQ_CONTEXT_LIST` | thread_context_demo |
+| `DaqContext(name)` | macro | Enter a context with a literal name until the end of the block: a static `xcp::Context` at the code location plus an `xcp::Scope`. The context is created when the code location is executed for the first time after `XcpInit`, later executions search nothing. No compiler generated guard, no thread waits for another one | as above | — (context_test) |
 | `xcp::Scope(context)` | class | Makes a context the current context of the calling thread, restores the previous one in the destructor | as above | thread_context_demo |
-| `DaqEventCtxVar(name, A2L_MEAS(...), ...)` | macro | Like `DaqEventVar`, in the current context: event `<context>.<name>`, measurements `<context>.<variable>`, created once per context and code location. Without a current context like `DaqEventVar` | as above | thread_context_demo |
+| `DaqEventCtxVar(name, A2L_MEAS(...), ...)` | macro | Like `DaqEventVar`, in the current context: event `<context>.<name>`, measurements `<context>.<variable>`, created once per context and code location by the first thread which executes it. Threads which trigger it in the same context at that moment skip this one trigger, they do not wait. Without a current context like `DaqEventVar` | as above | thread_context_demo |
 | `DaqEventCtxVar_(context, name, ...)` | macro | As above, with an explicit context pointer | as above | — |
 | `DaqSpan(name)` | macro | Begin a span, it ends at the end of the block. Begin and end are recorded on the event `<context>.spans` | as above | thread_context_demo |
 | `xcp::Span(span_id)` | class | Implementation of `DaqSpan` | as above | — |

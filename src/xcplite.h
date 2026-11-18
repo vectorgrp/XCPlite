@@ -21,6 +21,7 @@
 #include "xcplib_cfg.h" // for OPTION_xxx
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINTF, DBG_PRINT, ...
+#include "namelist.h"  // for NAMELIST_STORAGE, tNameList
 #include "platform.h"  // for atomics
 #include "queue.h"     // for tQueueHandle
 #include "xcp.h"       // for XCP protocol definitions
@@ -240,26 +241,21 @@ typedef struct {
 // Optional context list and span name list, see ctx.h
 #ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
 
+// Both lists are lock-free and wait-free name lists (namelist.h): position independent, usable by several processes in SHM mode
+// Additional entry cells of a name list, the number of threads which may register new names at the same time without restriction
+#define XCP_NAMELIST_SPARE 8
+
 // A context is a named identity ("who is executing"), events may belong to a context
-// The context id is the position in the list + 1, 0 means no context
-typedef struct {
-    char name[XCP_MAX_CONTEXT_NAME + 1]; // Context name
-#ifdef OPTION_SHM_MODE                   // app_id in tXcpContext
-    uint8_t app_id;                      // In SHM mode, the context has an application id
-#endif
-} tXcpContext;
+// The context id is the id in the name list + 1, 0 means no context
+// In SHM mode, the scope of a context name is the application id, each application has its own namespace for context names
+typedef NAMELIST_STORAGE(XCP_MAX_CONTEXT_COUNT, XCP_NAMELIST_SPARE, XCP_MAX_CONTEXT_NAME + 1, 0) tXcpContextList;
 
-typedef struct {
-    atomic_uint_fast16_t count;                 // number of contexts
-    tXcpContext context[XCP_MAX_CONTEXT_COUNT]; // context list
-} tXcpContextList;
-
-// Span names, the span id is the position in the list, id 0 is reserved for "no span"
+// Span names, the span id is the id in the name list, id 0 is reserved for "no span"
+// With OPTION_DAQ_SPAN_SECTION_REGISTRATION, the span names are in the linker section xcp_spans, there is no span name list
+#ifndef OPTION_DAQ_SPAN_SECTION_REGISTRATION
 #define XCP_MAX_SPAN_NAME 31
-typedef struct {
-    atomic_uint_fast16_t count;                           // number of span names including id 0
-    char name[XCP_MAX_SPAN_COUNT][XCP_MAX_SPAN_NAME + 1]; // span names
-} tXcpSpanList;
+typedef NAMELIST_STORAGE(XCP_MAX_SPAN_COUNT, XCP_NAMELIST_SPARE, XCP_MAX_SPAN_NAME + 1, 0) tXcpSpanList;
+#endif
 
 #endif // XCP_ENABLE_DAQ_CONTEXT_LIST
 
@@ -445,7 +441,9 @@ typedef struct XcpData {
     /* Optional context list and span name list */
 #ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
     tXcpContextList context_list;
+#ifndef OPTION_DAQ_SPAN_SECTION_REGISTRATION
     tXcpSpanList span_list;
+#endif
 #endif
 
     /* Optional calibration segment list */

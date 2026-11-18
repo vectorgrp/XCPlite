@@ -111,6 +111,7 @@ change of the tool.
 | `xcp_cals` | one `tXcpCalSegDescriptor` (32 bytes: name, default page address, index variable, size, type) per calibration segment or block | `CalSegDecl`, `CalSegDeclRef`, `CalSegCreate` and the calibration block macros |
 | `xcp_epk` | the EPK software version string, without `OPTION_SECTION_REGISTRATION` the constant `xcp_epk__` instead (see below) | `XcpCreateEpk` |
 | `xcp_meta` | the metadata constants `xcp_meta__<kind>__<name>` | `XCP_UNIT`, `XCP_LIMITS`, `XCP_COMMENT`, `XCP_READ_WRITE` |
+| `xcp_spans` | one `tXcpSpanDescriptor` (32 bytes: the span name, 0 terminated, no pointers) per `DaqSpan` code location in link order, the position + 1 is the span id | `DaqSpan` with `OPTION_DAQ_SPAN_SECTION_REGISTRATION` (default configuration, independent of `OPTION_SECTION_REGISTRATION`) |
 
 The sections `xcp_evts` and `xcp_cals` exist only with the configuration option `OPTION_SECTION_REGISTRATION` (configurations `no_a2l`
 and `rtos`). Without it the event ids and segment numbers are the runtime creation order and an offline A2L tool can not know them, see

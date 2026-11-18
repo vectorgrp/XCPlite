@@ -334,7 +334,7 @@ uint16_t XcpGetEventContext(tXcpEventId event);
 
 /// Create a context, returns the context id (1..OPTION_DAQ_CONTEXT_COUNT)
 /// If a context with this name already exists, returns the existing context id
-/// Function is thread safe by using a mutex.
+/// Function is thread safe, lock-free and wait-free.
 /// @param name Name of the context, at most 15 characters.
 /// @return The context id or 0 if the name is too long or the context list is full.
 uint16_t XcpCreateContext(const char *name);
@@ -358,12 +358,69 @@ uint16_t XcpGetContextCount(void);
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
 tXcpEventId XcpCreateContextEvent(uint16_t context, const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 
+/// Get the number of span ids, including the reserved span id 0 (no span)
+uint16_t XcpGetSpanCount(void);
+
+#ifdef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
+// Link time registration of span names
+// DaqSpan emits a constant tXcpSpanDescriptor with the span name into the linker section xcp_spans.
+// The span id is the position of the descriptor in the section + 1, span id 0 is "no span".
+// The section is an array of fixed size records without pointers, the ids are deterministic for a given binary.
+// A span name used at several code locations may have several descriptors and so several span ids.
+// The A2L generator creates the enum conversion conv.spans from the section.
+
+#ifndef __CTX_H__ // Also defined in ctx.h, this guard prevents redefinition when both headers are included
+
+#define XCP_MAX_SPAN_NAME 31
+typedef struct {
+    char name[XCP_MAX_SPAN_NAME + 1]; // Span name, 0 terminated
+} tXcpSpanDescriptor;
+
+// Linker-synthesized section boundary symbols, resolved at link time
+// Only used where a descriptor is emitted, so the section exists
+#if defined(__ELF__)
+extern const tXcpSpanDescriptor __start_xcp_spans[] __attribute__((weak));
+#define XCP_SPAN_SECTION_NAME "xcp_spans"
+#elif defined(__APPLE__)
+extern const tXcpSpanDescriptor __start_xcp_spans[] __asm("section$start$__DATA$xcp_spans");
+#define XCP_SPAN_SECTION_NAME "__DATA,xcp_spans"
+#else
+#error "Unsupported platform for section based span name registration"
+#endif
+
+// Section attribute for the span descriptors
+// The alignment is explicit and the descriptor size is a multiple of it, so the section has no gaps
+// The AddressSanitizer of clang must not add red zones between the descriptors
+#if defined(__clang__)
+#define XCP_SPAN_SECTION_ATTR __attribute__((section(XCP_SPAN_SECTION_NAME), used, aligned(8), no_sanitize("address")))
+#else
+#define XCP_SPAN_SECTION_ATTR __attribute__((section(XCP_SPAN_SECTION_NAME), used, aligned(8)))
+#endif
+
+#endif // __CTX_H__
+
+/// Declare a span descriptor for a span name given as identifier, inside a function
+/// A name with more than 31 characters is a compile time error.
+#define XCP_SPAN_SECTION_DECL(span_name)                                                                                                                                           \
+    static const tXcpSpanDescriptor span_descr__##span_name XCP_SPAN_SECTION_ATTR = {#span_name};                                                                                  \
+    static_assert(sizeof(#span_name) <= sizeof(tXcpSpanDescriptor), "span name too long, at most 31 characters")
+
+/// Get the span id of a span descriptor declared with XCP_SPAN_SECTION_DECL (1..)
+/// This is a link time constant, there is no registration at runtime.
+#define XCP_SPAN_SECTION_ID(span_name) ((uint16_t)(&span_descr__##span_name - __start_xcp_spans + 1))
+
+#else // OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
 /// Register a span name, returns the span id (1..OPTION_DAQ_SPAN_COUNT-1)
 /// If the span name is already registered, returns the existing span id
 /// The A2L generator creates the enum conversion conv.spans from the registered span names.
-/// @param name Name of the span, at most 31 characters.
+/// Function is thread safe, lock-free and wait-free.
+/// @param name Name of the span, longer names are truncated to 31 characters.
 /// @return The span id or 0 (no span) if the span name list is full.
 uint16_t XcpRegisterSpanName(const char *name);
+
+#endif // !OPTION_DAQ_SPAN_SECTION_REGISTRATION
 
 #endif // OPTION_DAQ_CONTEXT_LIST
 

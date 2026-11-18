@@ -10,10 +10,16 @@
 //   2. C++ API: two code locations executed in two contexts and without a context, scope nesting, spans
 //   3. Persistence: write the BIN file, restart, contexts are rebuilt from the events and all ids are unchanged
 //   4. Limits: context name too long, context list full, span name list full
+//   5. DaqContext: a static context at a code location, executed before XcpInit, created once, entered by several threads at the same time
+//   6. DaqEventCtxVar: several threads trigger a context event for the first time at the same time, one creates it, none waits
+//
+// Span names are tested in both registration modes, link time (OPTION_DAQ_SPAN_SECTION_REGISTRATION, default) and runtime
 
+#include <atomic>  // for std::atomic
 #include <cstdint> // for uintxx_t
 #include <cstdio>  // for printf, remove
 #include <cstring> // for strcmp
+#include <thread>  // for std::thread
 
 #include <a2l.hpp>    // for A2L generation application programming interface
 #include <xcplib.hpp> // for application programming interface, xcp::Context, xcp::Scope, DaqSpan, DaqEventCtxVar
@@ -49,6 +55,7 @@ static void checkEvent(tXcpEventId id, const char *expected_name, uint16_t expec
 // Two code locations with context-aware instrumentation, shared by all contexts
 // Not inlined, so each is exactly one code location
 static uint32_t gCounter = 0;
+static std::atomic<uint32_t> gSharedCounter{0};
 
 #if defined(_MSC_VER)
 #define NOINLINE __declspec(noinline)
@@ -67,6 +74,73 @@ NOINLINE static void location2() {
     DaqEventCtxVar(loc2, A2L_MEAS(counter, "Counter at location 2"));
 }
 
+#ifdef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+// Two code locations which use the same span name, each returns its span id
+NOINLINE static uint16_t span_dup_1() {
+    XCP_SPAN_SECTION_DECL(dup);
+    return XCP_SPAN_SECTION_ID(dup);
+}
+NOINLINE static uint16_t span_dup_2() {
+    XCP_SPAN_SECTION_DECL(dup);
+    return XCP_SPAN_SECTION_ID(dup);
+}
+#endif
+
+// Three code locations which enter a context with a literal name, each returns the id of the current context inside the scope
+NOINLINE static uint16_t enter_early() {
+    DaqContext(early);
+    return xcp::Context::GetCurrent()->id();
+}
+NOINLINE static uint16_t enter_once() {
+    DaqContext(once);
+    return xcp::Context::GetCurrent()->id();
+}
+NOINLINE static uint16_t enter_shared() {
+    uint32_t counter = ++gSharedCounter;
+    DaqContext(shared);
+    DaqSpan(shared_work);
+    DaqEventCtxVar(shared_evt, A2L_MEAS(counter, "Counter in the shared context"));
+    return xcp::Context::GetCurrent()->id();
+}
+
+// The context event of a code location is claimed by one of the threads which trigger it for the first time at the same moment
+// The code location is simulated with a new state object in each round, the event is the same in all rounds
+static void raceContextEvent(int rounds, int thread_count) {
+    tXcpEventId race_event = XCP_UNDEFINED_EVENT_ID;
+    for (int round = 0; round < rounds; round++) {
+        xcp::detail::ContextEventIds ids{};
+        std::atomic<bool> start{false};
+        std::atomic<int> ready{0};
+        std::thread threads[16];
+        CHECK(thread_count <= 16);
+        for (int i = 0; i < thread_count; i++) {
+            threads[i] = std::thread([&]() {
+                uint32_t value = 1;
+                ready.fetch_add(1);
+                while (!start.load(std::memory_order_acquire)) {
+                }
+                // Triggers the event or skips the trigger while another thread creates it, never waits
+                xcp::DaqEventCtxVarTemplate(ids, nullptr, "race", A2L_MEAS(value, "Value"));
+            });
+        }
+        while (ready.load() < thread_count)
+            std::this_thread::yield();
+        start.store(true, std::memory_order_release);
+        for (int i = 0; i < thread_count; i++)
+            threads[i].join();
+
+        // Exactly one thread created or found the event and published it, all others skipped or used it
+        uint16_t state = ids.state[0].load();
+        CHECK(state >= xcp::detail::kEventIdOffset, "round %d: state is %u", round, state);
+        tXcpEventId event = (tXcpEventId)(state - xcp::detail::kEventIdOffset);
+        if (round == 0)
+            race_event = event;
+        CHECK(event == race_event && event == XcpFindEvent("race"), "round %d: event id is %u, expected %u", round, event, race_event);
+        for (uint16_t context = 1; context <= OPTION_DAQ_CONTEXT_COUNT; context++)
+            CHECK(ids.state[context].load() == xcp::detail::kEventNew);
+    }
+}
+
 //-----------------------------------------------------------------------------------------------------
 
 int main(int argc, char *argv[]) {
@@ -76,6 +150,11 @@ int main(int argc, char *argv[]) {
 
     XcpSetLogLevel(OPTION_LOG_LEVEL);
     remove(BIN_FILE_NAME);
+
+    // A static context which is entered before XcpInit is not created, code in it behaves as without context
+    CHECK(enter_early() == 0);
+    CHECK(xcp::Context::GetCurrent() == nullptr);
+
     CHECK(XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL | XCP_MODE_PERSISTENCE));
     CHECK(XcpIsActivated());
     CHECK(XcpGetContextCount() == 0);
@@ -121,6 +200,32 @@ int main(int argc, char *argv[]) {
     // A context event needs an existing context
     CHECK(XcpCreateContextEvent(3, "evt", 0, 0) == XCP_UNDEFINED_EVENT_ID);
 
+#ifdef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+    // Span names are registered at link time, id 0 is "none"
+    // The list is complete before any span has been executed:
+    // work in location1, shared_work in enter_shared, and two descriptors for dup in span_dup_1 and span_dup_2
+    CHECK(XcpGetSpanCount() == 5, "span count is %u", XcpGetSpanCount());
+    CHECK(strcmp(XcpGetSpanName(0), "none") == 0);
+    CHECK(XcpGetSpanName(5) == nullptr);
+    uint16_t span_work = 0;
+    uint16_t dup_count = 0;
+    for (uint16_t id = 1; id < XcpGetSpanCount(); id++) {
+        const char *span_name = XcpGetSpanName(id);
+        CHECK(span_name != nullptr);
+        if (strcmp(span_name, "work") == 0)
+            span_work = id;
+        if (strcmp(span_name, "dup") == 0)
+            dup_count++;
+    }
+    CHECK(span_work != 0 && dup_count == 2, "span work has id %u, %u spans are named dup", span_work, dup_count);
+    // A span name used at two code locations has two ids, each code location always gets its own id
+    uint16_t dup_1 = span_dup_1();
+    uint16_t dup_2 = span_dup_2();
+    CHECK(dup_1 != dup_2 && dup_1 != span_work && dup_2 != span_work, "span ids are %u and %u", dup_1, dup_2);
+    CHECK(dup_1 >= 1 && dup_1 <= 4 && strcmp(XcpGetSpanName(dup_1), "dup") == 0);
+    CHECK(dup_2 >= 1 && dup_2 <= 4 && strcmp(XcpGetSpanName(dup_2), "dup") == 0);
+    CHECK(span_dup_1() == dup_1 && span_dup_2() == dup_2);
+#else
     // Span names are registered once, id 0 is "none"
     CHECK(XcpGetSpanCount() == 1 && strcmp(XcpGetSpanName(0), "none") == 0);
     uint16_t span_x = XcpRegisterSpanName("span_x");
@@ -129,6 +234,12 @@ int main(int argc, char *argv[]) {
     CHECK(XcpRegisterSpanName("span_x") == span_x);
     CHECK(strcmp(XcpGetSpanName(span_y), "span_y") == 0);
     CHECK(XcpGetSpanName(3) == nullptr);
+    // Names longer than 31 characters are truncated, the reserved name of span id 0 is not registered again
+    CHECK(XcpRegisterSpanName("a_span_name_with_more_than_31_characters") == 3);
+    CHECK(strcmp(XcpGetSpanName(3), "a_span_name_with_more_than_31_c") == 0);
+    CHECK(XcpRegisterSpanName("a_span_name_with_more_than_31_c") == 3);
+    CHECK(XcpRegisterSpanName("none") == 0 && XcpGetSpanCount() == 4);
+#endif
 
     // 2. C++ API
     printf("C++ API\n");
@@ -144,6 +255,13 @@ int main(int argc, char *argv[]) {
     checkEvent(context_a.event(), "ctx_a.spans", ctx_a);
     checkEvent(context_c.event(), "ctx_c.spans", ctx_c);
     CHECK(XcpGetEventCount() == event_count + 2);
+
+    // A second context object with the same name is the same context: same id, name and spans event, nothing is created
+    {
+        xcp::Context context_c2("ctx_c");
+        CHECK(context_c2.id() == ctx_c && context_c2.event() == context_c.event() && context_c2.name() == context_c.name());
+        CHECK(XcpGetContextCount() == 3 && XcpGetEventCount() == event_count + 2);
+    }
 
     // Scopes nest and restore the previous context
     CHECK(xcp::Context::GetCurrent() == nullptr);
@@ -188,9 +306,14 @@ int main(int argc, char *argv[]) {
     CHECK(XcpFindContextEvent(ctx_b, "loc1") == XCP_UNDEFINED_EVENT_ID); // Never executed in context b
     CHECK(XcpGetEventCount() == event_count + 2 + 6, "event count is %u", XcpGetEventCount());
 
-    // The span of location1 is registered once
+#ifdef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+    // Executing spans does not change the span names
+    CHECK(XcpGetSpanCount() == 5);
+#else
+    // The span of location1 is registered once, when it is executed for the first time
     uint16_t span_work = XcpRegisterSpanName("work");
-    CHECK(span_work == 3 && XcpGetSpanCount() == 4, "span id is %u, span count is %u", span_work, XcpGetSpanCount());
+    CHECK(span_work == 4 && XcpGetSpanCount() == 5, "span id is %u, span count is %u", span_work, XcpGetSpanCount());
+#endif
 
     // 3. Persistence
     printf("Persistence\n");
@@ -252,6 +375,11 @@ int main(int argc, char *argv[]) {
         CHECK(XcpGetEventCount() == event_count);
     }
 
+#ifdef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+    // The span names and span ids are the same after a restart
+    CHECK(XcpGetSpanCount() == 5 && strcmp(XcpGetSpanName(span_work), "work") == 0);
+    CHECK(span_dup_1() == dup_1 && span_dup_2() == dup_2);
+#else
     // Span name list full, span names are not persisted
     CHECK(XcpGetSpanCount() == 1);
     for (uint16_t i = 1; i < OPTION_DAQ_SPAN_COUNT; i++) {
@@ -260,6 +388,66 @@ int main(int argc, char *argv[]) {
     }
     CHECK(XcpRegisterSpanName("one_too_many") == 0);
     CHECK(XcpRegisterSpanName("span_1") == 1);
+#endif
+
+    XcpDeinit();
+    remove(BIN_FILE_NAME);
+
+    // 5. DaqContext
+    // The static contexts of the three code locations have not been created yet, start with empty lists
+    printf("DaqContext\n");
+    XcpSetLogLevel(OPTION_LOG_LEVEL);
+    CHECK(XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL | XCP_MODE_PERSISTENCE));
+    CHECK(XcpGetContextCount() == 0 && XcpGetEventCount() == 0, "%u contexts and %u events after XcpInit", XcpGetContextCount(), XcpGetEventCount());
+
+    // The code location which was executed before XcpInit creates its context now
+    uint16_t ctx_early = enter_early();
+    CHECK(ctx_early == 1 && XcpGetContextCount() == 1, "context id is %u, context count is %u", ctx_early, XcpGetContextCount());
+    CHECK(strcmp(XcpGetContextName(ctx_early), "early") == 0);
+    checkEvent(XcpFindContextEvent(ctx_early, "spans"), "early.spans", ctx_early);
+    CHECK(xcp::Context::GetCurrent() == nullptr); // The scope ended with the function
+
+    // A context is created once, it is the context with this name
+    uint16_t ctx_once = enter_once();
+    CHECK(ctx_once == 2 && enter_once() == ctx_once && enter_early() == ctx_early);
+    CHECK(XcpCreateContext("once") == ctx_once);
+    CHECK(XcpGetContextCount() == 2 && XcpGetEventCount() == 2, "%u contexts and %u events", XcpGetContextCount(), XcpGetEventCount());
+
+    // Several threads enter the same code location for the first time at the same moment: one context, one event, the same id for all
+    {
+        constexpr int kThreads = 4;
+        std::atomic<bool> start{false};
+        std::atomic<int> ready{0};
+        uint16_t ids[kThreads] = {};
+        std::thread threads[kThreads];
+        for (int i = 0; i < kThreads; i++) {
+            threads[i] = std::thread([&, i]() {
+                ready.fetch_add(1);
+                while (!start.load(std::memory_order_acquire)) {
+                }
+                ids[i] = enter_shared();
+                CHECK(xcp::Context::GetCurrent() == nullptr);
+            });
+        }
+        while (ready.load() < kThreads)
+            std::this_thread::yield();
+        start.store(true, std::memory_order_release);
+        for (auto &t : threads)
+            t.join();
+        for (int i = 0; i < kThreads; i++)
+            CHECK(ids[i] == 3, "thread %d got context id %u", i, ids[i]);
+        CHECK(strcmp(XcpGetContextName(3), "shared") == 0);
+        // One spans event per context, and one context event of the code location in the shared context
+        CHECK(XcpGetContextCount() == 3 && XcpGetEventCount() == 4, "%u contexts and %u events", XcpGetContextCount(), XcpGetEventCount());
+        checkEvent(XcpFindContextEvent(3, "shared_evt"), "shared.shared_evt", 3);
+        CHECK(enter_shared() == 3);
+        CHECK(XcpGetEventCount() == 4);
+    }
+
+    // 6. DaqEventCtxVar, first execution of a code location by several threads at the same time
+    printf("DaqEventCtxVar race\n");
+    raceContextEvent(100, 4);
+    CHECK(XcpGetEventCount() == 5, "%u events", XcpGetEventCount());
 
     XcpDeinit();
     remove(BIN_FILE_NAME);

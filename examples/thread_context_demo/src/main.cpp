@@ -22,7 +22,8 @@ static volatile bool running = true;
 static void sig_handler(int) { running = false; }
 
 // Sleep some time in us
-void sleep(uint32_t us) {
+// Not named sleep: on Linux this would conflict with sleep() of the C library
+static void sleep_us(uint32_t us) {
     sleepUs(us); // from xcplib
 }
 
@@ -97,7 +98,7 @@ void wait_xcp() {
 
     std::cout << "Waiting for the XCP client to start the measurement (Ctrl-C to abort) ..." << std::endl;
     while (running && !XcpIsDaqRunning()) {
-        sleep(10000); // 10ms
+        sleep_us(10000); // 10ms
     }
 }
 
@@ -127,7 +128,7 @@ int main() {
         // Initialize
         {
             DaqSpan(initialize);
-            sleep(10000);
+            sleep_us(10000);
 
             // Simplified signal generator C++ class taken from cpp_demo
             // Create 2 instances
@@ -151,7 +152,7 @@ int main() {
             signal_generator_1 = std::make_unique<signal_generator::SignalGenerator>("SigGen1", &kSignalParameters1);
             signal_generator_2 = std::make_unique<signal_generator::SignalGenerator>("SigGen2", &kSignalParameters2);
 
-            sleep(10000); // Wait a bit to let the signal generator threads initialize
+            sleep_us(10000); // Wait a bit to let the signal generator threads initialize
         }
 
         // Main loop
@@ -168,15 +169,15 @@ int main() {
                 // Each poll in its own span, the span poll in SignalGenerator::Poll is nested in poll_1 or poll_2
                 {
                     DaqSpan(get_channel1);
-                    sleep(100);
+                    sleep_us(100);
                     channel1 = signal_generator_1->Poll();
-                    sleep(100);
+                    sleep_us(100);
                 }
                 {
                     DaqSpan(get_channel2);
-                    sleep(100);
+                    sleep_us(100);
                     channel2 = signal_generator_2->Poll();
-                    sleep(100);
+                    sleep_us(100);
                 }
                 sum = channel1 + channel2;
             }
@@ -191,10 +192,10 @@ int main() {
 
             {
                 DaqSpan(analyze);
-                sleep(1000); // Simulate some work time in span analyze
+                sleep_us(1000); // Simulate some work time in span analyze
             }
 
-            sleep(15000);
+            sleep_us(15000);
 
         } // while (running)
 

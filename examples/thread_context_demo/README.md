@@ -124,6 +124,14 @@ the measurement before any instrumented code has been executed.
 2. Second run: start the demo again. It prints `Waiting for the XCP client to start the measurement (Ctrl-C to abort) ...`.
 3. Start the measurement with xcpclient or CANape. The demo continues with the startup and the main loop.
 
+Span ids are not stored in the persistence file and need not be: with `OPTION_DAQ_SPAN_SECTION_REGISTRATION` (default) the span
+names are registered at link time, the span ids are the same in every run of the same binary and `conv.spans` of the first run
+is complete, including spans which were not executed in the first run. Without the option (Windows, SHM mode), span ids are
+assigned in the order in which the spans are executed for the first time, and the A2L file of the first run is valid for the
+second run only as long as this order is the same.
+
+The constructor of the signal generator waits for the first cycle of its task, so the events of the contexts are created in the
+same order in the first run.
 
 ## CANape
 
@@ -184,13 +192,22 @@ An event index > 0 always means a context. The library knows the context names, 
 
 Library
 
-- Options `OPTION_DAQ_CONTEXT_LIST`, `OPTION_DAQ_CONTEXT_COUNT` (8), `OPTION_DAQ_SPAN_COUNT` (32) and `OPTION_DAQ_SPAN_THREAD`,
+- Options `OPTION_DAQ_CONTEXT_LIST`, `OPTION_DAQ_CONTEXT_COUNT` (8), `OPTION_DAQ_SPAN_SECTION_REGISTRATION`,
+  `OPTION_DAQ_SPAN_COUNT` (32) and `OPTION_DAQ_SPAN_THREAD`,
   see [docs/xcplib_cfg.md](../../docs/xcplib_cfg.md). Enabled in the default and the shm configuration, undefined in ptp, raw,
   no_a2l and rtos. `OPTION_DAQ_SPAN_THREAD` is not defined by default.
-- [src/ctx.c](../../src/ctx.c), `src/ctx.h`: context list and span name list next to the event list. `XcpCreateContext`,
-  `XcpGetContextName`, `XcpGetContextCount`, `XcpCreateContextEvent`, `XcpRegisterSpanName`.
+- [src/ctx.c](../../src/ctx.c), `src/ctx.h`: context list next to the event list, a lock-free name list
+  ([docs/NAMELIST.md](../../docs/NAMELIST.md)). `XcpCreateContext`, `XcpGetContextName`, `XcpGetContextCount`,
+  `XcpCreateContextEvent`.
+- Span names: with `OPTION_DAQ_SPAN_SECTION_REGISTRATION` (default, not on Windows and not in SHM mode) `DaqSpan` emits a constant
+  descriptor into the linker section `xcp_spans`, the span id is the position in the section. Otherwise `XcpRegisterSpanName`
+  registers the name at runtime in a span name list, and `DaqSpan` caches the span id at the code location.
 - [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp), included by `xcplib.hpp`: `xcp::Context`, `xcp::Scope`, `xcp::Span`,
-  `DaqSpan`, `DaqEventCtxVar`, `DaqEventCtxVar_`. There is no C instrumentation API for contexts.
+  `DaqContext`, `DaqSpan`, `DaqEventCtxVar`, `DaqEventCtxVar_`. There is no C instrumentation API for contexts.
+- `DaqContext(name)` enters a context with a literal name for the enclosing block. The context object is a static at the code
+  location and is created when the code location is executed for the first time, so code which is executed repeatedly does not
+  search the context list each time. The demo creates its contexts with `xcp::Context` objects, because they are entered once
+  (`Startup`, `Mainloop`) or have a name which is only known at runtime (the signal generator instances).
 - The span event of a context is `<context>.spans`. A sample is the state after a span begin or end: `span`, `level`, `span_dt`
   and, with `OPTION_DAQ_SPAN_THREAD`, `thread`. The record has 8 bytes with and without the option, `level` has 8 bit with the
   option and 16 bit without.
@@ -205,6 +222,7 @@ Persistence
 - `tools/bintool` shows an event which belongs to a context as `<context>.<event>`, with the context name and id.
 - The demo uses `A2L_MODE_WRITE_ONCE`: after a change which affects the A2L file without a new EPK, for example toggling
   `OPTION_DAQ_SPAN_THREAD` or adding, renaming or reordering spans, delete the `.a2l` and `.bin` file in the working directory.
+  The span ids are fixed for a binary, not for an EPK: a new build may have different span ids.
 - Span names and span ids are not stored in the binary persistence file.
 
 ## Memory consumption
@@ -222,13 +240,14 @@ Fixed, allocated whether or not a context is used:
 | `OPTION_DAQ_SPAN_COUNT` | 32 | 32 bytes per span name | 1026 bytes |
 | Event name buffer | | | 32 bytes |
 
-The context feature itself adds about 1.2 KB with the defaults, most of it is the span name table.
+The context feature itself adds about 0.5 KB of RAM with the defaults. With link time registration, a span name is a constant of
+32 bytes per `DaqSpan` code location (8 in this demo), there is no span name table in RAM.
 
 Per use, in the application:
 
 | Item | Size | Count |
 |---|---|---|
-| `DaqEventCtxVar` code location (event id cache) | 2 x (`OPTION_DAQ_CONTEXT_COUNT` + 1) = 18 bytes | per code location |
+| `DaqEventCtxVar` code location (event state per context) | 2 x (`OPTION_DAQ_CONTEXT_COUNT` + 1) = 18 bytes | per code location |
 | Mutex for the first-time registration | 64 bytes on macOS, 40 bytes on Linux | per distinct combination of measurement types, not per code location |
 | `xcp::Context` object | 24 bytes | per context |
 | Current context and span | 16 bytes thread-local | per thread which uses a scope or a span |
@@ -264,15 +283,28 @@ Not affected by the number of contexts or code locations:
 - The binary persistence file grows by 256 bytes per event.
 
 
-## Limitations
+## Findings and limitations
 
-- **Lazy registration.** Contexts, context-aware events and spans must have been executed once before the A2L file is finalized. 
-- **Volatile A2l.** Span ids depend on the order in which the spans are executed for the first time. With `A2L_MODE_WRITE_ONCE`, this order must not change between runs, otherwise `conv.spans` of the existing A2L file shows wrong span names. Switch to `A2L_MODE_WRITE_ALWAYS`, if this can not be assured. With OPTION_OBSERVE_STARTUP, code which runs only once at startup can be measured from the second run on, see "Measuring the startup". Span creation order must be deterministic in this use case.
-- **Limited Event budget.** One event per context, plus one per context and context-aware code location
-  (10 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 32 by default). The number of contexts is limited
-  by `OPTION_DAQ_CONTEXT_COUNT` (default 8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (default 32).
-- **Monotonic timestamps.** The timestamps of an XCP event must be monotonic. A context-aware event must not be triggered concurrently
-  by several threads in the same context at the same code location.
+- **Event budget.** One event per context, plus one per context and context-aware code location
+  (10 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 16 by default). The number of contexts is limited
+  by `OPTION_DAQ_CONTEXT_COUNT` (8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (32).
+- **Declining timestamps.** The timestamps of an XCP event should not decline. A context can be attached
+  to several threads at the same time (for example a task thread and a method called from another thread). The order of the
+  samples is decided when the event is queued, after the timestamp was taken, so a thread which is overtaken in between
+  produces a sample with a declining timestamp. This applies to the span events of a context in which several threads work
+  at the same time, and to a context-aware event triggered by several threads in the same context at the same code location.
+  Nothing is serialized, a thread never waits for another one. `xcpclient` accepts a declining timestamp, other tools may not.
+- **First execution.** The first execution of a `DaqEventCtxVar` code location in a context creates the event and registers
+  the measurements. One thread does this (event list mutex, A2L lock). Other threads which execute the code location in the same
+  context at this moment do not wait, they skip this one trigger. There is no mutex and no compiler generated once guard at the
+  code locations of `DaqSpan`, `DaqContext` and `DaqEventCtxVar`.
+- **A2L timing.** Contexts and context-aware events must have been executed once before the A2L
+  file is finalized (spans as well without `OPTION_DAQ_SPAN_SECTION_REGISTRATION`). Code which runs only once at startup can be measured from the second run on, see "Measuring the startup".
+- **Span ids.** With `OPTION_DAQ_SPAN_SECTION_REGISTRATION` (default), span ids depend on the link order only: they are the same
+  in every run of a binary, which is what `A2L_MODE_WRITE_ONCE` needs. A span name used at several code locations gets several
+  span ids with the same name. With GCC, `DaqSpan` can not be used in inline functions, templates and member functions defined
+  in the class body. Without the option, span ids depend on the order in which the spans are executed for the first time, this
+  order must then not change between runs, otherwise `conv.spans` of the existing A2L file shows wrong span names.
 - **Span duration.** `span_dt` belongs to the span that just ended, the end sample does not name it.
 - **Thread index.** `.thread` is an index local to the process, not the thread id of the operating system, and limited to 255 threads.
   Without `OPTION_DAQ_SPAN_THREAD`, the spans of several threads in one context can not be told apart.
@@ -290,18 +322,19 @@ Not affected by the number of contexts or code locations:
 
 - Should a context capture the current context when the instance does not know its own name?
 - How far should the naming follow OTel? An OTel tracer has a name but no id, it is only a factory for
-  spans. The trace id belongs to the trace, which is the set of all spans sharing that trace id.
-- SHM configuration: how to make context and event creation process safe? Two applications must not create contexts or events at
-  the same time. Not tested with xcpdaemon yet.
+  spans. The trace id belongs to the trace, which is the set of all spans sharing that id.
+- SHM configuration: how to make event creation process safe? The context list and the span name list are lock-free name lists
+  which several processes may use at the same time, but a context needs its `spans` event and the event list is protected by a
+  process local mutex. Not tested with xcpdaemon yet.
 
 ## Remaining todos
 
 - `span_dt` is not attributed to a span name, the end sample only carries the duration.
-- Two `xcp::Context` objects with the same name share the context but not the spin lock, so their span events are not serialized.
-  Currently only documented as "create one object per name".
-- `DaqSpan` executed before `XcpInit` keeps span id 0 permanently, because the id is a function-local static.
-- A context-aware event triggered concurrently by several threads in the same context at the same code location can produce
-  non-monotonic timestamps. Only the span event is serialized.
+- Declining timestamps are possible when several threads trigger the same event at the same time (span events of a context,
+  context-aware events). Using the newest timestamp of the context instead of an older one was tried and removed: with more
+  than two threads it gave more declining timestamps than no correction. An exact solution without a lock
+  is to take the timestamp inside the acquire loop of the transmit queue, between loading the head and the compare-and-swap.
+  Not implemented, the cost in the queue is not measured.
 - Update the CANape project for thread_context_demo.
 - The OTel version in [otel/](otel/) has never been compiled.
 

@@ -99,10 +99,13 @@
 #error "Please define OPTION_DAQ_CONTEXT_COUNT"
 #endif
 
+// With OPTION_DAQ_SPAN_SECTION_REGISTRATION, the span names are in the linker section xcp_spans, there is no span name list
+#ifndef OPTION_DAQ_SPAN_SECTION_REGISTRATION
 #if defined(OPTION_DAQ_SPAN_COUNT) && (OPTION_DAQ_SPAN_COUNT > 1)
 #define XCP_MAX_SPAN_COUNT OPTION_DAQ_SPAN_COUNT
 #else
 #error "Please define OPTION_DAQ_SPAN_COUNT"
+#endif
 #endif
 
 #endif // OPTION_DAQ_CONTEXT_LIST

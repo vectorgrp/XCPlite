@@ -37,7 +37,7 @@ extern "C" {
 // Initialize the context list and the span name list, called by XcpInitEventList
 void XcpInitContextList(void);
 
-// Create a context or return the id of the existing context with this name, thread safe
+// Create a context or return the id of the existing context with this name, thread safe, lock-free and wait-free
 // Returns the context id (1..XCP_MAX_CONTEXT_COUNT) or XCP_UNDEFINED_CONTEXT
 uint16_t XcpCreateContext(const char *name);
 
@@ -58,9 +58,49 @@ uint16_t XcpGetContextCount(void);
 // With context XCP_UNDEFINED_CONTEXT, this is the same as XcpCreateEvent
 tXcpEventId XcpCreateContextEvent(uint16_t context, const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
 
-// Register a span name or return the id of the existing span name, thread safe
+#ifdef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
+// Link time registration of span names in the linker section xcp_spans
+// The span id is the position of the descriptor in the section + 1, the span names are constant data, there is no registration at runtime
+// Also defined in xcplib.h, this guard prevents redefinition when both headers are included
+#ifndef __XCPLIB_H__
+
+#define XCP_MAX_SPAN_NAME 31
+typedef struct {
+    char name[XCP_MAX_SPAN_NAME + 1]; // Span name, 0 terminated
+} tXcpSpanDescriptor;
+
+#if defined(__ELF__)
+extern const tXcpSpanDescriptor __start_xcp_spans[] __attribute__((weak));
+#define XCP_SPAN_SECTION_NAME "xcp_spans"
+#elif defined(__APPLE__)
+extern const tXcpSpanDescriptor __start_xcp_spans[] __asm("section$start$__DATA$xcp_spans");
+#define XCP_SPAN_SECTION_NAME "__DATA,xcp_spans"
+#else
+#error "Unsupported platform for section based span name registration"
+#endif
+
+#if defined(__clang__)
+#define XCP_SPAN_SECTION_ATTR __attribute__((section(XCP_SPAN_SECTION_NAME), used, aligned(8), no_sanitize("address")))
+#else
+#define XCP_SPAN_SECTION_ATTR __attribute__((section(XCP_SPAN_SECTION_NAME), used, aligned(8)))
+#endif
+
+#endif // __XCPLIB_H__
+
+// End of the section, used by ctx.c only
+// Declared weak like the start: without any span in the program, the section does not exist and both symbols are NULL
+#if defined(__ELF__)
+extern const tXcpSpanDescriptor __stop_xcp_spans[] __attribute__((weak));
+#endif
+
+#else // OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
+// Register a span name or return the id of the existing span name, thread safe, lock-free and wait-free
 // Returns the span id (1..XCP_MAX_SPAN_COUNT-1) or 0 (no span) when out of memory
 uint16_t XcpRegisterSpanName(const char *name);
+
+#endif // !OPTION_DAQ_SPAN_SECTION_REGISTRATION
 
 // Get the name of a span id, returns NULL if not found
 const char *XcpGetSpanName(uint16_t span);
