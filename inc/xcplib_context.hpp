@@ -236,18 +236,17 @@ class Context {
     /// Use it to capture the context in a parent thread and attach it with a Scope in another thread
     [[nodiscard]] static const Context *GetCurrent() { return detail::current().context; }
 
-    // Trigger the spans event of this context with a span record, returns the timestamp of the event
+    // Trigger the spans event of this context with a span record and the timestamp clock, taken by the caller with ApplXcpGetClock64()
+    // The caller takes the timestamp, so that the duration of a span is exactly the difference of the timestamps of its begin and end event
     // The measurement data is a record on the stack of the calling thread, the context itself has no mutable span state
     // A context may be attached to several threads at the same time. Their span events are not serialized and a thread never
     // waits for another one. The order of the samples is decided when the event is queued, after the timestamp was taken:
     // a thread which is overtaken by another one in between produces a sample with a declining timestamp
     // Using the newest timestamp of the context instead of an older one does not solve this. With more than two threads it
     // gave more declining timestamps than no correction in a stress test, and it needs a shared atomic in the context
-    uint64_t TriggerSpanEvent(const detail::SpanRecord &record) const {
-        const uint64_t clock = ApplXcpGetClock64();
+    void TriggerSpanEvent(const detail::SpanRecord &record, uint64_t clock) const {
         const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), (const uint8_t *)&record, (const uint8_t *)&record};
         XcpEventExtAt_(event(), (int)(sizeof(bases) / sizeof(bases[0])), bases, clock);
-        return clock;
     }
 
   private:
@@ -351,7 +350,8 @@ class Span {
         previous_span_ = current.span;
         current.span = span_id;
         current.level++;
-        begin_ = current.context->TriggerSpanEvent(detail::makeSpanRecord(0, current.span, current.level));
+        begin_ = ApplXcpGetClock64();
+        current.context->TriggerSpanEvent(detail::makeSpanRecord(0, current.span, current.level), begin_);
     }
 
     ~Span() {
@@ -360,9 +360,10 @@ class Span {
         detail::Current &current = detail::current();
         current.span = previous_span_;
         current.level--;
-        // The duration is measured up to the end of the span, the timestamp of the end event is taken slightly later
-        const uint64_t dt = ApplXcpGetClock64() - begin_; // @@@@ TODO: Take the timestamp only once
-        current.context->TriggerSpanEvent(detail::makeSpanRecord(dt > UINT32_MAX ? UINT32_MAX : (uint32_t)dt, current.span, current.level));
+        // One timestamp for the duration and the end event: span_dt is exactly the difference of the timestamps of the begin and end event
+        const uint64_t clock = ApplXcpGetClock64();
+        const uint64_t dt = clock - begin_;
+        current.context->TriggerSpanEvent(detail::makeSpanRecord(dt > UINT32_MAX ? UINT32_MAX : (uint32_t)dt, current.span, current.level), clock);
     }
 
     Span(const Span &) = delete;

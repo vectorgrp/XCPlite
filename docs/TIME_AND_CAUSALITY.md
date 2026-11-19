@@ -407,7 +407,7 @@ With two threads the correction helps. With more it creates new declines: a thre
 
 ### 6.7 The decision and the rule
 
-XCPlite does not put the threads of a context in order. `TriggerSpanEvent` takes the clock and triggers the event, no thread ever waits for another one, and the context has no shared mutable state for this.
+XCPlite does not put the threads of a context in order. A span takes the clock and `TriggerSpanEvent` triggers the event with this timestamp, no thread ever waits for another one, and the context has no shared mutable state for this.
 
 The rule which follows:
 

@@ -332,7 +332,7 @@ Not affected by the number of contexts or code locations:
 
 ## Remaining todos
 
-- `span_dt` is not attributed to a span name, it is attributed on the context, an end sample (dt!=0) carries the duration.
+- `span_dt` is not attributed to a span name, it is attributed on the context, an end sample carries the duration.
 - Declining timestamps are possible when several threads trigger the same event at the same time (span events of a context,
   context-aware events). Using the newest timestamp of the context instead of an older one was tried and removed: with more
   than two threads it gave more declining timestamps than no correction. An exact solution without a lock
