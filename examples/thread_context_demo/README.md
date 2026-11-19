@@ -1,39 +1,34 @@
 # thread_context_demo — context and spans for multiple instances
 
-Experimental PoC. Work in progress. Not optimized yet. 
+Experimental PoC. Work in progress.  
 
-Demonstrates how XCPlite can measure individual time series when the same code runs for several class instances
-or in several threads, using a concept borrowed from OpenTelemetry (OTel): context, scope and span.
+Demonstrates how XCPlite can measure individual time series when the same code runs for several class instances or in several threads, using a concept borrowed from OpenTelemetry (OTel): context, scope and span.
 
-The API extensions are now part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp)
-(included by `xcplib.hpp`). They need the option `OPTION_DAQ_CONTEXT_LIST`, which is currently enabled in the default and the shm
-configuration, the configurations with on-target A2L generation. It costs nothing, when not used.  
+The demo has a class called `SignalGenerator`. It creates a thread which generates a configurable real time signal over time in a member variable. There are multiple instances of a SignalGenerator. The output of a SignalGenerator instance can be polled by other threads.  
+Goal is to instrument synchronous observation of generating the signal AND the execution of the polling function in the SignalGenerator implementation, without knowing which instance it will be and who will call the poll function. During runtime, this shall create a consistent time series for each instance and each caller, so a standard XCP client tool or logger does not need to know how to demultiplex the data associated to a single code location. And the tool can select at runtime, which instance or caller it wants to observe.
 
-The old first C implementation of context and span in multi_thread_demo main.c has been replaced by this C++ example.
+The API extensions needed are part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp) (included by `xcplib.hpp`). They need the option `OPTION_DAQ_CONTEXT_LIST`, which is currently enabled in the default and the shm configuration, the configurations with on-target A2L generation. It costs nothing, when not used.  
+
+The old first C implementation of context and span in multi_thread_demo has been replaced by this C++ example.
 
 
 ---
 
 ## The problem
 
-An XCP event is bound to a code location. The demo has two instances of a signal generator class, each
-running its own thread. Instrumented in the obvious way, with one `DaqEventVar(siggen, A2L_MEAS(value_, ...))`
-in the task function, both instances trigger the same event `siggen` and the tool receives one signal
-`value_` with the values of both instances mixed.
+An XCP event is bound to a code location. The demo has two instances of a signal generator class, each running its own thread. It has a thread-safe poll function, to be called by other threads to read the last value. Instrumenting both functions in the obvious way, with one `DaqEventVar(event_name, A2L_MEAS(variable_name, ...))` in the code, both instances and each caller triggers the same event and the tool receives one signal with mixed the values for instances or callers.
 
-The existing solution (see `cpp_demo`) needs the instrumented code to know its instance
-and pass the name along: one dynamically created event per instance, and measurements registered with the instance name as
-prefix. Shared helper functions, which do not know for which instance they are working, can not be
-attributed at all.
+The existing solution (see `cpp_demo`) needs the instrumented code to know its instance and pass the name along: one dynamically created event per instance, and measurements registered with the instance name as prefix. Shared helper functions, which do not know for which instance they are working or who is calling, can not be attributed at all.
+
 
 ## The concept
 
 | Term | Meaning |
 |---|---|
 | `xcp::Context` | A named identity, "who is executing". One per class instance here (`SigGen1`, `SigGen2`), and one for each phase of the main thread (`Startup`, `Mainloop`). |
-| `xcp::Scope` | Makes a context the current context of the calling thread and restores the previous one at the end of the block. The current context is in thread-local storage. |
+| `xcp::Scope` | Makes a context the current context of the calling thread and restores the previous one at the end of the block (for context propagation). The current context is ambient in thread-local storage. |
 | `DaqEventCtxVar` | Context-aware variant of `DaqEventVar`. Uses a separate event and separate measurements for each context, the event is named `<context>.<event>`. |
-| `DaqSpan` | A named, timed section of code. Begin and end are recorded on the event `<context>.spans` of the current context. |
+| `DaqSpan` | A named, timed section of code. Begin and end are recorded on the same event `<context>.spans` of the current context. |
 
 ```cpp
 xcp::Context context_;                                  // class member, constructed with the instance name
@@ -42,9 +37,9 @@ DaqEventCtxVar(siggen, A2L_MEAS_PHYS(value_, ...));     // event SigGen1.siggen,
 { DaqSpan(calc); ... }                                  // span "calc", ends at the end of the block
 ```
 
-With a current context, the instrumented code needs no instance parameter. The shared function `Clip()`
-in [src/sig_gen.cpp](src/sig_gen.cpp) is instrumented without knowing its instance and still delivers
-`SigGen1.input` and `SigGen2.input`.
+With a current context, the instrumented code needs no instance parameter. The shared functions `Clip()` and `Poll()`
+in [src/sig_gen.cpp](src/sig_gen.cpp) are instrumented without knowing its instance or caller and deliver
+`SigGen1.input`, `SigGen2.input` and `Mainloop.polled`.
 
 ## What the demo measures
 
@@ -307,14 +302,13 @@ Not affected by the number of contexts or code locations:
   the measurements. One thread does this (event list mutex, A2L lock). Other threads which execute the code location in the same
   context at this moment do not wait, they skip this one trigger. There is no mutex and no compiler generated once guard at the
   code locations of `DaqSpan`, `DaqContext` and `DaqEventCtxVar`.
-- **A2L timing.** Contexts and context-aware events must have been executed once before the A2L
+- **A2L lazy generation.** Contexts and context-aware events must have been executed once before the A2L
   file is finalized (spans as well without `OPTION_DAQ_SPAN_SECTION_REGISTRATION`). Code which runs only once at startup can be measured from the second run on, see "Measuring the startup".
 - **Span ids.** With `OPTION_DAQ_SPAN_SECTION_REGISTRATION` (default), span ids depend on the link order only: they are the same
   in every run of a binary, which is what `A2L_MODE_WRITE_ONCE` needs. A span name used at several code locations gets several
   span ids with the same name. With GCC, `DaqSpan` can not be used in inline functions, templates and member functions defined
   in the class body. Without the option, span ids depend on the order in which the spans are executed for the first time, this
   order must then not change between runs, otherwise `conv.spans` of the existing A2L file shows wrong span names.
-- **Span duration.** `span_dt` belongs to the span that just ended, the end sample does not name it.
 - **Thread index.** `.thread` is an index local to the process, not the thread id of the operating system, and limited to 255 threads.
   Without `OPTION_DAQ_SPAN_THREAD`, the spans of several threads in one context can not be told apart.
 - **Attach starts without a span.** The current span of the capturing thread is not carried over.
@@ -324,7 +318,7 @@ Not affected by the number of contexts or code locations:
   ([src/ctx.c](../../src/ctx.c)), an event stores the id of its context. The binary persistence file
   stores the context name with each event, so event ids are stable across restarts. 
 - **C++ only.** There is no C instrumentation API for contexts.
-- **Names.** Context and event names are limited to 15 characters each.
+
 
 
 ## Open questions
@@ -338,7 +332,7 @@ Not affected by the number of contexts or code locations:
 
 ## Remaining todos
 
-- `span_dt` is not attributed to a span name, the end sample only carries the duration.
+- `span_dt` is not attributed to a span name, it is attributed on the context, an end sample (dt!=0) carries the duration.
 - Declining timestamps are possible when several threads trigger the same event at the same time (span events of a context,
   context-aware events). Using the newest timestamp of the context instead of an older one was tried and removed: with more
   than two threads it gave more declining timestamps than no correction. An exact solution without a lock
