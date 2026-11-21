@@ -94,7 +94,8 @@ impl XcpClient {
     pub async fn download(&mut self, data_bytes: &[u8]) -> Result<(), Box<dyn Error>> {
         let n = data_bytes.len();
         trace!("download len={}, data={:?}", n, data_bytes);
-        if n >= (self.max_cto_size - 2) as usize {
+        // DOWNLOAD uses two header bytes; a payload that fills MAX_CTO is valid.
+        if n > (self.max_cto_size - 2) as usize {
             return Err(Box::new(XcpError::new(CRC_CMD_SYNTAX, CC_DOWNLOAD)) as Box<dyn Error>);
         }
         self.send_command(XcpCommandBuilder::new(CC_DOWNLOAD).add_u8(n as u8).add_u8_slice(data_bytes).build())
