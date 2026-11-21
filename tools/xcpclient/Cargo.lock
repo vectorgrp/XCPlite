@@ -1053,28 +1053,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "xcp_register_type_derive"
-version = "3.0.10"
-source = "git+https://github.com/vectorgrp/xcp-lite#86c702ab605c0dabb429d1e80dd6e8e47d17926d"
+name = "xcp_registry"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dc80662e6a66f9ceba8ce38891a256e506bbbd8272cc8d4b21aa266e2d6d649"
+dependencies = [
+ "a2lfile",
+ "log",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "xcp_registry_derive",
+]
+
+[[package]]
+name = "xcp_registry_derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "390b1267018f973d938fb739542a3562ddf2566baf8e3cc82360c6b371d5b535"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "xcp_registry"
-version = "3.0.10"
-source = "git+https://github.com/vectorgrp/xcp-lite#86c702ab605c0dabb429d1e80dd6e8e47d17926d"
-dependencies = [
- "a2lfile",
- "log",
- "parking_lot",
- "regex",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "xcp_register_type_derive",
 ]
 
 [[package]]

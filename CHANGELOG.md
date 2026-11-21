@@ -5,6 +5,7 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V2.3.4]
 
+- The registry crate `xcp_registry` is used from crates.io (version 0.1) instead of as a git dependency on xcp-lite. It has moved to its own repository, <https://github.com/RainerZ/xcp-registry>
 - Fixed potential integer overflows in calibration memory size calculation
 - Fixed queue64f and queue64v memory size checks
 - Fixed socket_raw_test and daq_config_test, added a new persistence_test
