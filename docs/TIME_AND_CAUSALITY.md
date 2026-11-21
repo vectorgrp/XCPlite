@@ -1,8 +1,10 @@
-# Time, order and causality: XCP and OpenTelemetry
+# Time, order and causality: XCPlite and OpenTelemetry
 
-XCP and OpenTelemetry (OTel) both observe running software, and both attach timestamps to what they observe. They come from different worlds, answer different questions and treat time in different ways. People who know one of them tend to carry its assumptions into the other, and most misunderstandings start there.
+XCPlite and OpenTelemetry (OTel) both observe running software, and both attach timestamps to what they observe. They come from different worlds, answer different questions and treat time in different ways. People who know one of them tend to carry its assumptions into the other, and most misunderstandings start there.
 
-This document explains both and compares them. Then it shows what XCPlite takes over from OTel, and why: the OTel context gives XCP a way to measure a consistent time series per identity, for example per instance of a control algorithm, from code which does not know for which instance it is executed. Finally it collects what was found about time and order during this work. It is meant as a common base for discussions about time and causality in concurrent and distributed systems.
+This document explains both and compares them. Then it shows what XCPlite takes over from OTel, and why: the OTel context gives XCP a way to measure a consistent time series per identity, for example per instance of a control algorithm, from code which does not know for which instance or caller it is executed. Finally it collects what was found about time and order during this work. It is meant as a common base for discussions about time and causality in concurrent and distributed systems.
+
+Note: What this document says about the XCP concept is valid for most tracing concepts based on capturing events with a timestamp and associated data. 
 
 How to read it:
 
@@ -30,7 +32,7 @@ How to read it:
 
 A cyber-physical system controls something in the physical world: an engine, a brake, a battery, a robot arm. Sensors measure physical quantities, control algorithms compute, actuators act. The physical process does not wait, so the question of *when* something happened is part of whether the system works correctly. A value which is right but 2 ms late can be wrong.
 
-Such a system is observed and tuned with **XCP**. The engineer wants to see signals over time, like on an oscilloscope: the measured speed, the output of a controller, an internal state variable. And they want to lay these curves next to curves from measurement instruments which observe the physical world directly.
+Such a system may be observed and tuned with classical **XCP** concepts. The engineer wants to see signals over time, like on an oscilloscope: the measured speed, the output of a controller, an internal state variable. And they want to lay these curves next to curves from measurement instruments which observe the physical world directly.
 
 Today's cyber-physical systems are distributed systems as well. Not only the sensors and actuators are distributed, the control algorithms are too: a mix of microcontrollers with bare metal software or a small real-time operating system, and microprocessors with a POSIX like operating system, many threads and many cores.
 
@@ -46,7 +48,7 @@ Such a system is observed with **OpenTelemetry**. The engineer wants to know wha
 |---|---|---|
 | Central question | How did this value evolve over time? | What happened because of what? |
 | Result | Time series | Traces (causal trees), metrics (statistics), logs |
-| Role of time | The primary key of all data | One attribute among others |
+| Role of time | The primary high precision key of all data | One attribute among others |
 | Role of causality | Not recorded, the engineer infers it from the curves | Recorded explicitly, with identifiers |
 
 Everything else in this document follows from this table.
@@ -59,10 +61,10 @@ XCP is an ASAM standard for measurement and calibration. See [XCP_INTRODUCTION.m
 
 ### 2.1 Signals, events and samples
 
-- A **signal** (measurement variable) is a variable of the program: a global, a local on the stack, a member of an object. A description file (A2L) tells the tool its name, type, address, unit and conversion.
+- A **signal** (measurement) is a global variable of the program with a fixed memory location. XCPlite added concepts for variables on stack or on heap without extending the XCP protocol. A description file (A2L) tells the tool its name, type (scalar, array, struct, class, ...), address, unit and physical conversion.
 - An **event** is a point in the code where signals can be sampled. In XCPlite it is a line of instrumentation, for example `DaqTriggerEvent(task_10ms)` or `DaqEventVar(...)`.
 - At runtime, the tool chooses which signals it wants at which event. This selection is called a DAQ list. Nothing is transferred which the tool did not ask for.
-- Each time the code runs through the event, the target takes **one timestamp**, copies the selected signals and sends both to the tool. This is one **sample**.
+- Each time the code runs through the event, the target takes **one timestamp**, makes a copy of the selected signals and sends both to the tool. This is one **sample**.
 
 ```c
 DaqCreateEvent(task_10ms); // once at startup
@@ -104,7 +106,7 @@ XCP has no notion of a request, an operation or a relation between two samples. 
 
 ## 3. OpenTelemetry in ten minutes
 
-OpenTelemetry is an open standard and a set of libraries for telemetry of software services. It defines several kinds of data, called signals (not to be confused with an XCP signal): traces, metrics and logs.
+OpenTelemetry is an open standard and a set of libraries for telemetry of software services. It defines several kinds of data, called signals (not to be confused with an XCP measurement signal): traces, metrics and logs.
 
 ### 3.1 Spans and traces
 
@@ -136,8 +138,14 @@ How does a span know its parent? Through the **context**. A context is a small i
 
 When work crosses a boundary, the context has to travel with it:
 
-- To another thread: the program captures the context and attaches it in the other thread.
-- To another process: the context is written into the message, for HTTP into a header. This is called **propagation**. The header contains the trace id, the id of the calling span and some flags. It contains **no timestamp**.
+- To another thread: the program captures the context and attaches it in the other thread. 
+- To another process: the context is written into the message, for HTTP into a header. 
+
+Some language APIs call the thread case “in-process propagation”, but in the OTel spec the “propagation” operation is Inject/Extract across process boundaries, while to another thread is just get, attach, detach.
+
+Both are not done implicitly, moving the context is the user’s job. Both mechanisms differ. The header of a message send to another process typically contains the trace id, the id of the calling span and some flags. It contains **no timestamp**. In the same process, the context is just copied. But the goal is the same, creating causality and order between asynchronous executed software parts.  
+
+Why moving the context is the user’s job: The library can’t know causality. The right parent context is determined where the work is submitted, not where a thread is created
 
 This is the core of OTel: causality is carried along with the work itself, as identifiers.
 
@@ -191,15 +199,14 @@ Coming from XCP:
 
 - **"A timestamp tells me the order of two events."** Only if the two events are further apart than the uncertainty of the clocks involved. See [5.2](#52-what-a-timestamp-can-tell).
 - **"The data arrives in time order."** True for one thread. Not true by itself for several threads which trigger the same event, see [6.4](#64-several-threads-on-one-event). In OTel it is not even a goal.
-- **"An OTel span is an XCP event with a begin and an end."** A span is one record which is sent when it ends. It is found by its ids, not by its position in a stream.
-- **"A trace needs synchronized clocks."** The tree does not: it is built from ids. The duration of a span does not: start and end come from the same clock. Only the comparison of timestamps from different machines does.
+- **"An OTel span compares to XCP events at begin and an end of the span."** A span is one record which is sent when it ends. It is found by its ids, not by its position in a time series.
+- **"A trace needs precise synchronized clocks."** The tree does not at all: it is built from ids. The duration of a span does not: start and end come from the same clock. Only the comparison of timestamps from different machines does.
 - **"An OTel context is a track, like a task."** It is a value which says "the current span is X". Every thread can have a different one, and it changes with every span.
 
 Coming from OTel:
 
-- **"XCP is logging with a fixed schema."** The tool decides at runtime which variables are sampled at which event. What is not selected costs nothing. The values are copied from the memory of the program, there is no formatting and no message.
+- **"XCP is logging with a fixed schema."** The tool decides at runtime which variables are sampled at which event. What is not selected costs nothing. The values are copied from the memory of the program, there is no serialisation or formatting.
 - **"Timestamps are approximate anyway."** In XCP the time is the primary key. The clock is described to the tool, and the timestamps are meant to be compared with those of measurement instruments.
-- **"If the order is unclear, the ids will tell."** There are no ids. Order is what the stream and the timestamps say.
 - **"Just add an attribute for the instance."** A2L has no free attributes. Every signal is declared beforehand with a name. Several instances mean several signals, see [6.1](#61-the-motivation-a-time-series-per-identity), [6.2](#62-splitting-in-the-target-or-in-the-tool) and the [thread_context_demo](../examples/thread_context_demo/README.md).
 - **"Concurrency is normal, the backend sorts it out."** An XCP tool reads a stream of samples as a time series. Concurrent writers to the same series are a problem of the series, see [6.4](#64-several-threads-on-one-event).
 - **"Instrumentation may take a lock, it is rare."** In a control system a thread which waits for another thread because of the measurement is a changed system. See [5.5](#55-the-observer-must-not-change-the-system).
@@ -214,14 +221,14 @@ A timestamp is a reading of a clock, and clocks differ a lot in what they can de
 
 **Measurement instruments.** Instruments which capture the physical world (bus interfaces, analog measurement modules) create the timestamp in hardware, at the moment of the physical event. These timestamps are very precise and the instruments can be synchronized with each other.
 
-**Microcontrollers.** The software has direct access to hardware timers. An interrupt or a capture unit can latch a counter at an external edge. Reading a timer is a register access with a known, constant duration. Tasks run with fixed priorities, often without preemption inside a task. A timestamp taken in the code is close to the event, and the distance is known.
+**Microcontrollers.** The software has direct access to hardware timers. An interrupt or a capture unit can latch a counter at an external edge. Reading a timer is a register access with a known, constant duration. Tasks run with fixed priorities, often without preemption inside a task. A timestamp taken in the code is close to the event, and the distance is known. Even the VX hardware takes timestamp in its software instrumentation.
 
-**POSIX like systems.** Reading the clock is much less certain:
+**POSIX like systems.** Reading the clock is much less certain, there is significant jitter:
 
 - The clock is read through the operating system. On Linux this is normally done in user space and takes some tens of nanoseconds, but depending on platform and clock source it can be a real system call.
 - There are several clocks with different behaviour. A real time clock (`CLOCK_REALTIME`) is corrected by NTP or PTP. It can be slowed down, accelerated, and it can jump, also backwards. A monotonic clock (`CLOCK_MONOTONIC`) never jumps, but its rate may still be adjusted. A raw monotonic clock (`CLOCK_MONOTONIC_RAW`) is not adjusted at all, but it is then not related to any other clock.
-- A clock which is synchronized by PTP follows its grandmaster through a control loop. The loop corrects the clock all the time, which adds jitter.
-- A thread can be preempted at any point: between the event and the clock read, or between the clock read and whatever is done with the timestamp. The timestamp is then correct as a clock reading, but it is not the time of the event any more.
+- A clock which is synchronized by PTP follows its grandmaster through a control loop. The loop corrects the clock all the time, which adds additional low frequency jitter.
+- A thread can be preempted at any point: between the event and the clock read. The timestamp is then correct as a clock reading, but it is not the time of the event any more.
 
 **Several clocks.** A distributed system has many clocks. Without synchronization they drift apart, typically by some ten microseconds per second. With NTP over a network, the remaining error is typically in the range of milliseconds. With PTP and hardware timestamps in the network interface it is typically below a microsecond. These are orders of magnitude.
 
@@ -235,10 +242,10 @@ If two events are closer together than this, the timestamps may show them in eit
 
 ### 5.3 Causality: the order which does not need a clock
 
-There is a second kind of order, described by Leslie Lamport in 1978 under the name *happened-before*. It needs no clock:
+There is a second kind of order, described by the name *happened-before* relationship. It needs no clock:
 
 - Two steps of the same thread are ordered by the program.
-- Sending a message happens before receiving it. The same holds for every hand-over between threads: putting work into a queue happens before taking it out, releasing a mutex happens before the next thread gets it, a thread ends before the join returns.
+- Sending a message happens before receiving it. The same holds for every hand-over between threads: putting work into a queue happens before taking it out, releasing a mutex happens before the next thread gets it.
 - If A happens before B and B before C, then A happens before C.
 
 Two events for which neither is before the other are called **concurrent**. This is not a lack of knowledge. The order of concurrent events is not defined, a different run of the same program may produce a different interleaving, and both are correct.
