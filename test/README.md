@@ -74,6 +74,7 @@ Legend for **Type**:
 | `passive_test_cpp` | C++ | default | unit | yes (`unit`) | — | Passive-mode contract via the C++ API |
 | `persistence_test` | C | default | unit | yes (`unit`) | writes a `.bin` file to the working directory | Calibration segment freeze and reload through the binary persistence file, also right after `XcpBinWrite()` ([persistence_test/](persistence_test/)) |
 | `file_upload_test` | C | default | unit | yes (`unit`) | creates and removes two `.a2l` fixtures | Upload restarts, empty files, offset retries, bounds, I/O failures, accepted/refused reconnects, disconnect and deinitialization cleanup |
+| `a2l_cache_empty`, `a2l_cache_nonempty` | C | default | unit | yes (`unit`) | creates and removes A2L/BIN fixtures | Regenerates an empty cached A2L in WRITE_ONCE mode and preserves an existing nonempty cache |
 | `cal_test` | C++ | default | unit (+opt. server) | yes (`unit;calibration`) | — hermetic by default; `--server` adds CANape/`xcpclient` | Calibration-segment RCU correctness + multi-thread stress; **self-terminates** ([cal_test/](cal_test/)) |
 | `a2l_test` | C | default | unit+tool | yes if [`a2ltool`](https://crates.io/crates/a2ltool) on `PATH` | `a2ltool` | Generates an A2L and validates it with an external checker ([a2l_test/](a2l_test/)) |
 | `queue_test` | C | default | benchmark | no | — | Lock-free transmit-queue correctness & throughput (multi-thread/process) ([queue_test/](queue_test/)) |

@@ -705,7 +705,7 @@ void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t
 /// Init runtime A2L generation
 /// Must be called once after XcpInit() (and usually after XcpEthServerInit()), before any other A2L generation macro or function.
 /// Project name and EPK are taken from XcpInit(), the A2L file name is built from them (A2lGetFilename()).
-/// If an A2L file for this EPK already exists (A2L_MODE_WRITE_ONCE), A2L generation is skipped, the existing file is provided for upload
+/// If a readable, non-empty A2L file for this EPK already exists (A2L_MODE_WRITE_ONCE), A2L generation is skipped, the existing file is provided for upload
 /// and all following A2L generation macros and functions do nothing.
 /// While the A2L file is being generated, an XCP connect finalizes it (A2L_MODE_FINALIZE_ON_CONNECT) or is refused until A2lFinalize() is called.
 /// This does not use the application connect callback (ApplXcpRegisterConnectCallback), it is called after the A2L check.

@@ -503,6 +503,13 @@ if(XCPLITE_BUILD_TESTS)
         add_executable(file_upload_test test/file_upload_test/src/main.c)
         target_link_libraries(file_upload_test PRIVATE xcplite)
 
+        add_executable(a2l_cache_test test/a2l_cache_test/src/main.c)
+        target_link_libraries(a2l_cache_test PRIVATE xcplite)
+        foreach(_cache_case empty nonempty)
+            add_test(NAME a2l_cache_${_cache_case} COMMAND a2l_cache_test ${_cache_case})
+            set_tests_properties(a2l_cache_${_cache_case} PROPERTIES LABELS "unit" TIMEOUT 60)
+        endforeach()
+
         # Test registration (default configuration)
         foreach(_xcp_unit_test
                 type_detection_test_c
