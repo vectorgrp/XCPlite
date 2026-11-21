@@ -500,6 +500,13 @@ if(XCPLITE_BUILD_TESTS)
         add_executable(persistence_test test/persistence_test/src/main.c)
         target_link_libraries(persistence_test PRIVATE xcplite)
 
+        add_executable(checksum_test test/checksum_test/src/main.c)
+        target_link_libraries(checksum_test PRIVATE xcplite)
+        foreach(_checksum_case zero valid dynamic_zero)
+            add_test(NAME checksum_${_checksum_case} COMMAND checksum_test ${_checksum_case})
+            set_tests_properties(checksum_${_checksum_case} PROPERTIES LABELS "unit" TIMEOUT 60)
+        endforeach()
+
         # Test registration (default configuration)
         foreach(_xcp_unit_test
                 type_detection_test_c

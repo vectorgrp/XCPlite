@@ -67,6 +67,7 @@ Legend for **Type**:
 |---|---|---|---|---|---|---|
 | `type_detection_test_c` | C | default | unit | yes (`unit`) | — | `_Generic` A2L type detection ([type_detection_test/](type_detection_test/)) |
 | `type_detection_test_cpp` | C++ | default | unit | yes (`unit`) | — | C++ trait-based A2L type detection |
+| `checksum_test` | C | default | unit | yes (`unit`) | — | Rejects zero-size checksums before deferred execution, checks CRC16-CCITT and MTA advancement ([checksum_test/](checksum_test/)) |
 | `daq_config_test` | C | default | unit | yes (`unit`) | — | Dynamic DAQ list config bounds & event linking via the command processor ([daq_config_test/](daq_config_test/)) |
 | `eth_transport_test` | C | default | unit | yes (`unit`) | loopback sockets | TCP/UDP command framing & receive recovery (forks a child) ([eth_transport_test/](eth_transport_test/)) |
 | `socket_recv_test` | C | default | unit | yes (`unit`) | loopback sockets | Deterministic header/payload receive splits |
