@@ -6,7 +6,6 @@
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
-use std::collections::HashMap;
 use std::error::Error;
 
 use crate::bin_reader::bin_format::{CalSegDescriptor, EventDescriptor};
@@ -200,63 +199,103 @@ impl XcpClient {
     //---------------------------------------------------------------------------------
     // Upload and Download of calibration data
 
+    /// Load complete calibration segments from an Intel-HEX file.
+    /// Empty segments and segments absent from the file are skipped. Partial data,
+    /// conflicting overlaps, and address overflow are rejected before any XCP writes.
     pub async fn load_calibration_segments_from_file<P: AsRef<std::path::Path>>(&mut self, bin_path: &P) -> Result<(), Box<dyn Error>> {
         info!("Load calibration segments from file {}", bin_path.as_ref().display());
 
         // Read the Intel-Hex file
         let file_content = std::fs::read_to_string(bin_path)?;
-        let ihex_reader = ihex::Reader::new(file_content.as_str());
-
-        // Parse all data records from the Intel-Hex file into a HashMap
-        let mut hex_data: HashMap<u32, Vec<u8>> = HashMap::new();
-        let mut extended_linear_address: u32 = 0;
-
-        for record in ihex_reader {
-            match record {
-                Err(e) => {
-                    error!("Error parsing IHEX record: {}", e);
-                    return Err(Box::new(e) as Box<dyn Error>);
+        // Store whole records rather than allocating an address entry for every byte.
+        // Convert addresses before sorting, since address records apply in file order.
+        let mut hex_records = Vec::new();
+        let mut base = 0u32;
+        for record in ihex::Reader::new(&file_content) {
+            match record? {
+                ihex::Record::ExtendedLinearAddress(upper) => base = (upper as u32) << 16,
+                ihex::Record::ExtendedSegmentAddress(segment) => base = (segment as u32) << 4,
+                ihex::Record::Data { offset, value } => {
+                    if value.is_empty() {
+                        continue;
+                    }
+                    let start = base.checked_add(offset as u32).ok_or("Intel-HEX address overflow")?;
+                    start.checked_add(value.len() as u32 - 1).ok_or("Intel-HEX address overflow")?;
+                    hex_records.push((start, value));
                 }
-                Ok(ihex::Record::ExtendedLinearAddress(upper_addr)) => {
-                    extended_linear_address = (upper_addr as u32) << 16;
-                    debug!("IHEX Extended Linear Address: upper=0x{:04X} (base=0x{:08X})", upper_addr, extended_linear_address);
-                }
-                Ok(ihex::Record::Data { offset, value }) => {
-                    let full_address = extended_linear_address | (offset as u32);
-                    debug!("IHEX Data record: offset=0x{:04X}, full_addr=0x{:08X}, length={}", offset, full_address, value.len());
-                    hex_data.insert(full_address, value);
-                }
-                Ok(ihex::Record::EndOfFile) => {
-                    debug!("IHEX End of file");
-                    break;
-                }
-                Ok(_) => {
-                    debug!("IHEX: Ignoring other record type");
-                }
+                ihex::Record::EndOfFile => break,
+                _ => {}
             }
         }
 
-        // Extract all data we need from registry before any mutable borrows
-        let cal_seg_data: Vec<_> = (&self.registry.as_ref().unwrap().cal_seg_list)
-            .into_iter()
-            .map(|cal_seg| (cal_seg.get_index(), cal_seg.get_name(), cal_seg.size, cal_seg.addr_ext, cal_seg.addr))
-            .collect();
-
-        // Now iterate over the extracted data and download to XCP server
-        for (seg_index, seg_name, seg_length, addr_ext, addr) in cal_seg_data {
-            info!(" Load segment {} (index={} addr={}:0x{:08X} length={})", seg_name, seg_index, addr_ext, addr, seg_length);
-
-            if let Some(data) = hex_data.get(&addr) {
-                if data.len() != seg_length as usize {
-                    warn!("  Segment {} size mismatch: expected {} bytes, got {} bytes", seg_name, seg_length, data.len());
+        // Merge adjacent or overlapping records into sorted, disjoint ranges.
+        // Sparse gaps stay unallocated; overlaps must contain identical bytes.
+        hex_records.sort_unstable_by_key(|(address, _)| *address);
+        let mut hex_ranges: Vec<(u32, Vec<u8>)> = Vec::new();
+        for (address, data) in hex_records {
+            // Sorting guarantees that only the last merged range can overlap
+            // this record; all earlier ranges end before its starting address.
+            if let Some((start, bytes)) = hex_ranges.last_mut() {
+                // An exclusive end can be 2^32 when the final byte is at UINT32_MAX.
+                let end = *start as u64 + bytes.len() as u64;
+                if address as u64 <= end {
+                    let offset = (address - *start) as usize;
+                    let overlap = data.len().min(bytes.len() - offset);
+                    if let Some(index) = data[..overlap].iter().zip(&bytes[offset..offset + overlap]).position(|(a, b)| a != b) {
+                        let address = address + index as u32;
+                        return Err(format!("Conflicting HEX data at address 0x{address:08X}").into());
+                    }
+                    // Contained duplicates add nothing; extending records add only their new tail.
+                    bytes.extend_from_slice(&data[overlap..]);
+                    continue;
                 }
-
-                self.set_mta(addr_ext, addr).await?;
-                self.download_memory_block(&data).await?;
-                debug!("  Downloaded {} bytes to segment {}", data.len(), seg_name);
-            } else {
-                warn!("  No data found in IHEX file for segment {} at address 0x{:08X}", seg_name, addr);
             }
+            hex_ranges.push((address, data));
+        }
+
+        // Prepare every supplied segment before sending commands, so invalid data
+        // in a later segment cannot leave earlier segments already downloaded.
+        let mut downloads = Vec::new();
+        for segment in &self.registry.as_ref().unwrap().cal_seg_list {
+            let (seg_index, seg_name, seg_length, addr_ext, addr) =
+                (segment.get_index(), segment.get_name(), segment.size, segment.addr_ext, segment.addr);
+            if seg_length == 0 {
+                continue;
+            }
+            let last = addr.checked_add(seg_length - 1).ok_or_else(|| format!("Calibration segment {seg_name} address overflow"))?;
+            // Disjoint sorted ranges also have sorted ends, allowing a binary
+            // search past all ranges that finish before this segment.
+            let first = hex_ranges.partition_point(|(start, bytes)| *start as u64 + bytes.len() as u64 <= addr as u64);
+            let mut data = Vec::new();
+            for (start, bytes) in &hex_ranges[first..] {
+                if *start > last {
+                    break;
+                }
+                let begin = addr.saturating_sub(*start) as usize;
+                // Clamp to the intersection. Its exclusive end needs u64 when
+                // the segment's last byte is at address 0xFFFFFFFF.
+                let end = (last as u64 + 1 - *start as u64).min(bytes.len() as u64) as usize;
+                data.extend_from_slice(&bytes[begin..end]);
+            }
+            if data.is_empty() {
+                warn!("  No data found in IHEX file for segment {} at address 0x{:08X}", seg_name, addr);
+                continue;
+            }
+            // Disjoint ranges contain `seg_length` bytes only if no bytes are missing.
+            if data.len() != seg_length as usize {
+                return Err(format!("Incomplete HEX data for segment {seg_name} at 0x{addr:08X}: expected {seg_length} bytes, got {}", data.len()).into());
+            }
+            downloads.push((seg_index, seg_name, addr_ext, addr, data));
+        }
+        // Release the input image before potentially slow network transfers.
+        drop(hex_ranges);
+        drop(file_content);
+
+        for (seg_index, seg_name, addr_ext, addr, data) in downloads {
+            info!(" Load segment {} (index={} addr={}:0x{:08X} length={})", seg_name, seg_index, addr_ext, addr, data.len());
+            self.set_mta(addr_ext, addr).await?;
+            self.download_memory_block(&data).await?;
+            debug!("  Downloaded {} bytes to segment {}", data.len(), seg_name);
         }
 
         Ok(())
@@ -326,6 +365,9 @@ impl XcpClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use xcp_registry::{McAddress, McDimType, McObjectType, McSupportData, McValueType, Registry};
 
     // Registry as created from an ELF file (--elf): a calibration segment struct is one instance of a typedef
@@ -376,5 +418,338 @@ mod tests {
         let o = client.get_calibration_object(h);
         assert_eq!(o.get_a2l_addr().addr, 0x1004);
         assert_eq!(o.get_a2l_type().size, 2);
+    }
+
+    // HEX loader regressions: cargo test xcp_client::cal::tests::load_hex
+    // Each test owns a separate fixture, removed by Drop even when an assertion fails.
+    struct HexFixture(PathBuf);
+    impl HexFixture {
+        fn new(records: &[ihex::Record]) -> Self {
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let path = std::env::temp_dir().join(format!("xcplite-hex-test-{}-{}.hex", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+            let fixture = Self(path);
+            std::fs::write(&fixture.0, ihex::create_object_file_representation(records).unwrap()).unwrap();
+            fixture
+        }
+    }
+    impl Drop for HexFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    fn hex_record(offset: u16, bytes: &[u8]) -> ihex::Record {
+        ihex::Record::Data { offset, value: bytes.to_vec() }
+    }
+
+    // Only the reply channel is simulated. Parsing, segment assembly, serialization,
+    // and actual UDP command transmission all use production code.
+    async fn load_hex_fixture(fixture: &HexFixture, segments: &[(u32, u32)]) -> (Result<(), Box<dyn Error>>, Vec<Vec<u8>>) {
+        let mut registry = Registry::new();
+        for (index, &(address, size)) in segments.iter().enumerate() {
+            registry.cal_seg_list
+                .add_cal_seg_by_addr(format!("segment{index}"), Some(index as u8), 0, address, size)
+                .unwrap();
+        }
+        let peer = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let socket = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let mut client = XcpClient::new("UDP", peer.local_addr().unwrap(), socket.local_addr().unwrap(), 0);
+        // A 128-byte CTO leaves 126 bytes per DOWNLOAD. Larger fixtures exercise
+        // chunking through the same peer as the segment reconstruction tests.
+        client.max_cto_size = 128;
+        client.set_registry(registry);
+        client.socket = Some(XcpSocket::Udp(Arc::new(socket)));
+        let (acknowledge, receiver) = mpsc::channel(1);
+        client.rx_cmd_resp = Some(receiver);
+        let (finish, mut finished) = tokio::sync::oneshot::channel::<()>();
+        let server = tokio::spawn(async move {
+            let mut commands = Vec::new();
+            let mut packet = [0u8; 512];
+            loop {
+                tokio::select! {
+                    _ = &mut finished => break,
+                    result = peer.recv_from(&mut packet) => {
+                        let (length, _) = result.unwrap();
+                        assert!(length >= 5);
+                        assert_eq!(u16::from_le_bytes([packet[0], packet[1]]) as usize, length - 4);
+                        commands.push(packet[4..length].to_vec());
+                        acknowledge.send(vec![0xFF]).await.unwrap();
+                    }
+                }
+            }
+            commands
+        });
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let result = client.load_calibration_segments_from_file(&fixture.0).await;
+            finish.send(()).unwrap();
+            (result, server.await.unwrap())
+        })
+        .await
+        .expect("HEX test timed out")
+    }
+
+    fn downloaded_hex_data(commands: &[Vec<u8>]) -> BTreeMap<u32, u8> {
+        let mut address = 0u64;
+        let mut bytes = BTreeMap::new();
+        for command in commands {
+            match command[0] {
+                CC_SET_MTA => {
+                    assert_eq!(command.len(), 8);
+                    address = u32::from_le_bytes(command[4..8].try_into().unwrap()) as u64;
+                }
+                CC_DOWNLOAD => {
+                    assert_eq!(command[1] as usize, command.len() - 2);
+                    for &byte in &command[2..] {
+                        assert!(address <= u32::MAX as u64);
+                        bytes.insert(address as u32, byte);
+                        address += 1;
+                    }
+                }
+                other => panic!("unexpected command {other}"),
+            }
+        }
+        bytes
+    }
+
+    fn expected_hex_data(address: u32, values: &[u8]) -> BTreeMap<u32, u8> {
+        values.iter().enumerate().map(|(index, &byte)| (address + index as u32, byte)).collect()
+    }
+
+    #[tokio::test]
+    async fn load_hex_round_trip_restores_all_records() {
+        let fixture = HexFixture::new(&[ihex::Record::EndOfFile]);
+        let data: Vec<u8> = (0..93).collect();
+        // The real writer emits three records (32 + 32 + 29 bytes).
+        // Restoring all 93 bytes catches the original first-record-only bug.
+        let descriptor = CalSegDescriptor {
+            index: 0,
+            size: 93,
+            addr: 0x1000,
+            app_id: 0,
+            name: "hex_test".into(),
+        };
+        write_hex_file(&fixture.0, &[(descriptor, data.clone())]).unwrap();
+        let (result, commands) = load_hex_fixture(&fixture, &[(0x1000, 93)]).await;
+        result.unwrap();
+        assert_eq!(downloaded_hex_data(&commands), expected_hex_data(0x1000, &data));
+    }
+
+    #[tokio::test]
+    async fn load_hex_large_segment_advances_mta_across_downloads() {
+        let fixture = HexFixture::new(&[ihex::Record::EndOfFile]);
+        // Vary the bytes so skipped, repeated, or reordered chunks change the result.
+        let data: Vec<u8> = (0..300).map(|index| index as u8).collect();
+        let address = 0x1000;
+        let descriptor = CalSegDescriptor {
+            index: 0,
+            size: 300,
+            addr: address,
+            app_id: 0,
+            name: "large_hex_test".into(),
+        };
+        // The writer emits 32-byte HEX records. The loader must assemble them
+        // before splitting the segment into protocol-sized DOWNLOAD commands.
+        write_hex_file(&fixture.0, &[(descriptor, data.clone())]).unwrap();
+        let (result, commands) = load_hex_fixture(&fixture, &[(address, 300)]).await;
+        result.unwrap();
+
+        // The helper uses MAX_CTO=128; two header bytes leave 126 payload bytes.
+        // Thus 300 bytes require 126 + 126 + 48, with only one initial SET_MTA.
+        assert_eq!(commands.len(), 4, "expected one SET_MTA and three DOWNLOAD commands");
+        assert_eq!(commands.iter().filter(|command| command[0] == CC_SET_MTA).count(), 1);
+        assert_eq!(commands[0][0], CC_SET_MTA);
+        assert_eq!(u32::from_le_bytes(commands[0][4..8].try_into().unwrap()), address);
+        // Replay each DOWNLOAD's byte count as a peer advances its MTA, checking
+        // the expected position after every chunk rather than only the final sum.
+        let mut mta = address;
+        for (command, expected_mta) in commands[1..].iter().zip([address + 126, address + 252, address + 300]) {
+            assert_eq!(command[0], CC_DOWNLOAD);
+            mta += command[1] as u32;
+            assert_eq!(mta, expected_mta, "incorrect MTA advancement between chunks");
+        }
+        // Check all 300 bytes at their expected addresses across chunk boundaries.
+        assert_eq!(downloaded_hex_data(&commands), expected_hex_data(address, &data));
+    }
+
+    #[tokio::test]
+    async fn load_hex_out_of_order_records_are_assembled_by_address() {
+        let data: Vec<u8> = (0..48).collect();
+        let fixture = HexFixture::new(&[hex_record(0x1020, &data[32..]), hex_record(0x1000, &data[..16]), hex_record(0x1010, &data[16..32]), ihex::Record::EndOfFile]);
+        let (result, commands) = load_hex_fixture(&fixture, &[(0x1000, 48)]).await;
+        result.unwrap();
+        assert_eq!(downloaded_hex_data(&commands), expected_hex_data(0x1000, &data));
+    }
+
+    #[tokio::test]
+    async fn load_hex_identical_overlaps_are_allowed() {
+        let complete = hex_record(0x1000, &[1, 2, 3, 4]);
+        let overlap = hex_record(0x1002, &[3, 4]);
+        // Identical bytes are harmless regardless of record order.
+        for records in [
+            [complete.clone(), overlap.clone(), ihex::Record::EndOfFile],
+            [overlap, complete, ihex::Record::EndOfFile],
+        ] {
+            let fixture = HexFixture::new(&records);
+            let (result, commands) = load_hex_fixture(&fixture, &[(0x1000, 4)]).await;
+            result.unwrap();
+            assert_eq!(downloaded_hex_data(&commands), expected_hex_data(0x1000, &[1, 2, 3, 4]));
+        }
+    }
+
+    #[tokio::test]
+    async fn load_hex_conflicting_overlaps_are_rejected() {
+        let complete = hex_record(0x1000, &[1, 2, 3, 4]);
+        let conflict = hex_record(0x1002, &[0xEE, 4]);
+        // A conflicting byte must fail before any writes, not depend on which
+        // record happens to occur last in the file.
+        for records in [
+            [complete.clone(), conflict.clone(), ihex::Record::EndOfFile],
+            [conflict, complete, ihex::Record::EndOfFile],
+        ] {
+            let fixture = HexFixture::new(&records);
+            let (result, commands) = load_hex_fixture(&fixture, &[(0x1000, 4)]).await;
+            let error = result.expect_err("conflicting HEX data reported success");
+            assert_eq!(error.to_string(), "Conflicting HEX data at address 0x00001002");
+            assert!(commands.is_empty(), "conflicting HEX data changed calibration values");
+        }
+    }
+
+    #[tokio::test]
+    async fn load_hex_overlaps_can_contain_or_extend_records() {
+        // Combine a contained duplicate, a partial overlap extending the tail,
+        // and an empty record. Only the six distinct bytes should be downloaded.
+        let fixture = HexFixture::new(&[
+            hex_record(0x1002, &[3, 4, 5, 6]),
+            hex_record(0x1001, &[2, 3]),
+            hex_record(0x1000, &[]),
+            hex_record(0x1000, &[1, 2]),
+            hex_record(0x1000, &[1, 2, 3, 4]),
+            hex_record(0x1000, &[1, 2, 3, 4]),
+            ihex::Record::EndOfFile,
+        ]);
+        let (result, commands) = load_hex_fixture(&fixture, &[(0x1000, 6)]).await;
+        result.unwrap();
+        assert_eq!(downloaded_hex_data(&commands), expected_hex_data(0x1000, &[1, 2, 3, 4, 5, 6]));
+    }
+
+    #[tokio::test]
+    async fn load_hex_sparse_ranges_preserve_large_gaps() {
+        // Widely separated addresses must not allocate or fill the gap between them.
+        let fixture = HexFixture::new(&[
+            hex_record(0x1000, &[1, 2, 3, 4]),
+            ihex::Record::ExtendedLinearAddress(0xFFFF),
+            hex_record(0xFFFF, &[9]),
+            ihex::Record::EndOfFile,
+        ]);
+        let (result, commands) = load_hex_fixture(&fixture, &[(0x1000, 4), (u32::MAX, 1)]).await;
+        result.unwrap();
+        let mut expected = expected_hex_data(0x1000, &[1, 2, 3, 4]);
+        expected.insert(u32::MAX, 9);
+        assert_eq!(downloaded_hex_data(&commands), expected);
+    }
+
+    #[tokio::test]
+    async fn load_hex_record_can_cover_multiple_segments() {
+        // One HEX record contains both registered segments and extra bytes.
+        // The 16-byte gap at 0x1020..0x1030 must not be written to the target.
+        let data: Vec<u8> = (0..64).collect();
+        let fixture = HexFixture::new(&[hex_record(0x1000, &data), ihex::Record::EndOfFile]);
+        let (result, commands) = load_hex_fixture(&fixture, &[(0x1010, 16), (0x1030, 16)]).await;
+        result.unwrap();
+        // Continuing from the first segment's MTA would write into the gap.
+        // Each segment therefore needs its own SET_MTA with the correct base.
+        let mta_commands: Vec<_> = commands.iter().filter(|command| command[0] == CC_SET_MTA).collect();
+        assert_eq!(mta_commands.len(), 2, "each separated segment must set its own MTA");
+        assert_eq!(u32::from_le_bytes(mta_commands[0][4..8].try_into().unwrap()), 0x1010);
+        assert_eq!(u32::from_le_bytes(mta_commands[1][4..8].try_into().unwrap()), 0x1030);
+        // Check each segment separately, then rule out writes outside those ranges.
+        let downloaded = downloaded_hex_data(&commands);
+        assert_eq!(downloaded.range(0x1010..0x1020).map(|(_, byte)| *byte).collect::<Vec<_>>(), data[16..32]);
+        assert_eq!(downloaded.range(0x1030..0x1040).map(|(_, byte)| *byte).collect::<Vec<_>>(), data[48..64]);
+        assert_eq!(downloaded.len(), 32, "the gap between segments must not be downloaded");
+    }
+
+    #[tokio::test]
+    async fn load_hex_linear_address_boundary_is_preserved() {
+        let data: Vec<u8> = (0..64).collect();
+        // A segment can cross a 64 KiB boundary and require two address records.
+        let fixture = HexFixture::new(&[
+            ihex::Record::ExtendedLinearAddress(0x1234),
+            hex_record(0xFFE0, &data[..32]),
+            ihex::Record::ExtendedLinearAddress(0x1235),
+            hex_record(0, &data[32..]),
+            ihex::Record::EndOfFile,
+        ]);
+        let (result, commands) = load_hex_fixture(&fixture, &[(0x1234FFE0, 64)]).await;
+        result.unwrap();
+        assert_eq!(downloaded_hex_data(&commands), expected_hex_data(0x1234FFE0, &data));
+    }
+
+    #[tokio::test]
+    async fn load_hex_segment_addresses_are_supported() {
+        let fixture = HexFixture::new(&[ihex::Record::ExtendedSegmentAddress(0x1000), hex_record(0x20, &[1, 2, 3, 4]), ihex::Record::EndOfFile]);
+        let (result, commands) = load_hex_fixture(&fixture, &[(0x10020, 4)]).await;
+        result.unwrap();
+        assert_eq!(downloaded_hex_data(&commands), expected_hex_data(0x10020, &[1, 2, 3, 4]));
+    }
+
+    #[tokio::test]
+    async fn load_hex_incomplete_segments_fail_before_any_writes() {
+        // Exercise a missing tail, missing start, and interior hole. The complete
+        // first segment must remain untouched when the later segment is invalid.
+        for incomplete in [
+            vec![hex_record(0x2000, &[0, 1])],
+            vec![hex_record(0x2001, &[1, 2, 3])],
+            vec![hex_record(0x2000, &[0, 1]), hex_record(0x2003, &[3])],
+        ] {
+            let mut records = vec![hex_record(0x1000, &[1, 2, 3, 4])];
+            records.extend(incomplete);
+            records.push(ihex::Record::EndOfFile);
+            let fixture = HexFixture::new(&records);
+            let (result, commands) = load_hex_fixture(&fixture, &[(0x1000, 4), (0x2000, 4)]).await;
+            let error = result.expect_err("incomplete segment reported success").to_string();
+            assert!(error.contains("Incomplete HEX data") && error.contains("segment1"), "unexpected error: {error}");
+            assert!(commands.is_empty(), "validation failure changed calibration data");
+        }
+    }
+
+    #[tokio::test]
+    async fn load_hex_absent_segments_are_still_skipped() {
+        // Partial input is an error, but an entirely omitted segment is still skipped.
+        let fixture = HexFixture::new(&[hex_record(0x1000, &[1, 2, 3, 4]), ihex::Record::EndOfFile]);
+        let (result, commands) = load_hex_fixture(&fixture, &[(0x1000, 4), (0x2000, 4)]).await;
+        result.unwrap();
+        assert_eq!(downloaded_hex_data(&commands), expected_hex_data(0x1000, &[1, 2, 3, 4]));
+    }
+
+    #[tokio::test]
+    async fn load_hex_zero_length_segments_are_skipped() {
+        let fixture = HexFixture::new(&[hex_record(0x1000, &[1, 2, 3, 4]), ihex::Record::EndOfFile]);
+        // Even at the last address, an empty segment requires no range arithmetic
+        // or commands, whether or not the HEX file has data at its base address.
+        let (result, commands) = load_hex_fixture(&fixture, &[(0x1000, 0), (u32::MAX, 0)]).await;
+        result.unwrap();
+        assert!(commands.is_empty(), "zero-length segments generated commands");
+
+        // Skipping an empty segment must still allow subsequent segments to load.
+        let (result, commands) = load_hex_fixture(&fixture, &[(u32::MAX, 0), (0x1000, 4)]).await;
+        result.unwrap();
+        assert_eq!(commands.len(), 2, "expected SET_MTA and DOWNLOAD only for the nonempty segment");
+        assert_eq!(downloaded_hex_data(&commands), expected_hex_data(0x1000, &[1, 2, 3, 4]));
+    }
+
+    #[tokio::test]
+    async fn load_hex_addresses_must_not_wrap() {
+        let fixture = HexFixture::new(&[ihex::Record::ExtendedLinearAddress(0xFFFF), hex_record(0xFFFF, &[1, 2]), ihex::Record::EndOfFile]);
+        let (result, commands) = load_hex_fixture(&fixture, &[(u32::MAX, 1)]).await;
+        assert!(result.is_err());
+        assert!(commands.is_empty());
+        let fixture = HexFixture::new(&[ihex::Record::ExtendedLinearAddress(0xFFFF), hex_record(0xFFFF, &[1]), ihex::Record::EndOfFile]);
+        let (result, commands) = load_hex_fixture(&fixture, &[(u32::MAX, 2)]).await;
+        assert!(result.is_err());
+        assert!(commands.is_empty());
+        let (result, commands) = load_hex_fixture(&fixture, &[(u32::MAX, 1)]).await;
+        result.unwrap();
+        assert_eq!(downloaded_hex_data(&commands), expected_hex_data(u32::MAX, &[1]));
     }
 }
