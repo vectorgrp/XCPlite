@@ -14,7 +14,7 @@ categories = ["measurement and calibration"]
  # more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log = "0.4.32"
+log = "0.4.35"
 env_logger = "0.11.10"
 clap = { version = "4.6.1", features = ["derive"] }
 anyhow = "1.0"
@@ -38,17 +38,17 @@ indexmap = "2.14"
 cpp_demangle = "0.5" 
 
 # Registry
-# From VectorGrp/xcp-lite
-xcp_registry = { git = "https://github.com/vectorgrp/xcp-lite", features = ["a2l_reader"] }
-# From fork RainerZ/xcp-lite dev-3.0.11
-# xcp_registry = { git = "https://github.com/RainerZ/xcp-lite.git", branch = "dev-3.0.11", features = ["a2l_reader"] }
-# From local directory current branch
-# xcp_registry = { path = "../../../xcp-lite-RainerZ/xcp_registry", features = ["a2l_reader"] } 
-
+# From crates.io
+xcp_registry = { version = "0.1", features = ["a2l_reader"] }
+# From a local clone of https://github.com/RainerZ/xcp-registry
+# xcp_registry = { path = "../../../xcp-registry/xcp_registry", features = ["a2l_reader"] }
 
 [lints.rust]
 dead_code = "allow"
 unused_variables = "allow"
+
+[dev-dependencies]
+serde_json = "1"
 
 [build-dependencies]
 

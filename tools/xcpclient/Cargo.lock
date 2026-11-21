@@ -4,14 +4,14 @@ version = 4
 
 [[package]]
 name = "a2lfile"
-version = "3.5.0"
+version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66b919d5d2959281846a4f0ff0eefb1fb98fbbf1a630f050a534431a5d503602"
+checksum = "65fcc64b21fb8ac013f4b07c2b16f9e361c62c57f267817ecdae8c393bb9a5bb"
 dependencies = [
  "a2lmacros",
  "fnv",
  "num-traits",
- "thiserror 2.0.20",
+ "thiserror",
 ]
 
 [[package]]
@@ -267,7 +267,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10d60334b3b2e7c9d91ef8150abfb6fa4c1c39ebbcf4a81c2e346aad939fee3e"
 dependencies = [
- "thiserror 2.0.20",
+ "thiserror",
 ]
 
 [[package]]
@@ -498,9 +498,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.34"
+version = "0.4.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "memchr"
@@ -790,38 +790,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.69"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
 dependencies = [
- "thiserror-impl 1.0.69",
-]
-
-[[package]]
-name = "thiserror"
-version = "2.0.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f"
-dependencies = [
- "thiserror-impl 2.0.20",
+ "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.69"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "thiserror-impl"
-version = "2.0.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
+checksum = "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1053,28 +1033,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "xcp_register_type_derive"
-version = "3.0.10"
-source = "git+https://github.com/vectorgrp/xcp-lite#86c702ab605c0dabb429d1e80dd6e8e47d17926d"
+name = "xcp_registry"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dc80662e6a66f9ceba8ce38891a256e506bbbd8272cc8d4b21aa266e2d6d649"
+dependencies = [
+ "a2lfile",
+ "log",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "xcp_registry_derive",
+]
+
+[[package]]
+name = "xcp_registry_derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "390b1267018f973d938fb739542a3562ddf2566baf8e3cc82360c6b371d5b535"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "xcp_registry"
-version = "3.0.10"
-source = "git+https://github.com/vectorgrp/xcp-lite#86c702ab605c0dabb429d1e80dd6e8e47d17926d"
-dependencies = [
- "a2lfile",
- "log",
- "parking_lot",
- "regex",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "xcp_register_type_derive",
 ]
 
 [[package]]
@@ -1099,7 +1080,8 @@ dependencies = [
  "parking_lot",
  "regex",
  "serde",
- "thiserror 2.0.20",
+ "serde_json",
+ "thiserror",
  "tokio",
  "xcp_registry",
 ]
