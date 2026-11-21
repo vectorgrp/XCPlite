@@ -473,6 +473,9 @@ if(XCPLITE_BUILD_TESTS)
         add_executable(daq_config_test test/daq_config_test/src/main.c test/daq_config_test/src/xcptl_stub.c)
         target_link_libraries(daq_config_test PRIVATE xcplite)
 
+        add_executable(memory_transfer_test test/memory_transfer_test/src/main.c test/daq_config_test/src/xcptl_stub.c)
+        target_link_libraries(memory_transfer_test PRIVATE xcplite)
+
         add_executable(eth_transport_test test/eth_transport_test/src/main.c)
         target_link_libraries(eth_transport_test PRIVATE xcplite)
 
@@ -505,6 +508,7 @@ if(XCPLITE_BUILD_TESTS)
                 type_detection_test_c
                 type_detection_test_cpp
                 daq_config_test
+                memory_transfer_test
                 eth_transport_test
                 socket_recv_test
                 cal_test
