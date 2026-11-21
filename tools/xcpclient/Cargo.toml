@@ -14,7 +14,7 @@ categories = ["measurement and calibration"]
  # more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log = "0.4.32"
+log = "0.4.35"
 env_logger = "0.11.10"
 clap = { version = "4.6.1", features = ["derive"] }
 anyhow = "1.0"
