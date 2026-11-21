@@ -3,35 +3,9 @@
 All notable changes to XCPlite are documented in this file.
 
 
-## [V2.3.5]
-
-- The registry crate `xcp_registry` is used from crates.io (version 0.1) instead of as a git dependency on xcp-lite. It has moved to its own repository, <https://github.com/RainerZ/xcp-registry>
 
 
-## [V2.3.4]
-
-- xcpclient: new option `--perfetto <file>`, writes spans and measurement signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`
-- xcpclient: print values in physical unit or as enum strings in console and csv 
-- xcpclient: improved timestamp wraparound detection
-- xcpclient: `--mea` shows physical values (factor and offset applied, enum labels) with their unit, the CSV file has a new column `unit`
-- xcpclient: the console output of `--mea` shows the event by name, `EVENT: <event> (id=<id>, daq=<daq>), ...` instead of the DAQ list number only
-- xcpclient: `--mea` is no longer limited to 123 signals or one packet (MAX_DTO - 8 bytes) per event. An event with more ODT entries gets as many DAQ lists as needed, the XCP server samples them with the same timestamp. In the console output and the CSV file, such an event appears once per DAQ list, with the same event name and timestamp and a different `daq`. The limit of 64 measured events is removed
-- `OPTION_DAQ_MEM_SIZE` default increased from 512 * 6 to 2048 * 6 bytes
-- point_cloud_demo: the size of the point cloud is the constant `OPTION_POINT_COUNT`, reduced from 1000 to 512 points, so all signals can be measured with the default `OPTION_DAQ_MEM_SIZE`
-- xcpclient: `--mea` merges signals of an event which are adjacent in memory (struct members, array elements) to one ODT entry of up to the maximum ODT entry size of the XCP server. This saves DAQ memory and copy operations in the XCP server, point_cloud_demo needs 9 instead of 17 DAQ lists
-- xcpclient: `--mea` reports a signal which is too large for the XCP server (maximum ODT entry size from `GET_DAQ_RESOLUTION_INFO`, payload of a DAQ packet) and more than 1024 DAQ lists as an error before the DAQ setup of the XCP server is changed, an unexpected DAQ packet is ignored with a warning. These cases were a panic before
-- New option `OPTION_DAQ_SPAN_THREAD` (default: defined): the span record of a context has the new measurement `<context>.thread`, a small index of the thread which began or ended the span. `<context>.level` is reduced from 16 to 8 bit, the size of the span record is unchanged
-- New: Feature contexts and spans (C++ API, default and shm configuration, new option `OPTION_DAQ_CONTEXT_LIST`), see `examples/thread_context_demo`. `xcp::Context`, `xcp::Scope`, `DaqSpan` and `DaqEventCtxVar` in the new header `xcplib_context.hpp` (included by `xcplib.hpp`) separate the measurement data of the same code running for several class instances or threads. An event which belongs to a context is named `<context>.<event>` in the A2L file, in the event groups and in `GET_DAQ_EVENT_INFO`. C core in the new file `src/ctx.c`: `XcpCreateContext`, `XcpCreateContextEvent`, `XcpGetContextName`, `XcpGetContextCount`, `XcpRegisterSpanName`.
-- Breaking: anonymous event instances (`<name>_<index>`) are removed: `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex` do not exist anymore. Create an event per instance by name (`XcpCreateEvent`, `DaqCreateEvent_s`) or use contexts. `XcpGetEventContext` returns the context id of an event. `XcpFindEvent` finds events without context only.
-- The binary persistence file stores the context name with each event, in previously reserved bytes of the event record. The file version is unchanged; a file which contains anonymous event instances is rejected. `tools/bintool` shows such an event as `<context>.<event>` with its context name.
-- Fixed potential integer overflows in calibration memory size calculation
-- Fixed queue64f and queue64v memory size checks
-- Fixed socket_raw_test and daq_config_test, added a new persistence_test
-## [V2.4.0]
-
-- Fixed potential integer overflows in calibration memory size calculation.
-- Fixed queue64f and queue64v memory size checks.
-- Fixed socket_raw_test and daq_config_test, added a new persistence_test.  
+## [V2.4.2]
 
 - Breaking change (impact only on use cases with run-time A2L generation using event instances):
     * Support for anonymous multi-threaded event instances (`<name>_<index>`) has been removed. The API functions `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex` do not exist anymore. Create an event with dynamic name (`DaqCreateEvent_s`) instead and manage your event instances by name or use the new named event instances (event context). Related examples were updated. See below.
@@ -57,6 +31,17 @@ Supporting changes in `xcpclient` (xcpclient V4.1.0):
 - Measurement setup merges signals of an event which are adjacent in memory (struct members, array elements) to one ODT entry of up to the maximum ODT entry size of the XCP server. This saves DAQ memory and copy operations in the XCP server, point_cloud_demo needs 9 instead of 17 DAQ lists now.
 - Measurement reports a signal which is too large for the XCP server (maximum ODT entry size from `GET_DAQ_RESOLUTION_INFO`, payload of a DAQ packet) and more than 1024 DAQ lists as an error. These cases paniced before.
 
+
+## [V2.3.5]
+
+- The registry crate `xcp_registry` is used from crates.io (version 0.1) instead of as a git dependency on xcp-lite. It has moved to its own repository, <https://github.com/RainerZ/xcp-registry>
+
+
+## [V2.3.4]
+
+- Fixed potential integer overflows in calibration memory size calculation
+- Fixed queue64f and queue64v memory size checks
+- Fixed socket_raw_test and daq_config_test, added a new persistence_test
 
 
 ## [V2.3.2]
