@@ -431,7 +431,9 @@ impl XcpClient {
 
     //------------------------------------------------------------------------
     // Get server identification
-    // Returns (size, name) where name is only set if the server returned the name in the response, otherwise the caller must do an upload to get the data
+    // Returns (0, Some(text)) for text received inline or uploaded immediately.
+    // Returns (size, None) when a separate upload is needed.
+    // Returns (0, None) when the requested data is unavailable.
     pub async fn get_id(&mut self, id_type: u8) -> Result<(u32, Option<String>), Box<dyn Error>> {
         assert!(id_type == IDT_VECTOR_ELF_UPLOAD || id_type == IDT_ASAM_UPLOAD || id_type == IDT_ASAM_NAME || id_type == IDT_ASCII || id_type == IDT_ASAM_EPK); // others not supported yet
 
@@ -448,6 +450,10 @@ impl XcpClient {
 
         // Data ready for upload
         if mode == 0 {
+            // File uploads are handled separately; a size of 0 means unavailable.
+            if size == 0 || id_type == IDT_ASAM_UPLOAD || id_type == IDT_VECTOR_ELF_UPLOAD {
+                return Ok((size, None));
+            }
             // Upload the result immediately, if size fits in one upload command
             if size < self.max_cto_size as u32 {
                 let data = self.upload(size as u8).await?;
