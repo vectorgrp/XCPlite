@@ -500,6 +500,9 @@ if(XCPLITE_BUILD_TESTS)
         add_executable(persistence_test test/persistence_test/src/main.c)
         target_link_libraries(persistence_test PRIVATE xcplite)
 
+        add_executable(file_upload_test test/file_upload_test/src/main.c)
+        target_link_libraries(file_upload_test PRIVATE xcplite)
+
         # Test registration (default configuration)
         foreach(_xcp_unit_test
                 type_detection_test_c
@@ -510,7 +513,8 @@ if(XCPLITE_BUILD_TESTS)
                 cal_test
                 passive_test_c
                 passive_test_cpp
-                persistence_test)
+                persistence_test
+                file_upload_test)
             add_test(NAME ${_xcp_unit_test} COMMAND ${_xcp_unit_test})
             set_tests_properties(${_xcp_unit_test} PROPERTIES LABELS "unit" TIMEOUT 60)
         endforeach()

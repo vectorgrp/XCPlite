@@ -550,29 +550,34 @@ static void closeFile(void) {
 }
 
 static uint32_t openFile(const char *filename) {
-    if (filename == NULL || filename[0] == 0) {
+    // A new GET_ID request replaces any unfinished upload.
+    if (gXcpFile != NULL) {
+        closeFile();
+    }
+    gXcpFileLength = 0U;
+
+    if ((filename == NULL) || (filename[0] == 0)) {
         DBG_PRINT_WARNING("File name not set, cannot upload file!\n");
         return 0; // file is not valid
     }
 
-    assert(gXcpFile == NULL);
     gXcpFile = fopen(filename, "rb");
     if (gXcpFile == NULL) {
         DBG_PRINTF_ERROR("File %s not found!\n", filename);
         return 0;
     }
 
-    fseek(gXcpFile, 0, SEEK_END);
-    gXcpFileLength = (uint32_t)ftell(gXcpFile);
-    fseek(gXcpFile, 0, SEEK_SET);
-    // @@@@ TODO: This assert aborts the whole XCP server process when the file is empty, which a
-    // remote XCP client can trigger with GET_ID A2L upload (a previous crashed run leaves a 0 byte
-    // A2L behind, and it is then reproduced on every subsequent start). An empty or unreadable file
-    // is a normal runtime condition, not a programming error: return 0 here and let the caller
-    // report it. In a release build (NDEBUG) the assert disappears and exactly that already happens
-    // - the client then reports "A2L file not available, GET_ID 4 returned size 0" - so this is a
-    // debug-only abort and a silent Debug/Release behaviour difference.
-    assert(gXcpFileLength > 0);
+    if (fseek(gXcpFile, 0, SEEK_END) != 0) {
+        closeFile();
+        return 0;
+    }
+
+    const long length = ftell(gXcpFile);
+    if ((length <= 0) || ((uint64_t)length > UINT32_MAX) || (fseek(gXcpFile, 0, SEEK_SET) != 0)) {
+        closeFile();
+        return 0;
+    }
+    gXcpFileLength = (uint32_t)length;
     DBG_PRINTF4("File %s ready for upload, size=%u\n", filename, gXcpFileLength);
     return gXcpFileLength;
 }
