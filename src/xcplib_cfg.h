@@ -150,6 +150,7 @@
 // Enables XcpCreateContext, XcpCreateContextEvent, XcpRegisterSpanName and the C++ API in xcplib_context.hpp (xcp::Context, xcp::Scope, DaqSpan, DaqEventCtxVar)
 // (Needs OPTION_DAQ_EVENT_LIST and on-target A2L generation, enabled in the default and the shm configuration only)
 #define OPTION_DAQ_CONTEXT_LIST
+#define OPTION_DAQ_CONTEXT_TEST // Enable high frequency debug prints
 
 // Maximum number of contexts
 // Needs 16 bytes of memory per context
@@ -165,7 +166,7 @@
 // Requires ELF or Mach-O sections, not available on Windows and in SHM mode, the option is ignored when it is not available
 // See docs/NAMELIST.md chapter 13
 // (Needs OPTION_DAQ_CONTEXT_LIST)
-#define OPTION_DAQ_SPAN_SECTION_REGISTRATION
+// #define OPTION_DAQ_SPAN_SECTION_REGISTRATION
 
 // Maximum number of different span names, including the reserved span id 0 for "no span"
 // Needs about 45 bytes of memory per span name

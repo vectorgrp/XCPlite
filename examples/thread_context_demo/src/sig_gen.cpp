@@ -32,17 +32,17 @@ static double Clip(double input) {
         clipped = kClipLimit;
     if (clipped < -kClipLimit)
         clipped = -kClipLimit;
-    DaqEventCtxVar(clip,                                                               //
+    DaqEventCtxVar(clip, // context='SigGen1' or 'SigGen2', span='clip'                                                          //
                    A2L_MEAS_PHYS(input, "Clip function input", "Volt", -100.0, +100.0) //
                                                                                        // A2L_MEAS_PHYS(clipped, "Clip function output", "Volt", -100.0, +100.0) //
     );
-    sleepUs(1000); // 1ms @@@@ TEST: Simulate some more expensive work
+    SimulateWork(1000); // 1ms
     return clipped;
 }
 
 // Constructor - creates the signal generator with the given instance name and parameters
-SignalGenerator::SignalGenerator(const char *instance_name, const SignalParametersT *params)
-    : signal_parameters_(instance_name, params), context_(instance_name), instance_name_(instance_name) {
+SignalGenerator::SignalGenerator(const char *instance_name, const SignalParametersT *params, size_t queue_size)
+    : signal_parameters_(instance_name, params), context_(instance_name), instance_name_(instance_name), queue_(queue_size) {
 
     // Once registration of the A2L TYPEDEF for SignalParametersT
     if (A2lOnce()) {
@@ -81,20 +81,26 @@ SignalGenerator::~SignalGenerator() {
         }
         delete thread_;
     }
+    std::cout << "Stopped task: " << instance_name_ << ", samples: " << seq_ << ", dropped: " << overflows_ << std::endl;
 }
 
-// Get the current value, called from other threads (the main loop)
-// The method attaches the context of its instance for the duration of the call, the context of the caller is restored on return
-double SignalGenerator::Poll() const {
+// Get the next sample from the output queue, called from another thread (the main loop)
+// Single consumer: only one thread at a time may poll an instance
+std::optional<SampleT> SignalGenerator::Poll() {
     // Attach the signal generator instance context, possible with OPTION_DAQ_SPAN_THREAD
     // If not done, the trace will not contain the information which instance was polled, must be context of the caller
     // xcp::Scope scope(context_);
     DaqSpan(poll);
-    double polled = output_.load(std::memory_order_relaxed);
-    sleepUs(1000); // 1ms @@@@ TEST: Simulate some more expensive work
-    DaqEventCtxVar(poll, A2L_MEAS_PHYS(polled, "Value polled by another thread", "Volt", -100.0, +100.0));
-    return polled;
-}
+    std::optional<SampleT> sample = queue_.Pop();
+    if (!sample) {
+        return std::nullopt; // No new sample
+    }
+    double polled = sample->value;
+    SimulateWork(1000);  // 1ms
+    DaqEventCtxVar(poll, // context=<CallerContext>, span='poll'
+                   A2L_MEAS_PHYS(polled, "Value polled by another thread", "Volt", -100.0, +100.0));
+    return sample;
+} // end of span 'poll'
 
 // Cyclic calculation function - runs in a separate thread
 void SignalGenerator::Task() {
@@ -107,39 +113,53 @@ void SignalGenerator::Task() {
     double start_time = static_cast<double>(clockGetMonotonicUs()) / 1000000; // time in s since start of the signal generator
 
     while (running_) {
-
-        time = static_cast<double>(clockGetMonotonicUs()) / 1000000 - start_time; // time in s since start of the signal generator
-
-        // Calculate the waveform value based on the current time and signal parameters
         {
-            DaqSpan(calc);
-            auto p = signal_parameters_.lock();
-            normalized_time_ = fmod(time, p->period) / p->period; // Normalize time ([0.0..1.0[ to the period
-            double v = 0;
-            switch (p->signal_type) {
-            case SignalTypeT::SQUARE:
-                v = (normalized_time_ < 0.5) ? +1.0 : -1.0;
-                break;
-            case SignalTypeT::TRIANGLE:
-                v = (normalized_time_ - 0.5);
-                v = (normalized_time_ < 0.5) ? v : -v;
-                v = (v + 0.25) * 4.0;
-                break;
-            case SignalTypeT::SAWTOOTH:
-                v = (normalized_time_ - 0.5) * 2.0;
-                break;
-            default:
-                v = sin((normalized_time_ * k2Pi) + p->phase);
-                break;
-            }
-            sleepUs(2000); // 2ms @@@@ TEST: Simulate some more expensive work
-            value_ = Clip((p->ampl * v) + p->offset);
-            output_.store(value_, std::memory_order_relaxed); // Publish for GetValue() called from other threads
-        }
+            time = static_cast<double>(clockGetMonotonicUs()) / 1000000 - start_time; // time in s since start of the signal generator
+            DaqSpan(task);
 
-        // XCP event in the current context
-        // Each instance gets its own event instance siggen_<n> and its own measurement <instance_name>.value_
-        DaqEventCtxVar(siggen, A2L_MEAS_PHYS(value_, "Signal generator output", "Volt", -100.0, +100.0));
+            // Calculate the waveform value based on the current time and signal parameters
+            {
+                DaqSpan(calc);
+                auto p = signal_parameters_.lock();
+                normalized_time_ = fmod(time, p->period) / p->period; // Normalize time ([0.0..1.0[ to the period
+                double v = 0;
+                switch (p->signal_type) {
+                case SignalTypeT::SQUARE:
+                    v = (normalized_time_ < 0.5) ? +1.0 : -1.0;
+                    break;
+                case SignalTypeT::TRIANGLE:
+                    v = (normalized_time_ - 0.5);
+                    v = (normalized_time_ < 0.5) ? v : -v;
+                    v = (v + 0.25) * 4.0;
+                    break;
+                case SignalTypeT::SAWTOOTH:
+                    v = (normalized_time_ - 0.5) * 2.0;
+                    break;
+                default:
+                    v = sin((normalized_time_ * k2Pi) + p->phase);
+                    break;
+                }
+                SimulateWork(2000); // 2ms
+                value_ = Clip((p->ampl * v) + p->offset);
+            } // endof span 'calc'
+
+            // Publish the sample for Poll() called from another thread, count dropped samples
+            uint64_t time_us = clockGetMonotonicUs();
+            if (!queue_.Push(SampleT{value_, time_us, seq_++})) {
+                overflows_++;
+            }
+            uint32_t queue_level = queue_.Count();
+
+            // XCP event in the current context
+            // Each instance gets its own event instance siggen_<n> and its own measurements <instance_name>.value_, ...
+            // The default limits of 64 bit types are +-1e12, the monotonic clock may exceed them (1e12 us are 11.6 days)
+            DaqEventCtxVar(siggen, // context='SigGen1' or 'SigGen2', span='task'                                                                                    //
+                           A2L_MEAS_PHYS(value_, "Signal generator output", "Volt", -100.0, +100.0),                 //
+                           A2L_MEAS_PHYS(time_us, "Time stamp of the sample, clockGetMonotonicUs()", "us", 0, 1e18), //
+                           A2L_MEAS(queue_level, "Number of unread samples in the output queue after the push"),     //
+                           A2L_MEAS(overflows_, "Number of samples dropped because the output queue was full")       //
+            );
+        } // end of span 'task'
 
         // First cycle done, all instrumentation of the task has been executed once
         started_.store(true, std::memory_order_release);

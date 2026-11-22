@@ -19,7 +19,7 @@
 //            long-lived and there must be only a few of them, because every measurement has to be declared in the A2L file.
 //   Scope    Makes a context the current context of the calling thread (attach) and restores the previous one when it goes
 //            out of scope (detach). The current context is stored in thread-local storage, exactly as in OpenTelemetry.
-//            A new thread does not inherit the context: capture the context in the parent and attach it in the new thread.
+//            A new thread does not inherit the context: capture the context in the parent thread and attach it in the new thread.
 //   DaqEventCtxVar
 //            Context-aware variant of DaqEventVar. Each context gets its own event (<context>.<event>)
 //            and its own measurements, prefixed with the context name (<context>.<variable>).
@@ -66,8 +66,23 @@
 #include <cstdio>      // for snprintf
 #include <type_traits> // for std::is_trivially_destructible
 
-#include <a2l.hpp>    // for xcp::a2l::GetTypeIdFromExpr
-#include <xcplib.hpp> // for MeasurementInfo, InstanceInfo
+#include "dbg_print.h" // @@@@ TODO: remove
+#include <a2l.hpp>     // for xcp::a2l::GetTypeIdFromExpr
+#include <xcplib.hpp>  // for MeasurementInfo, InstanceInfo
+
+// Debug prints
+#ifndef OPTION_DAQ_CONTEXT_TEST
+#undef DBG_PRINTF3
+#define DBG_PRINTF3(s, ...)
+#undef DBG_PRINT3
+#define DBG_PRINT3(s)
+#else
+#include "platform.h"
+extern "C" {
+const char *XcpGetSpanName(uint16_t span);
+const char *XcpGetEventName(tXcpEventId event);
+}
+#endif
 
 // Require constant initialization of a static variable: no initialization at runtime, so no compiler generated guard
 // (__cxa_guard_acquire) on the first execution of the code location, a guard is not lock-free
@@ -108,8 +123,9 @@ inline Current &current() {
 // Measurement data of a span begin or end, sampled from the stack of the triggering thread
 // The size is 8 bytes with and without OPTION_DAQ_SPAN_THREAD
 struct SpanRecord {
-    uint32_t span_dt; // Duration of the span that just ended in clock ticks (ns in the default configuration), 0 at span begin
+    uint32_t span_dt;     // Duration of the span that just ended in clock ticks (ns in the default configuration), 0 at span begin
     uint16_t span;    // Current span id after the begin or end
+
 #ifdef OPTION_DAQ_SPAN_THREAD
     uint8_t level;  // Current nesting level after the begin or end, saturates at 255
     uint8_t thread; // Index of the triggering thread (1..255), see threadIndex
@@ -136,7 +152,9 @@ inline uint8_t threadIndex() {
     return index;
 }
 
-inline SpanRecord makeSpanRecord(uint32_t span_dt, uint16_t span, uint16_t level) { return SpanRecord{span_dt, span, (uint8_t)(level > 255 ? 255 : level), threadIndex()}; }
+inline SpanRecord makeSpanRecord(uint32_t span_dt, uint16_t span, uint16_t level) {
+    return SpanRecord{span_dt, span, (uint8_t)(level > 255 ? 255 : level), threadIndex()};
+}
 
 #else
 
@@ -245,6 +263,8 @@ class Context {
     // Using the newest timestamp of the context instead of an older one does not solve this. With more than two threads it
     // gave more declining timestamps than no correction in a stress test, and it needs a shared atomic in the context
     void TriggerSpanEvent(const detail::SpanRecord &record, uint64_t clock) const {
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "Trigger span event %s, span '%s', level=%u, dt=%uns\n" ANSI_COLOR_RESET, //
+                    XcpGetEventName(event()), XcpGetSpanName(record.span), record.level, record.span_dt);
         const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), (const uint8_t *)&record, (const uint8_t *)&record};
         XcpEventExtAt_(event(), (int)(sizeof(bases) / sizeof(bases[0])), bases, clock);
     }
@@ -262,19 +282,19 @@ class Context {
             const char *context_name = XcpGetContextName(id);
             name_.store(context_name, std::memory_order_relaxed);
             id_.store(id, std::memory_order_relaxed);
+
             const tXcpEventId event = XcpCreateContextEvent(id, "spans", 0, 0);
             if (event != XCP_UNDEFINED_EVENT_ID) {
 
                 // Register the span measurements of this context, addressed relative to a SpanRecord given at the trigger
                 // Exactly one thread does this for a context id
                 if (detail::contextRegisterOnce(id)) {
+                    DBG_PRINT3(ANSI_COLOR_YELLOW "Register measurements for type SpanRecord \n" ANSI_COLOR_RESET);
                     detail::SpanRecord record{};
                     A2lLock();
                     A2lSetRelativeAddrMode__i(event, 1, (const uint8_t *)&record);
-                    A2lCreateMeasurement_(context_name, "span", xcp::a2l::GetTypeIdFromExpr(record.span), 1, &record.span, "conv.spans", 0, detail::maxSpanId(),
-                                          "Current span");
-                    A2lCreateMeasurement_(context_name, "level", xcp::a2l::GetTypeIdFromExpr(record.level), 1, &record.level, nullptr, 0, 255,
-                                          "Current span nesting level");
+                    A2lCreateMeasurement_(context_name, "span", xcp::a2l::GetTypeIdFromExpr(record.span), 1, &record.span, "conv.spans", 0, detail::maxSpanId(), "Current span");
+                    A2lCreateMeasurement_(context_name, "level", xcp::a2l::GetTypeIdFromExpr(record.level), 1, &record.level, nullptr, 0, 255, "Current span nesting level");
                     A2lCreateMeasurement_(context_name, "span_dt", xcp::a2l::GetTypeIdFromExpr(record.span_dt), 1, &record.span_dt, "ns", 0, 4294967295.0,
                                           "Duration of the span that ended");
 #ifdef OPTION_DAQ_SPAN_THREAD
@@ -310,9 +330,17 @@ static_assert(std::is_trivially_destructible<Context>::value, "xcp::Context must
 class Scope {
 
   public:
-    explicit Scope(const Context *context) : previous_(detail::current()) { detail::current() = detail::Current{context, 0, 0}; }
+    explicit Scope(const Context *context) : previous_(detail::current()) {
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "Set scope to context '%s', thread_id=%u\n" ANSI_COLOR_RESET, context->name(), get_thread_id());
+        detail::current() = detail::Current{context, 0, 0};
+    }
     explicit Scope(const Context &context) : Scope(&context) {}
-    ~Scope() { detail::current() = previous_; }
+    ~Scope() {
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "End scope of context '%s', back to context '%s', thread_id=%u\n" ANSI_COLOR_RESET, //
+                    detail::current().context->name(), previous_.context != nullptr ? previous_.context->name() : "none", get_thread_id());
+
+        detail::current() = previous_;
+    }
 
     Scope(const Scope &) = delete;
     Scope &operator=(const Scope &) = delete;
@@ -347,10 +375,12 @@ class Span {
         if (current.context == nullptr || current.context->event() == XCP_UNDEFINED_EVENT_ID)
             return;
         active_ = true;
-        previous_span_ = current.span;
-        current.span = span_id;
         current.level++;
         begin_ = ApplXcpGetClock64();
+        previous_span_ = current.span;
+        current.span = span_id;
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "Span begin, '%s': '%s' -> '%s', %u\n" ANSI_COLOR_RESET, //
+                    current.context->name(), XcpGetSpanName(previous_span_), XcpGetSpanName(span_id), current.level);
         current.context->TriggerSpanEvent(detail::makeSpanRecord(0, current.span, current.level), begin_);
     }
 
@@ -358,8 +388,13 @@ class Span {
         if (!active_)
             return;
         detail::Current &current = detail::current();
-        current.span = previous_span_;
         current.level--;
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "Span end, '%s': '%s' -> '%s', %u\n" ANSI_COLOR_RESET, //
+                    current.context->name(), XcpGetSpanName(current.span), XcpGetSpanName(previous_span_), current.level);
+
+        // The end record is the state after the end: span and level of the enclosing span
+        current.span = previous_span_;
+
         // One timestamp for the duration and the end event: span_dt is exactly the difference of the timestamps of the begin and end event
         const uint64_t clock = ApplXcpGetClock64();
         const uint64_t dt = clock - begin_;

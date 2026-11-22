@@ -27,6 +27,11 @@ static void sleep_us(uint32_t us) {
     sleepUs(us); // from xcplib
 }
 
+// Main loop parameters
+struct MainloopParametersT {
+    uint32_t idle_sleep_us; // Sleep time of the main loop, when there are no samples (in us)
+};
+
 //-----------------------------------------------------------------------------------------------------
 // XCP
 
@@ -117,8 +122,9 @@ int main() {
     wait_xcp();
 #endif
 
-    auto startup_context = xcp::Context("Startup");
-    xcp::Scope startup_scope(startup_context);
+    // Create a named context object 'Main' and set it as the current context
+    auto context = xcp::Context("Main");
+    xcp::Scope scope(context);
 
     {
         // The signal generator instances are created in the span initialize and destroyed at the end of this block
@@ -128,7 +134,7 @@ int main() {
         // Initialize
         {
             DaqSpan(initialize);
-            sleep_us(10000);
+            SimulateWork(10000); // 10ms
 
             // Simplified signal generator C++ class taken from cpp_demo
             // Create 2 instances
@@ -149,53 +155,106 @@ int main() {
                 .delay_us = 5000,                                   // us
                 .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
             };
-            signal_generator_1 = std::make_unique<signal_generator::SignalGenerator>("SigGen1", &kSignalParameters1);
-            signal_generator_2 = std::make_unique<signal_generator::SignalGenerator>("SigGen2", &kSignalParameters2);
+            // SigGen1 queues up to 16 samples, SigGen2 has a single entry queue which always holds the latest sample
+            signal_generator_1 = std::make_unique<signal_generator::SignalGenerator>("SigGen1", &kSignalParameters1, 16);
+            signal_generator_2 = std::make_unique<signal_generator::SignalGenerator>("SigGen2", &kSignalParameters2, 1);
 
-            sleep_us(10000); // Wait a bit to let the signal generator threads initialize
-        }
+            SimulateWork(10000); // 10ms
+        } // end of span 'initialize'
+
+        // Main loop calibration parameters
+        // The reference page must outlive the calibration segment (static)
+        static const MainloopParametersT kMainloopParameters = {
+            .idle_sleep_us = 1000, // us
+        };
+        A2lCreateTypedef(MainloopParametersT, "Typedef for MainloopParametersT", //
+                         A2L_PARAMETER_COMPONENT(idle_sleep_us, "Main loop sleep time when there are no samples", "us", 0, 100000));
+        xcp::CalSeg<MainloopParametersT> mainloop_parameters("Mainloop", &kMainloopParameters);
+        mainloop_parameters.CreateA2lTypedefInstance("MainloopParametersT", "Main loop parameters");
 
         // Main loop
-        auto mainloop_context = xcp::Context("Mainloop");
-        xcp::Scope mainloop_scope(mainloop_context);
+        double channel1 = 0, channel2 = 0; // Latest values of signal generator 1+2
+
+        // Instrumentation
+        uint32_t next_seq1 = 0, next_seq2 = 0; // Expected sequence number of the next sample
+
         std::cout << "Starting main loop..." << std::endl;
-        double channel1, channel2, sum;
         while (running) {
 
-            {
-                DaqSpan(calc_sum);
+            // Create the 'Mainloop' context and set it as the current context
+            auto mainloop_context = xcp::Context("Mainloop");
+            xcp::Scope mainloop_scope(mainloop_context);
 
-                // Poll the current values of signal generator 1+2
-                // Each poll in its own span, the span poll in SignalGenerator::Poll is nested in poll_1 or poll_2
-                {
-                    DaqSpan(get_channel1);
-                    sleep_us(100);
-                    channel1 = signal_generator_1->Poll();
-                    sleep_us(100);
+            // Poll loop: poll signal generator 1+2 until both queues are empty, the main loop does not sleep while samples are pending
+            // Each channel in its own span, the spans poll in SignalGenerator::Poll are nested in get_channel1 or get_channel2
+            // A sample triggers the event sample1 or sample2 with its value, its latency (time from calculation to poll) and the number of samples dropped before it
+            {
+                DaqSpan(poll_loop);
+
+                bool pending = true;
+                while (pending) {
+                    pending = false;
+                    {
+                        DaqSpan(get_channel1);
+                        SimulateWork(100);
+                        if (auto sample = signal_generator_1->Poll()) {
+                            double value1 = channel1 = sample->value;
+                            pending = true;
+
+                            // Instrumentation
+                            uint32_t latency1 = static_cast<uint32_t>(clockGetMonotonicUs() - sample->time_us);
+                            uint32_t dropped1 = sample->seq - next_seq1;
+                            next_seq1 = sample->seq + 1;
+                            DaqEventCtxVar(sample1, // context='Mainloop', span='get_channel1'                                                                           //
+                                           A2L_MEAS_PHYS(value1, "Sample value of signal generator 1", "Volt", -100.0, +100.0), //
+                                           A2L_MEAS_PHYS(latency1, "Sample latency of signal generator 1", "us", 0, 100000),    //
+                                           A2L_MEAS(dropped1, "Samples of signal generator 1 dropped before this sample")       //
+                            );
+                        }
+                        SimulateWork(100);
+                    } // end of span 'get_channel1'
+                    {
+                        DaqSpan(get_channel2);
+                        SimulateWork(100);
+                        if (auto sample = signal_generator_2->Poll()) {
+                            double value2 = channel2 = sample->value;
+                            pending = true;
+
+                            // Instrumentation
+                            uint32_t latency2 = static_cast<uint32_t>(clockGetMonotonicUs() - sample->time_us);
+                            uint32_t dropped2 = sample->seq - next_seq2;
+                            next_seq2 = sample->seq + 1;
+                            DaqEventCtxVar(sample2, // context='Mainloop', span='get_channel2'                                                                           //
+                                           A2L_MEAS_PHYS(value2, "Sample value of signal generator 2", "Volt", -100.0, +100.0), //
+                                           A2L_MEAS_PHYS(latency2, "Sample latency of signal generator 2", "us", 0, 100000),    //
+                                           A2L_MEAS(dropped2, "Samples of signal generator 2 dropped before this sample")       //
+                            );
+                        }
+                        SimulateWork(100);
+                    } // end of span 'get_channel2'
                 }
-                {
-                    DaqSpan(get_channel2);
-                    sleep_us(100);
-                    channel2 = signal_generator_2->Poll();
-                    sleep_us(100);
-                }
-                sum = channel1 + channel2;
-            }
+            } // end of span 'poll_loop'
 
             // Trigger the XCP measurement event mainloop for local variables 'channel1' and 'channel2' in context 'Mainloop' with event 'mainloop'
+            // There is no active span
             // DaqEventVar will also work, but the value will not be displayed in the Mainloop context track
-            DaqEventCtxVar(mainloop,                                                                                      //
-                           A2L_MEAS_PHYS(channel1, "Polled current value of signal generator 1", "Volt", -100.0, +100.0), //
-                           A2L_MEAS_PHYS(channel2, "Polled current value of signal generator 2", "Volt", -100.0, +100.0), //
-                           A2L_MEAS_PHYS(sum, "Calculated sum of channels", "Volt", -1000.0, +1000.0)                     //
+            DaqEventCtxVar(mainloop, // context='Mainloop', span='get_channel1'                                                                            //
+                           A2L_MEAS_PHYS(channel1, "Latest value of signal generator 1", "Volt", -100.0, +100.0), //
+                           A2L_MEAS_PHYS(channel2, "Latest value of signal generator 2", "Volt", -100.0, +100.0)  //
             );
 
             {
                 DaqSpan(analyze);
-                sleep_us(1000); // Simulate some work time in span analyze
-            }
+                SimulateWork(1000); // 1ms
+            } // end of span 'analyze'
 
-            sleep_us(15000);
+            // Both queues were empty, sleep
+            sleep_us(mainloop_parameters.lock()->idle_sleep_us);
+
+// @@@@ TODO: Remove
+#ifdef OPTION_DAQ_CONTEXT_TEST
+            running = false;
+#endif
 
         } // while (running)
 

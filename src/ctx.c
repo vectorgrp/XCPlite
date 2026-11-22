@@ -57,6 +57,14 @@
 #include "shm.h"       // for XcpShmGetAppId, declares nothing outside SHM mode
 #include "xcplite.h"   // for tXcpData, tXcpLocalData, XcpCreateIndexedEvent, XcpFindContextEvent
 
+// Debug prints
+#ifndef OPTION_DAQ_CONTEXT_TEST
+#undef DBG_PRINTF3
+#define DBG_PRINTF3(s, ...)
+#undef DBG_PRINT3
+#define DBG_PRINT3(s)
+#endif
+
 // XCP singleton state, defined in xcplite.c
 #ifdef OPTION_SHM_MODE // gXcpData is a pointer to the shared state in SHM mode
 extern tXcpData *gXcpData;
@@ -112,7 +120,7 @@ static void initSpanSection(void) {
 
     DBG_PRINTF3("Found %u span names in section xcp_spans\n", (unsigned int)count);
     for (uint16_t i = 0; i < gXcpSpanSectionCount; i++) {
-        DBG_PRINTF5("  Span %u: %s\n", i + 1, begin[i].name);
+        DBG_PRINTF5("  Span %u: '%s'\n", i + 1, begin[i].name);
     }
 }
 
@@ -208,9 +216,9 @@ uint16_t XcpCreateContext(const char *name) {
         DBG_PRINTF_ERROR("too many contexts, context '%s' not created (OPTION_DAQ_CONTEXT_COUNT=%u)\n", name, XCP_MAX_CONTEXT_COUNT);
         return XCP_UNDEFINED_CONTEXT;
     }
-    if (created) {
-        DBG_PRINTF3("Create Context %u: %s\n", (unsigned int)id + 1, name);
-    }
+
+    DBG_PRINTF3(ANSI_COLOR_YELLOW "%s Context '%s': %u\n" ANSI_COLOR_RESET, created ? "Created" : "Found", name, (unsigned int)id + 1);
+
     return (uint16_t)(id + 1);
 }
 
@@ -316,8 +324,9 @@ uint16_t XcpRegisterSpanName(const char *name) {
         return 0;
     }
     if (created) {
-        DBG_PRINTF3("Register span name %u: %.*s\n", (unsigned int)id, XCP_MAX_SPAN_NAME, name);
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "Register span '%s': id = %u\n" ANSI_COLOR_RESET, name, (unsigned int)id);
     }
+
     return (uint16_t)id;
 }
 

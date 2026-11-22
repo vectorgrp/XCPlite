@@ -204,6 +204,21 @@ A2L_MISMATCHED=0
 UPDATED_HEX_FIXTURES=()
 UPDATED_A2L_FIXTURES=()
 
+# Print the most recently modified of the files given on stdin, one path per line
+# Old generated files of an example (other version or time stamp) may still be in the workspace, the newest is the one just created
+newest_file() {
+    local newest=""
+    local file
+    while IFS= read -r file; do
+        if [ -z "$newest" ] || [ "$file" -nt "$newest" ]; then
+            newest="$file"
+        fi
+    done
+    if [ -n "$newest" ]; then
+        echo "$newest"
+    fi
+}
+
 # Function to run an example
 run_example() {
     local example=$1
@@ -372,7 +387,7 @@ run_example() {
     local example_basename="${example}"
     # Find BIN files matching the pattern and filter to exact matches (not substrings)
     # Use grep to ensure the filename ends with _HH_MM_SS.bin pattern
-    local bin_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 -name "${example_basename}_*.bin" -type f 2>/dev/null | grep -E "/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.bin$" | head -1)
+    local bin_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 -name "${example_basename}_*.bin" -type f 2>/dev/null | grep -E "/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.bin$" | newest_file)
     
     if [ -n "$bin_files" ]; then
         log_plain "${BLUE}  Found .bin file(s):${NC}"
@@ -457,9 +472,9 @@ run_example() {
     # Format: example_name_HH_MM_SS.a2l (where HH_MM_SS is from __TIME__), example_name_V<version>.a2l (fixed version, for example V2.3) or example_name.a2l
     # Note: examples with a fixed version and A2L_MODE_WRITE_ONCE do not regenerate an existing A2L file, use 'clean' to compare a fresh one
     # Check both BUILD_DIR and WORKSPACE_ROOT (examples write to current directory)
-    # Each example creates exactly one A2L file
+    # Each example creates exactly one A2L file, if older ones exist, the newest is used
     # Use grep to ensure the filename ends with one of these patterns (not a substring match of another example)
-    local a2l_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 \( -name "${example_basename}_*.a2l" -o -name "${example_basename}.a2l" \) -type f 2>/dev/null | grep -E "(/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.a2l$|/${example_basename}_V[0-9]+(\.[0-9]+)*\.a2l$|/${example_basename}\.a2l$)" | head -1)
+    local a2l_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 \( -name "${example_basename}_*.a2l" -o -name "${example_basename}.a2l" \) -type f 2>/dev/null | grep -E "(/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.a2l$|/${example_basename}_V[0-9]+(\.[0-9]+)*\.a2l$|/${example_basename}\.a2l$)" | newest_file)
     
     if [ -n "$a2l_files" ]; then
         log_plain "${BLUE}  Found .a2l file(s):${NC}"
