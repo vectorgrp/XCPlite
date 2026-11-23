@@ -7,7 +7,7 @@
 //
 // Steps:
 //   1. C core: contexts, context events, span names (idempotent creation, naming, lookup rules)
-//   2. C++ API: two code locations executed in two contexts and without a context, scope nesting, spans
+//   2. C++ API: two code locations executed in two contexts and without a context, scope nesting, spans, span links
 //   3. Persistence: write the BIN file, restart, contexts are rebuilt from the events and all ids are unchanged
 //   4. Limits: context name too long, context list full, span name list full
 //   5. DaqContext: a static context at a code location, executed before XcpInit, created once, entered by several threads at the same time
@@ -314,6 +314,47 @@ int main(int argc, char *argv[]) {
     uint16_t span_work = XcpRegisterSpanName("work");
     CHECK(span_work == 4 && XcpGetSpanCount() == 5, "span id is %u, span count is %u", span_work, XcpGetSpanCount());
 #endif
+
+    // Span links
+    printf("Span links\n");
+    event_count = XcpGetEventCount();
+
+    // Without a current context the link is empty, recording it or recording without a context does nothing
+    xcp::SpanLink empty = xcp::CaptureSpanLink();
+    CHECK(empty.context == 0 && empty.clock == 0 && empty.span == 0);
+    xcp::LinkSpan(empty);
+    CHECK(XcpGetEventCount() == event_count);
+
+    // The producer captures its context, its current span and the clock
+    xcp::SpanLink link;
+    {
+        xcp::Scope scope(context_a);
+        uint64_t before = ApplXcpGetClock64();
+        link = xcp::CaptureSpanLink();
+        uint64_t after = ApplXcpGetClock64();
+        CHECK(link.context == ctx_a && link.span == 0, "link context %u, span %u", link.context, link.span);
+        CHECK(link.clock >= before && link.clock <= after);
+    }
+    xcp::LinkSpan(link); // No current context
+    CHECK(XcpGetEventCount() == event_count);
+
+    // The consumer records the link in its context: the first link creates the event <context>.links, the next ones reuse it
+    {
+        xcp::Scope scope(context_c);
+        xcp::LinkSpan(link);
+        tXcpEventId links_c = XcpFindContextEvent(ctx_c, "links");
+        checkEvent(links_c, "ctx_c.links", ctx_c);
+        CHECK(XcpGetEventCount() == event_count + 1);
+        xcp::LinkSpan(link);
+        xcp::LinkSpan(empty);
+        CHECK(XcpGetEventCount() == event_count + 1);
+    }
+    {
+        xcp::Scope scope(context_a);
+        xcp::LinkSpan(link); // A link within the same context is allowed
+        checkEvent(XcpFindContextEvent(ctx_a, "links"), "ctx_a.links", ctx_a);
+        CHECK(XcpGetEventCount() == event_count + 2);
+    }
 
     // 3. Persistence
     printf("Persistence\n");

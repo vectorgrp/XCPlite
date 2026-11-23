@@ -10,7 +10,7 @@ The demo main loop polls 2 instances of `SignalGenerator` until both queues are 
 
 ## What can be measured and observed
 
-The demo shows how to observe the signal generation, the execution of the poll function, the queue level and the overflow count inside the `SignalGenerator` implementation, without the code knowing which instance it is and who calls the poll function. The instrumentation creates a consistent time series for each instance and from the perspective of each calling thread at runtime, so a standard XCP client tool or logger does not need to know how to interpret and demultiplex the data produced by the capture points in the code. The tool selects which instance or caller it observes, no data is transferred and collected for instances which are not selected. The caller instrumentation provides metrics such as the latency of a sample. Planned: a link from the consumer span to the producer span of a sample, see "Span links and Perfetto arrows".
+The demo shows how to observe the signal generation, the execution of the poll function, the queue level and the overflow count inside the `SignalGenerator` implementation, without the code knowing which instance it is and who calls the poll function. The instrumentation creates a consistent time series for each instance and from the perspective of each calling thread at runtime, so a standard XCP client tool or logger does not need to know how to interpret and demultiplex the data produced by the capture points in the code. The tool selects which instance or caller it observes, no data is transferred and collected for instances which are not selected. The caller instrumentation provides metrics such as the latency of a sample, and a span link from the consumer span to the producer span of each sample, which Perfetto shows as an arrow, see "Span links and Perfetto arrows".
 
 The xcpclient tool has an option to convert the XCP measurement data to the Chrome JSON trace format, which can be loaded in Perfetto and many other tools.
 
@@ -62,7 +62,8 @@ track for each of its signals:
 - `SigGen1`, `SigGen2`: `task` with the nested span `calc`, which has the nested span `clip`, and the signals `.value_`, `.time_us`, `.queue_level`, `.overflows_` and `.input`.
 
 The main loop and the two task threads run independently, so the spans of different contexts overlap in time.
-Details are in the [xcpclient README](../../tools/xcpclient/README.md).
+Each `poll` of `Mainloop` which returned a sample has an arrow from the `task` span of the signal generator which calculated it, see
+"Span links and Perfetto arrows". Details are in the [xcpclient README](../../tools/xcpclient/README.md).
 
 <img src="perfetto1.png" alt="Perfetto overview: signals and span tracks of the contexts" width="900">
 
@@ -102,6 +103,7 @@ The API extensions follow the XCPlite principles: lazy registration, lock-free a
 | `DaqContext` | Creates a context with a literal name once per code location and enters it with a scope until the end of the block. Used here for `Main` and `Mainloop`. |
 | `DaqEventCtxVar` | Context-aware variant of `DaqEventVar`. Uses a separate event and separate measurements for each context, the event is named `<context>.<event>`. |
 | `DaqSpan` | A named, timed section of code. Begin and end are recorded on the same event `<context>.spans` of the current context. |
+| `xcp::SpanLink` | The span context of a producer span (context, span, thread, timestamp), captured with `xcp::CaptureSpanLink()` and carried to a consumer, for example in a queue item. The consumer records it with `xcp::LinkSpan(link)` inside its own span, on the event `<context>.links` of its current context. An OTel span link. |
 
 ```cpp
 xcp::Context context_;                                  // class member, constructed with the instance name
@@ -109,6 +111,8 @@ xcp::Scope scope(context_);                             // in the thread or meth
 DaqEventCtxVar(siggen, A2L_MEAS_PHYS(value_, ...));     // event SigGen1.siggen, measurement SigGen1.value_
 { DaqSpan(calc); ... }                                  // span "calc", ends at the end of the block
 DaqContext(Mainloop);                                   // context with a literal name, entered until the end of the block
+queue_.Push(SampleT{value_, ..., xcp::CaptureSpanLink()}); // producer, inside span "task": capture the span context
+xcp::LinkSpan(sample->link);                            // consumer, inside span "poll": link it to the producer span
 ```
 
 ---
@@ -127,11 +131,13 @@ The demo has four contexts. `SigGen1` and `SigGen2` are the two signal generator
 | `SigGen1.siggen`, `SigGen2.siggen` | `.value_`, `.time_us` (time stamp of the sample), `.queue_level` (unread samples after the push), `.overflows_` (dropped samples) of `SigGen1` and `SigGen2` | the task thread of each instance |
 | `SigGen1.clip`, `SigGen2.clip` | `SigGen1.input`, `SigGen2.input` | the shared function `Clip()` |
 | `Mainloop.poll` | `Mainloop.polled` | the method `Poll()` of both instances, called by the main loop |
+| `Mainloop.links` | `Mainloop.link_context`, `.link_span`, `.link_time` (the producer span of the sample) | `xcp::LinkSpan()` in `Poll()`, for each sample |
 | `Mainloop.sample1`, `Mainloop.sample2` | `Mainloop.value1`, `.latency1`, `.dropped1` and `Mainloop.value2`, `.latency2`, `.dropped2` | the main loop, for each sample polled from instance 1 or 2 |
 | `Mainloop.mainloop` | `Mainloop.channel1`, `Mainloop.channel2` (latest values) | the main loop, once per cycle |
 | `Main.spans`, `Mainloop.spans`, `SigGen1.spans`, `SigGen2.spans` | `.span`, `.level`, `.span_dt` | begin and end of each span in this context |
 
-That is 12 events: 4 spans events, 2 for `clip` and 2 for `siggen` (one per instance), and 4 for the code locations of the main loop.
+That is 13 events: 4 spans events, 2 for `clip` and 2 for `siggen` (one per instance), 4 for the code locations of the main loop and
+`Poll()`, and the links event of `Mainloop`.
 
 Spans:
 
@@ -224,7 +230,31 @@ To keep in mind:
 
 ## Span links and Perfetto arrows
 
-Not implemented yet. The analysis (Perfetto flow events, OTel links, what has to be measured on the target) and example traces are in
+A sample is calculated in the span `task` of a signal generator thread and polled later, in the span `poll` of the main loop, in
+another thread and another context. The two spans have no parent and child relation and are not nested, their relation is a span
+link, as in OpenTelemetry:
+
+- The producer captures the span context of its current span with `xcp::CaptureSpanLink()` and puts it into the sample
+  (`SampleT::link`, a trivially copyable `xcp::SpanLink` of 16 bytes). The link carries the producer context id, the current span id,
+  the thread index (`OPTION_DAQ_SPAN_THREAD`) and the clock at the capture. Nothing is measured on the producer side.
+- The consumer records the link with `xcp::LinkSpan(sample->link)` inside its span `poll`. This triggers the event `<context>.links` of
+  its current context (`Mainloop.links`) with the measurements `.link_context` (enum `conv.contexts`), `.link_span` (enum `conv.spans`)
+  and `.link_time`, plus `.link_thread` and `.link_consumer_thread` with `OPTION_DAQ_SPAN_THREAD`. The event is created on the first
+  link in a context, a context without links costs nothing.
+
+The link identifies the producer span by its track (context and thread) and a timestamp, not by a span instance id. `xcpclient
+--perfetto` writes each link sample as a flow: the start on the producer track at the capture time, the end on the consumer track at
+the time of the `LinkSpan` sample. Perfetto binds each end to the innermost slice which encloses its timestamp, so the arrow goes from
+the span in which the link was captured (`task`, the push happens after `calc` has ended) to the span in which it was recorded
+(`poll`). Nothing is kept per span, in the target or in xcpclient. A link whose producer context is not measured, or which was
+captured before the measurement start, is counted and dropped. A link captured in a span which began before the measurement start
+has no producer slice, Perfetto does not draw it.
+
+To see the arrows, expand the tracks and click a `poll` slice: the arrow from its `task` is drawn, the details panel lists it under
+"Preceding flows" with the delay. Clicking a `task` slice shows its outgoing arrow. With `SigGen1` at 25 us there are many links,
+zoom in to a few cycles of the main loop.
+
+The analysis behind this (Perfetto flow formats, OTel links, alternatives) and two example traces are in
 [perfetto_flow/README.md](perfetto_flow/README.md).
 
 ---
@@ -257,7 +287,10 @@ the context names, and an event which belongs to a context is named `<context>.<
 - The span event of a context is `<context>.spans`. A sample is the state after a span begin or end: `span`, `level`, `span_dt`
   and, with `OPTION_DAQ_SPAN_THREAD`, `thread`. The record has 8 bytes with and without the option, `level` has 8 bit with the
   option and 16 bit without.
-- The A2L writer creates `conv.spans` at finalize from the registered span names.
+- The A2L writer creates `conv.spans` at finalize from the registered span names, and `conv.contexts` (id 0 `none`, 1.. the context
+  names) for the producer context of span links.
+- Span links: `xcp::SpanLink`, `xcp::CaptureSpanLink()`, `xcp::LinkSpan()`. The event `<context>.links` is created with the same
+  claim scheme as `DaqEventCtxVar`, one state per context id for the program, on the first link in the context.
 - `XcpFindEvent` and `XcpCreateEvent` consider events without context only, so an event `<name>` and `<context>.<name>` can
   coexist. `XcpGetEventContext` returns the context id of an event. The A2L short name of an event is its name without the context.
 - Test: `test/context_test`, registered with CTest (unit).
@@ -304,7 +337,8 @@ Per use, in the application:
 The number of events is what has to be planned. With C contexts and L `DaqEventCtxVar` code locations:
 
 ```
-events = C (one spans event per context) + C x L + code locations also executed without a context + other events
+events = C (one spans event per context) + C x L + one links event per context which records span links
+         + code locations also executed without a context + other events
 ```
 
 Only combinations which are actually executed create an event. Worst case with the default of 8 contexts:
@@ -319,7 +353,7 @@ Only combinations which are actually executed create an event. Worst case with t
 | 16 | 136 | 3.8 KB | no |
 
 This demo has 4 contexts and 6 code locations, of which `clip` and `siggen` are executed in 2 contexts and `poll`, `sample1`, `sample2`
-and `mainloop` in one, which is 4 + 4 + 4 = 12 events. When the event list is full (`OPTION_DAQ_EVENT_COUNT`), `DaqEventCtxVar`
+and `mainloop` in one, plus the links event of `Mainloop`, which is 4 + 4 + 4 + 1 = 13 events. When the event list is full (`OPTION_DAQ_EVENT_COUNT`), `DaqEventCtxVar`
 measures nothing for this context and code location, and tries to create the event again on every call.
 
 Not affected by the number of contexts or code locations:
@@ -331,8 +365,9 @@ Not affected by the number of contexts or code locations:
 
 ## Findings and limitations
 
-- **Event budget.** One event per context, plus one per context and context-aware code location
-  (12 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 32 by default). The number of contexts is limited
+- **Event budget.** One event per context, plus one per context and context-aware code location, plus one per context which records
+  span links
+  (13 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 32 by default). The number of contexts is limited
   by `OPTION_DAQ_CONTEXT_COUNT` (8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (32) without link-time registration.
 - **One thread at a time.** A context should be executed by one thread at a time. Several threads may work in it one after
   the other, the hand-over between them (a queue, a mutex, a join) keeps the timestamps of its events in order. A context

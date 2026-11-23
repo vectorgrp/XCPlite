@@ -106,15 +106,18 @@ ALIGNMENT_INT64 1
 /begin MEASUREMENT Mainloop.span "Current span" UWORD conv.spans 0 0 0 9  ECU_ADDRESS 0x1C00004 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x7 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT Mainloop.level "Current span nesting level" UWORD NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x1C00006 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x7 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT Mainloop.span_dt "Duration of the span that ended" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x1C00000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "ns" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x7 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT Mainloop.polled "Value polled by another thread" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x2000000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x8 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT Mainloop.value1 "Sample value of signal generator 1" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x2400000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x9 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT Mainloop.latency1 "Sample latency of signal generator 1" ULONG NO_COMPU_METHOD 0 0 0 100000  ECU_ADDRESS 0x2400000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "us" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x9 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT Mainloop.dropped1 "Samples of signal generator 1 dropped before this sample" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x2400000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x9 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT Mainloop.value2 "Sample value of signal generator 2" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x2800000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xA /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT Mainloop.latency2 "Sample latency of signal generator 2" ULONG NO_COMPU_METHOD 0 0 0 100000  ECU_ADDRESS 0x2800000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "us" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xA /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT Mainloop.dropped2 "Samples of signal generator 2 dropped before this sample" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x2800000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xA /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT Mainloop.channel1 "Latest value of signal generator 1" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x2C00000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xB /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT Mainloop.channel2 "Latest value of signal generator 2" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x2C00000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xB /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.link_context "Context of the linked producer span" UWORD conv.contexts 0 0 0 8  ECU_ADDRESS 0x2000008 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x8 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.link_span "Linked producer span" UWORD conv.spans 0 0 0 9  ECU_ADDRESS 0x200000A ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x8 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.link_time "Timestamp of the capture of the link in the producer span, in DAQ timestamp ticks" A_UINT64 NO_COMPU_METHOD 0 0 0 1.84467e+19  ECU_ADDRESS 0x2000000 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x8 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.polled "Value polled by another thread" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x2400000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x9 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.value1 "Sample value of signal generator 1" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x2800000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xA /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.latency1 "Sample latency of signal generator 1" ULONG NO_COMPU_METHOD 0 0 0 100000  ECU_ADDRESS 0x2800000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "us" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xA /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.dropped1 "Samples of signal generator 1 dropped before this sample" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x2800000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xA /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.value2 "Sample value of signal generator 2" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x2C00000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xB /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.latency2 "Sample latency of signal generator 2" ULONG NO_COMPU_METHOD 0 0 0 100000  ECU_ADDRESS 0x2C00000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "us" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xB /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.dropped2 "Samples of signal generator 2 dropped before this sample" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x2C00000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xB /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.channel1 "Latest value of signal generator 1" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x3000000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xC /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Mainloop.channel2 "Latest value of signal generator 2" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x3000000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0xC /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Typedefs */
 /begin TYPEDEF_CHARACTERISTIC C_signal_type "Signal type" VALUE U8 0 conv.signal_type_enum 0 3 /end TYPEDEF_CHARACTERISTIC
@@ -139,6 +142,7 @@ ALIGNMENT_INT64 1
 /begin GROUP SigGen2.clip "Measurement event group"  /begin REF_MEASUREMENT SigGen2.clipped /end REF_MEASUREMENT /end GROUP
 /begin GROUP SigGen2.siggen "Measurement event group"  /begin REF_MEASUREMENT SigGen2.value_ SigGen2.time_us SigGen2.queue_level SigGen2.overflows_ /end REF_MEASUREMENT /end GROUP
 /begin GROUP Mainloop.spans "Measurement event group"  /begin REF_MEASUREMENT Mainloop.span Mainloop.level Mainloop.span_dt /end REF_MEASUREMENT /end GROUP
+/begin GROUP Mainloop.links "Measurement event group"  /begin REF_MEASUREMENT Mainloop.link_context Mainloop.link_span Mainloop.link_time /end REF_MEASUREMENT /end GROUP
 /begin GROUP Mainloop.poll "Measurement event group"  /begin REF_MEASUREMENT Mainloop.polled /end REF_MEASUREMENT /end GROUP
 /begin GROUP Mainloop.sample1 "Measurement event group"  /begin REF_MEASUREMENT Mainloop.value1 Mainloop.latency1 Mainloop.dropped1 /end REF_MEASUREMENT /end GROUP
 /begin GROUP Mainloop.sample2 "Measurement event group"  /begin REF_MEASUREMENT Mainloop.value2 Mainloop.latency2 Mainloop.dropped2 /end REF_MEASUREMENT /end GROUP
@@ -151,7 +155,12 @@ ALIGNMENT_INT64 1
 /*-----------------------------------------------------------------------------------------*/
 
 
-/begin GROUP Events "Events" ROOT /begin SUB_GROUP Main.spans SigGen1.spans SigGen2.spans SigGen1.clip SigGen1.siggen SigGen2.clip SigGen2.siggen Mainloop.spans Mainloop.poll Mainloop.sample1 Mainloop.sample2 Mainloop.mainloop /end SUB_GROUP /end GROUP
+/begin GROUP Events "Events" ROOT /begin SUB_GROUP Main.spans SigGen1.spans SigGen2.spans SigGen1.clip SigGen1.siggen SigGen2.clip SigGen2.siggen Mainloop.spans Mainloop.links Mainloop.poll Mainloop.sample1 Mainloop.sample2 Mainloop.mainloop /end SUB_GROUP /end GROUP
+
+/begin COMPU_METHOD conv.contexts "" TAB_VERB "%.0 " "" COMPU_TAB_REF conv.contexts.table /end COMPU_METHOD
+/begin COMPU_VTAB conv.contexts.table "" TAB_VERB 5
+ 0 "none" 1 "Main" 2 "SigGen1" 3 "SigGen2" 4 "Mainloop"
+/end COMPU_VTAB
 
 /begin COMPU_METHOD conv.spans "" TAB_VERB "%.0 " "" COMPU_TAB_REF conv.spans.table /end COMPU_METHOD
 /begin COMPU_VTAB conv.spans.table "" TAB_VERB 10
@@ -239,7 +248,7 @@ OPTIONAL_CMD TIME_CORRELATION_PROPERTIES
 OPTIONAL_LEVEL1_CMD GET_VERSION
 /end PROTOCOL_LAYER
 /begin DAQ
-DYNAMIC 0 12 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
+DYNAMIC 0 13 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
 /begin TIMESTAMP_SUPPORTED 0x1 SIZE_DWORD UNIT_1NS TIMESTAMP_FIXED /end TIMESTAMP_SUPPORTED
 /begin EVENT "Main.spans" "spans" 0x0 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /begin EVENT "SigGen1.spans" "spans" 0x1 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
@@ -249,10 +258,11 @@ DYNAMIC 0 12 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_F
 /begin EVENT "SigGen2.clip" "clip" 0x5 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /begin EVENT "SigGen2.siggen" "siggen" 0x6 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /begin EVENT "Mainloop.spans" "spans" 0x7 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "Mainloop.poll" "poll" 0x8 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "Mainloop.sample1" "sample1" 0x9 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "Mainloop.sample2" "sample2" 0xA DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "Mainloop.mainloop" "mainloop" 0xB DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "Mainloop.links" "links" 0x8 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "Mainloop.poll" "poll" 0x9 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "Mainloop.sample1" "sample1" 0xA DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "Mainloop.sample2" "sample2" 0xB DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "Mainloop.mainloop" "mainloop" 0xC DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /end DAQ
 /end IF_DATA
 

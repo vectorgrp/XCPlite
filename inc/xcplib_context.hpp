@@ -25,8 +25,12 @@
 //            and its own measurements, prefixed with the context name (<context>.<variable>).
 //   Span     A named, timed section of code. Begin and end are recorded on the event <context>.spans of the current context,
 //            with the current span, the nesting level and the duration of the span that ended.
-//            With OPTION_DAQ_SPAN_THREAD (default), the index of the thread is recorded as well, it tells the spans of several
-//            threads in the same context apart.
+//            With OPTION_DAQ_SPAN_THREAD (not defined by default), the index of the thread is recorded as well, it tells the spans
+//            of several threads in the same context apart.
+//   SpanLink The span context of the current span (context, span, thread and a timestamp), captured by a producer and carried
+//            to a consumer, for example in a queue item. The consumer records it inside its own span with LinkSpan on the event
+//            <context>.links of its current context. A trace viewer can then connect both spans, xcpclient --perfetto draws an
+//            arrow (a flow) from the producer span to the consumer span. This is an OpenTelemetry span link.
 //
 // Usage:
 //   xcp::Context ctx("SigGen1");                              // once, for example as a class member
@@ -34,6 +38,8 @@
 //   DaqContext(Mainloop);                                     // or both in one for a literal name, created once per code location
 //   DaqEventCtxVar(siggen, A2L_MEAS(value_, "Output"));       // event SigGen1.siggen, measurement SigGen1.value_
 //   { DaqSpan(calc); ... }                                    // span "calc", ends at the end of the block
+//   queue.Push({value, xcp::CaptureSpanLink()});             // producer: capture the current span with the item
+//   { DaqSpan(process); auto item = queue.Pop(); xcp::LinkSpan(item.link); ... } // consumer: link its span to the producer span
 //
 // Span names:
 //   With OPTION_DAQ_SPAN_SECTION_REGISTRATION (default, ELF and Mach-O, not in SHM mode), the span names are registered at link time
@@ -547,3 +553,128 @@ XCPLIB_ALWAYS_INLINE void DaqEventCtxVarTemplate(detail::ContextEventIds &ids, c
 /// Trigger an event in the current context of the calling thread
 /// Without a current context, the event is a single global event, like DaqEventVar
 #define DaqEventCtxVar(event_name, ...) DaqEventCtxVar_(xcp::Context::GetCurrent(), event_name, __VA_ARGS__)
+
+//-----------------------------------------------------------------------------------------------------
+// Span link
+// A producer captures the span context of its current span with CaptureSpanLink and passes it to a consumer, for example in a
+// queue item. The consumer records it with LinkSpan inside its own span, on the event <context>.links of its current context.
+// This is an OpenTelemetry span link: the reference is stored on the consumer side only, the producer records nothing.
+//
+// The link identifies the producer span by its context, its thread and a timestamp taken at the capture, not by a span instance id.
+// A trace viewer binds the link to the innermost span of the producer track which encloses the timestamp. xcpclient --perfetto
+// writes a flow from there to the innermost span of the consumer track which encloses the time of the LinkSpan sample.
+// Capture the link inside the producer span the arrow should start from, and call LinkSpan inside the consumer span it should end in.
+
+namespace xcp {
+
+/// Span context of the current span of a thread at a point in time, the producer side of a span link
+/// Trivially copyable, 16 bytes, put it into the item which is passed to the consumer
+/// A link with context 0 is empty: captured without a current context or before XcpInit, LinkSpan ignores it
+struct SpanLink {
+    uint64_t clock;   // ApplXcpGetClock64() at the capture, in DAQ timestamp ticks
+    uint16_t context; // Context id of the producer, 0 = empty link
+    uint16_t span;    // Current span id of the producer at the capture, 0 = no span
+    uint8_t thread;   // Thread index of the producer (OPTION_DAQ_SPAN_THREAD), 0 without the option
+    uint8_t reserved[3];
+};
+static_assert(sizeof(SpanLink) == 16, "SpanLink must be 16 bytes");
+static_assert(std::is_trivially_copyable<SpanLink>::value, "SpanLink must be trivially copyable");
+
+namespace detail {
+
+// Measurement data of a span link sample, sampled from the stack of the consumer thread
+struct LinkRecord {
+    uint64_t clock;          // Producer timestamp
+    uint16_t context;        // Producer context id
+    uint16_t span;           // Producer span id
+    uint8_t thread;          // Producer thread index (OPTION_DAQ_SPAN_THREAD)
+    uint8_t consumer_thread; // Consumer thread index (OPTION_DAQ_SPAN_THREAD)
+    uint8_t reserved[2];
+};
+static_assert(sizeof(LinkRecord) == 16, "LinkRecord must be 16 bytes");
+
+// Event <context>.links of a context, created and registered on the first link in this context
+// One state per context id for the whole program (a function static of an inline function), the same claim scheme as DaqEventCtxVar:
+// the first thread creates the event and registers the measurements, other threads skip their link in the meantime, nobody waits
+inline tXcpEventId linksEvent(const Context &context) {
+    XCP_CONSTINIT static ContextEventIds ids{};
+    const uint16_t context_id = context.id();
+    std::atomic<uint16_t> &state = ids.state[context_id];
+    uint16_t s = state.load(std::memory_order_acquire);
+    if (s >= kEventIdOffset)
+        return (tXcpEventId)(s - kEventIdOffset);
+    if (s != kEventNew || !state.compare_exchange_strong(s, kEventClaimed, std::memory_order_acq_rel, std::memory_order_acquire))
+        return XCP_UNDEFINED_EVENT_ID; // Claimed by another thread which is not done yet, or failed
+
+    const tXcpEventId event = XcpCreateContextEvent(context_id, "links", 0, 0);
+    if (event == XCP_UNDEFINED_EVENT_ID) {
+        state.store(kEventFailed, std::memory_order_release); // Out of event list memory, do not try again
+        return XCP_UNDEFINED_EVENT_ID;
+    }
+
+    // Register the link measurements of this context, addressed relative to a LinkRecord given at the trigger
+    DBG_PRINT3(ANSI_COLOR_YELLOW "Register measurements for type LinkRecord \n" ANSI_COLOR_RESET);
+    const char *context_name = context.name();
+    LinkRecord record{};
+    A2lLock();
+    A2lSetRelativeAddrMode__i(event, 1, (const uint8_t *)&record);
+    A2lCreateMeasurement_(context_name, "link_context", xcp::a2l::GetTypeIdFromExpr(record.context), 1, &record.context, "conv.contexts", 0, kMaxContexts,
+                          "Context of the linked producer span");
+    A2lCreateMeasurement_(context_name, "link_span", xcp::a2l::GetTypeIdFromExpr(record.span), 1, &record.span, "conv.spans", 0, maxSpanId(), "Linked producer span");
+    A2lCreateMeasurement_(context_name, "link_time", xcp::a2l::GetTypeIdFromExpr(record.clock), 1, &record.clock, nullptr, 0, 18446744073709551615.0,
+                          "Timestamp of the capture of the link in the producer span, in DAQ timestamp ticks");
+#ifdef OPTION_DAQ_SPAN_THREAD
+    A2lCreateMeasurement_(context_name, "link_thread", xcp::a2l::GetTypeIdFromExpr(record.thread), 1, &record.thread, nullptr, 0, 255,
+                          "Index of the thread of the linked producer span");
+    A2lCreateMeasurement_(context_name, "link_consumer_thread", xcp::a2l::GetTypeIdFromExpr(record.consumer_thread), 1, &record.consumer_thread, nullptr, 0, 255,
+                          "Index of the thread which recorded the link");
+#endif
+    A2lUnlock();
+
+    state.store((uint16_t)(event + kEventIdOffset), std::memory_order_release);
+    return event;
+}
+
+} // namespace detail
+
+/// Capture the span context of the current span of the calling thread, the producer side of a span link
+/// Costs a thread-local load and a clock read, nothing is measured
+/// Returns an empty link (context 0) without a current context
+[[nodiscard]] inline SpanLink CaptureSpanLink() {
+    const detail::Current &current = detail::current();
+    if (current.context == nullptr || current.context->id() == 0)
+        return SpanLink{};
+    SpanLink link{};
+    link.clock = ApplXcpGetClock64();
+    link.context = current.context->id();
+    link.span = current.span;
+#ifdef OPTION_DAQ_SPAN_THREAD
+    link.thread = detail::threadIndex();
+#endif
+    return link;
+}
+
+/// Record a span link in the current context of the calling thread, the consumer side of a span link
+/// Call it inside the consumer span, the link is attributed to the innermost span which encloses this call
+/// Triggers the event <context>.links of the current context with the link, created on the first link in this context
+/// Does nothing for an empty link or without a current context
+inline void LinkSpan(const SpanLink &link) {
+    if (link.context == 0)
+        return;
+    const Context *context = Context::GetCurrent();
+    if (context == nullptr || context->id() == 0)
+        return;
+    const tXcpEventId event = detail::linksEvent(*context);
+    if (event == XCP_UNDEFINED_EVENT_ID)
+        return;
+    detail::LinkRecord record{link.clock, link.context, link.span, link.thread, 0, {0, 0}};
+#ifdef OPTION_DAQ_SPAN_THREAD
+    record.consumer_thread = detail::threadIndex();
+#endif
+    DBG_PRINTF3(ANSI_COLOR_YELLOW "Link span in context '%s': producer context %u, span '%s', clock=%llu\n" ANSI_COLOR_RESET, //
+                context->name(), link.context, XcpGetSpanName(link.span), (unsigned long long)link.clock);
+    const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), (const uint8_t *)&record, (const uint8_t *)&record};
+    XcpEventExtAt_(event, (int)(sizeof(bases) / sizeof(bases[0])), bases, 0);
+}
+
+} // namespace xcp

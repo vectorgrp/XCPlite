@@ -407,8 +407,20 @@ static void createEventGroupsAndConversions(const char *project_name, bool event
 
     // Create the enum conversion conv.spans with all registered span names
     // It is referenced by the measurement <context name>.span of each context
+    // Create the enum conversion conv.contexts with all context names, the value is the context id, 0 is no context
+    // It is referenced by the measurement <context name>.link_context of the span links of a context
 #ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
     if (XcpGetContextCount() > 0) {
+        uint16_t contextCount = XcpGetContextCount();
+        fprintf(gA2lFile, "\n/begin COMPU_METHOD conv.contexts \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.contexts.table /end COMPU_METHOD\n");
+        fprintf(gA2lFile, "/begin COMPU_VTAB conv.contexts.table \"\" TAB_VERB %u\n", contextCount + 1);
+        fprintf(gA2lFile, " 0 \"none\"");
+        for (uint16_t id = 1; id <= contextCount; id++) {
+            const char *name = XcpGetContextName(id);
+            fprintf(gA2lFile, " %u \"%s\"", id, name != NULL ? name : "");
+        }
+        fprintf(gA2lFile, "\n/end COMPU_VTAB\n");
+
         uint16_t spanCount = XcpGetSpanCount();
         fprintf(gA2lFile, "\n/begin COMPU_METHOD conv.spans \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.spans.table /end COMPU_METHOD\n");
         fprintf(gA2lFile, "/begin COMPU_VTAB conv.spans.table \"\" TAB_VERB %u\n", spanCount);

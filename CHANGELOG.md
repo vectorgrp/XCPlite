@@ -3,8 +3,6 @@
 All notable changes to XCPlite are documented in this file.
 
 
-
-
 ## [V2.4.2]
 
 - Breaking change (impact only on use cases with run-time A2L generation using event instances):
@@ -12,23 +10,23 @@ All notable changes to XCPlite are documented in this file.
     * The binary persistence file stores the context name with each event, in previously reserved bytes of the event record. The file version is unchanged. A file which contains the old anonymous event instances is rejected. `tools/bintool` shows such an event as `<context>.<event>` with its context name.
 
 
-Experimental changes based on named event context (work in progress):
+Contexts, spans and span links:
 
-- New experimental `thread_context_demo`, which demonstrates ambient context and spans inspired by OTel, implemented in with XCPlite features.  The old experimental event context implementation in `multi_thread_demo` has been removed. The `multi_thread_demo` now just demonstrates a use case for triggering the same event in multiple worker threads, as the Rust xcp-lite `rayon_demo` does. 
-
-- New feature contexts and spans (C++ API, default and shm configuration only, new option `OPTION_DAQ_CONTEXT_LIST`), see `examples/thread_context_demo`. `xcp::Context`, `xcp::Scope`, `DaqSpan` and `DaqEventCtxVar` are defined in the new public header `xcplib_context.hpp` (included by `xcplib.hpp`). Beside creating trace context and span information, the feature automatically may separate the measurement data of the same code running for several class instances or threads. An event which belongs to a context is named `<context>.<event>` in the A2L file, in the event groups and in `GET_DAQ_EVENT_INFO`. New named context management is implemented in the C library core in the new file `src/ctx.c`. New functions are `XcpCreateContext`, `XcpCreateContextEvent`, `XcpGetContextName`, `XcpGetContextCount`, `XcpRegisterSpanName`.
-- New option `OPTION_DAQ_SPAN_THREAD` (default: undefined): The span record of a context has the additional measurement `<context>.thread`, a small index of the thread which began or ended the span. This is similar to the prior event instance indices. The perfetto json export (see below) creates automatic tracks per thread in this case. Experimental, might be removed again.
+- New `thread_context_demo`: contexts, spans and span links inspired by OpenTelemetry, measured with XCP and shown in Perfetto. The old experimental event context in `multi_thread_demo` has been removed, the demo now only shows the same event triggered by several worker threads, like the Rust xcp-lite `rayon_demo`.
+- New C++ API in the new header `xcplib_context.hpp` (included by `xcplib.hpp`, option `OPTION_DAQ_CONTEXT_LIST`, default and shm configuration only): `xcp::Context`, `xcp::Scope`, `DaqContext`, `DaqSpan`, `DaqEventCtxVar` and span links (`xcp::CaptureSpanLink`, `xcp::LinkSpan`). The same code running for several class instances or threads gets separate measurements per context, an event of a context is named `<context>.<event>`. The context list is implemented in the C core (`src/ctx.c`).
+- Span names are registered at link time (`OPTION_DAQ_SPAN_SECTION_REGISTRATION`, default), or at runtime where linker sections are not available (Windows, SHM mode).
+- New option `OPTION_DAQ_SPAN_THREAD` (not defined by default): records the thread index with each span, for several threads in one context. Experimental, might be removed again.
 
 
 Supporting changes in `xcpclient` (xcpclient V4.1.0):
 
-- New option `--perfetto <file>`, extracts tracks, spans and measurement signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`.
+- New option `--perfetto <file>`: writes spans, span links and signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`.
 - Print values in physical unit or as enum strings in console and csv. Enum conversion is used to display span names. 
+- The CSV file has a new column `unit`.
 - Improved timestamp wraparound detection for very sporadic events.
-- Option `--mea` now shows physical values (if factor and offset set and enum labels) with their unit, the CSV file has a new column `unit`.
-- The console output of `--mea` shows the event by name, `EVENT: <event> (id=<id>, daq=<daq>), ...` instead of the DAQ list number only.
+- The console output of `--mea` shows events by name, `EVENT: <event> (id=<id>, daq=<daq>), ...` instead of the DAQ list number only.
 - Measurement (`--mea`) is no longer limited to 123 signals or one packet (MAX_DTO - 8 bytes) per event. An event with more ODT entries gets as many DAQ lists as needed, the XCP server samples them with the same timestamp. Multiple ODTs per DAQ list are not used, as before. In the console output and the CSV file, such an event appears once per DAQ list, with the same event name and timestamp and a different `daq`. The limit of 64 measured events is removed.
-- Measurement setup merges signals of an event which are adjacent in memory (struct members, array elements) to one ODT entry of up to the maximum ODT entry size of the XCP server. This saves DAQ memory and copy operations in the XCP server, point_cloud_demo needs 9 instead of 17 DAQ lists now.
+- Measurement setup merges signals of an event which are adjacent in memory (struct members, array elements) to one ODT entry of up to the maximum ODT entry size of the XCP server. 
 - Measurement reports a signal which is too large for the XCP server (maximum ODT entry size from `GET_DAQ_RESOLUTION_INFO`, payload of a DAQ packet) and more than 1024 DAQ lists as an error. These cases paniced before.
 
 

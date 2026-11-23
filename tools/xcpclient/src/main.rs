@@ -316,7 +316,8 @@ struct Args {
 
     // --perfetto
     /// Save measurement data to a trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev).
-    /// Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks.
+    /// Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks,
+    /// span links (xcp::LinkSpan) are flows (arrows) from the producer span to the consumer span.
     /// The span signals of a context (<context>.span, .level, .span_dt, .thread) must be measured, for example with --mea ".*".
     /// May be combined with --csv.
     #[arg(long, default_value = "", value_name = "FILE")]
@@ -455,6 +456,7 @@ impl XcpDaqDecoder for DaqDecoder {
         // The timestamp resolution is known, set_daq_properties is called at connect
         self.last_timestamp_ns = timestamp * self.timestamp_resolution;
         if let Some(ref mut writer) = self.perfetto_writer {
+            writer.set_timestamp_resolution(self.timestamp_resolution);
             writer.start(&daq_lists, self.last_timestamp_ns);
         }
         self.daq_timestamp = vec![timestamp; daq_lists.len()];

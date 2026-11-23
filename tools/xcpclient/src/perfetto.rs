@@ -21,6 +21,15 @@
 //   A span is written when it ends, as complete event with begin and duration. Spans which are still open at the end of the
 //   measurement end at the last timestamp of their track.
 //
+// Span links
+//   The links event of a context (xcp::LinkSpan) is found by the names of its signals: <context>.link_context (enum conv.contexts)
+//   and <context>.link_time, optionally <context>.link_span, <context>.link_thread and <context>.link_consumer_thread. Each sample is
+//   a link from a producer span to the consumer span in which the sample was taken. It is written as a flow (an arrow in Perfetto)
+//   in the flow format v1: a flow start "s" on the track of the producer context at the producer timestamp link_time, and a flow end
+//   "f" with "bp":"e" on the track of the consumer at the time of the sample. Perfetto binds each of them to the innermost slice
+//   which encloses its timestamp on that track. Nothing is kept per span: a link is resolved when the producer context is in the
+//   measurement and the producer timestamp is not before the measurement start, otherwise it is counted and dropped.
+//
 // Timestamps are written relative to the start of the measurement, in microseconds with 3 decimals (ns resolution).
 
 use std::collections::HashMap;
@@ -64,9 +73,21 @@ struct SpanList {
     thread: Option<usize>, // Index of the ODT entry <context>.thread
 }
 
+// The links event of a context
+#[derive(Debug)]
+struct LinkList {
+    pid: u32,                       // Process of the consumer context
+    context: usize,                 // Index of the ODT entry <context>.link_context, the producer context
+    time: usize,                    // Index of the ODT entry <context>.link_time, the producer timestamp in DAQ timestamp ticks
+    span: Option<usize>,            // Index of the ODT entry <context>.link_span, the producer span
+    thread: Option<usize>,          // Index of the ODT entry <context>.link_thread, the producer thread
+    consumer_thread: Option<usize>, // Index of the ODT entry <context>.link_consumer_thread, the consumer thread
+}
+
 #[derive(Debug, Default)]
 struct DaqList {
     spans: Option<SpanList>,
+    links: Option<LinkList>,
     signals: Vec<SignalKind>, // One per ODT entry
 }
 
@@ -86,6 +107,10 @@ pub struct PerfettoWriter<W: Write> {
     span_tracks: HashMap<(u32, u32), SpanTrack>, // by pid and tid
     span_count: u64,
     resync_count: u64,
+    context_pids: HashMap<String, u32>, // Process of each context with a span record, by context name
+    timestamp_resolution: u64,          // ns per DAQ timestamp tick, for the producer timestamps of the span links
+    flow_count: u64,
+    unresolved_link_count: u64,
 }
 
 impl PerfettoWriter<std::io::BufWriter<std::fs::File>> {
@@ -106,7 +131,16 @@ impl<W: Write> PerfettoWriter<W> {
             span_tracks: HashMap::new(),
             span_count: 0,
             resync_count: 0,
+            context_pids: HashMap::new(),
+            timestamp_resolution: 1,
+            flow_count: 0,
+            unresolved_link_count: 0,
         }
+    }
+
+    /// Set the resolution of the DAQ timestamps in ns per tick, needed to convert the producer timestamps of span links
+    pub fn set_timestamp_resolution(&mut self, ns_per_tick: u64) {
+        self.timestamp_resolution = ns_per_tick.max(1);
     }
 
     /// Set the name of the process for the signals which do not belong to a context
@@ -124,6 +158,16 @@ impl<W: Write> PerfettoWriter<W> {
     /// Number of span samples which did not fit to the open spans
     pub fn resync_count(&self) -> u64 {
         self.resync_count
+    }
+
+    /// Number of span links written as flows
+    pub fn flow_count(&self) -> u64 {
+        self.flow_count
+    }
+
+    /// Number of span links which could not be resolved (producer context not measured, or captured before the measurement start)
+    pub fn unresolved_link_count(&self) -> u64 {
+        self.unresolved_link_count
     }
 
     /// Get the writer back, for the tests
@@ -196,6 +240,26 @@ impl<W: Write> PerfettoWriter<W> {
         ));
     }
 
+    // Flow from a producer span to a consumer span, flow format v1, the timestamps are absolute in ns
+    // Each end binds to the innermost slice on its track which encloses its timestamp
+    fn write_flow(&mut self, name: &str, from: (u32, u32, u64), to: (u32, u32, u64)) {
+        self.flow_count += 1;
+        let id = self.flow_count;
+        let name = Self::json_string(name);
+        let (pid, tid, t) = from;
+        let ts = Self::us(t.saturating_sub(self.start));
+        self.write_event(&format!(
+            r#"{{"ph":"s","pid":{},"tid":{},"name":{},"cat":"span_link","id":{},"ts":{}}}"#,
+            pid, tid, name, id, ts
+        ));
+        let (pid, tid, t) = to;
+        let ts = Self::us(t.saturating_sub(self.start));
+        self.write_event(&format!(
+            r#"{{"ph":"f","pid":{},"tid":{},"name":{},"cat":"span_link","id":{},"ts":{},"bp":"e"}}"#,
+            pid, tid, name, id, ts
+        ));
+    }
+
     fn write_counter(&mut self, pid: u32, name: &str, series: &str, t: u64, value: f64) {
         if !value.is_finite() {
             return; // Not representable in JSON
@@ -234,6 +298,28 @@ impl<W: Write> PerfettoWriter<W> {
         None
     }
 
+    // Find the link record of a context in a DAQ list
+    fn find_link_record(odt_entries: &[OdtEntry]) -> Option<LinkList> {
+        for (context, entry) in odt_entries.iter().enumerate() {
+            let Some(name) = entry.name.strip_suffix(".link_context") else { continue };
+            if !entry.conversion.is_enum() {
+                continue;
+            }
+            let find = |suffix: &str| odt_entries.iter().position(|e| e.name.strip_prefix(name).and_then(|s| s.strip_prefix('.')) == Some(suffix));
+            if let Some(time) = find("link_time") {
+                return Some(LinkList {
+                    pid: PID_ECU,
+                    context,
+                    time,
+                    span: find("link_span"),
+                    thread: find("link_thread"),
+                    consumer_thread: find("link_consumer_thread"),
+                });
+            }
+        }
+        None
+    }
+
     /// Start of the measurement
     /// daq_lists are the signals of each DAQ list, start is the timestamp of the measurement start in ns
     pub fn start(&mut self, daq_lists: &[XcpDaqList], start: u64) {
@@ -243,6 +329,8 @@ impl<W: Write> PerfettoWriter<W> {
         self.span_tracks.clear();
         self.span_count = 0;
         self.resync_count = 0;
+        self.flow_count = 0;
+        self.unresolved_link_count = 0;
         self.first = true;
         let _ = write!(self.writer, "{{\"displayTimeUnit\":\"ns\",\"traceEvents\":[\n");
         let ecu_name = self.ecu_name.clone();
@@ -260,6 +348,7 @@ impl<W: Write> PerfettoWriter<W> {
             }
             span_records.push(record);
         }
+        self.context_pids = contexts.iter().cloned().collect();
         // A signal belongs to the context with the longest name which is a prefix of the signal name
         let pid_of = |name: &str| -> u32 {
             contexts
@@ -292,6 +381,12 @@ impl<W: Write> PerfettoWriter<W> {
                     level,
                     thread,
                 });
+            }
+            if let Some(mut links) = Self::find_link_record(entries) {
+                links.pid = pid_of(&entries[links.context].name);
+                skip.extend([links.context, links.time]);
+                skip.extend(links.span.iter().chain(links.thread.iter()).chain(links.consumer_thread.iter()));
+                daq_list.links = Some(links);
             }
             for (i, entry) in entries.iter().enumerate() {
                 let pid = pid_of(&entry.name);
@@ -393,6 +488,36 @@ impl<W: Write> PerfettoWriter<W> {
             }
         }
 
+        // Span link: resolve the producer, the flow is written after the borrow of the DAQ list ends
+        let link = self.daq_lists[daq].links.as_ref().map(|links| {
+            let raw = |index: Option<usize>| -> Option<u64> {
+                match odt_entries.get(index?)?.decode_raw(data)? {
+                    A2lValue::Unsigned(v) => Some(v),
+                    _ => None,
+                }
+            };
+            let consumer = (links.pid, raw(links.consumer_thread).map_or(TID_SPANS, |v| v as u32), t);
+            let producer_pid = match odt_entries.get(links.context).and_then(|e| e.decode(data)) {
+                Some(A2lValue::Label(context)) => self.context_pids.get(&context).copied(),
+                _ => None,
+            };
+            let producer_tid = raw(links.thread).map_or(TID_SPANS, |v| v as u32);
+            let producer_t = raw(Some(links.time)).map(|ticks| ticks.saturating_mul(self.timestamp_resolution));
+            let name = match links.span.and_then(|i| odt_entries.get(i)).and_then(|e| e.decode(data)) {
+                Some(A2lValue::Label(label)) => label,
+                _ => "span_link".to_string(),
+            };
+            match (producer_pid, producer_t) {
+                (Some(pid), Some(producer_t)) if producer_t >= self.start => Some((name, (pid, producer_tid, producer_t), consumer)),
+                _ => None,
+            }
+        });
+        match link {
+            Some(Some((name, from, to))) => self.write_flow(&name, from, to),
+            Some(None) => self.unresolved_link_count += 1,
+            None => {}
+        }
+
         // Signals
         for i in 0..self.daq_lists[daq].signals.len() {
             let Some(entry) = odt_entries.get(i) else { break };
@@ -455,6 +580,15 @@ impl<W: Write> PerfettoWriter<W> {
         let _ = write!(self.writer, "\n]}}\n");
         let _ = self.writer.flush();
 
+        if self.flow_count > 0 {
+            info!("Perfetto trace: {} span links written as flows", self.flow_count);
+        }
+        if self.unresolved_link_count > 0 {
+            warn!(
+                "Perfetto trace: {} span links not resolved (spans of the producer context not measured, or captured before the measurement start)",
+                self.unresolved_link_count
+            );
+        }
         if self.resync_count > 0 {
             warn!(
                 "Perfetto trace: {} span samples did not fit to the open spans (lost samples, or several threads in a context without the signal <context>.thread, see OPTION_DAQ_SPAN_THREAD)",
@@ -678,6 +812,119 @@ mod tests {
         // OFF from the first sample to the change, ON until the end of the measurement
         assert_eq!(slices(&events), [(CTX, 1000, "OFF".to_string(), 1000, 2000), (CTX, 1000, "ON".to_string(), 3000, 2000)]);
         assert_eq!(metadata_name(&events, "thread_name", CTX, Some(1000)).as_deref(), Some("SigGen1.mode"));
+    }
+
+    // The link record of a context: clock (u64), context (u16), span (u16), thread (u8), consumer_thread (u8)
+    fn link_entries(context: &str, thread: bool) -> Vec<OdtEntry> {
+        const CONTEXTS: &str = r#"0 "none" 1 "SigGen1" 2 "Mainloop""#;
+        let mut entries = vec![
+            entry(&format!("{context}.link_context"), 2, A2lTypeEncoding::Unsigned, 8, CONTEXTS),
+            entry(&format!("{context}.link_span"), 2, A2lTypeEncoding::Unsigned, 10, SPANS),
+            entry(&format!("{context}.link_time"), 8, A2lTypeEncoding::Unsigned, 0, ""),
+        ];
+        if thread {
+            entries.push(entry(&format!("{context}.link_thread"), 1, A2lTypeEncoding::Unsigned, 12, ""));
+            entries.push(entry(&format!("{context}.link_consumer_thread"), 1, A2lTypeEncoding::Unsigned, 13, ""));
+        }
+        entries
+    }
+
+    fn link_data(clock: u64, context: u16, span: u16, thread: u8, consumer_thread: u8) -> Vec<u8> {
+        let mut data = clock.to_le_bytes().to_vec();
+        data.extend(context.to_le_bytes());
+        data.extend(span.to_le_bytes());
+        data.extend([thread, consumer_thread, 0, 0]);
+        data
+    }
+
+    // The flows as (ph, pid, tid, name, id, ts in ns)
+    fn flows(events: &[serde_json::Value]) -> Vec<(String, u64, u64, String, u64, u64)> {
+        events
+            .iter()
+            .filter(|e| e["ph"] == "s" || e["ph"] == "f")
+            .map(|e| {
+                (
+                    e["ph"].as_str().unwrap().to_string(),
+                    e["pid"].as_u64().unwrap(),
+                    e["tid"].as_u64().unwrap(),
+                    e["name"].as_str().unwrap().to_string(),
+                    e["id"].as_u64().unwrap(),
+                    (e["ts"].as_f64().unwrap() * 1000.0).round() as u64,
+                )
+            })
+            .collect()
+    }
+
+    // A producer span in SigGen1, a consumer span in Mainloop which links to it, and two links which can not be resolved
+    #[test]
+    fn test_span_links() {
+        let odt_entries = vec![span_entries("SigGen1", true), span_entries("Mainloop", true), link_entries("Mainloop", true)];
+        let samples = [
+            (0, 2000, span_data(1, 1, 1)),          // SigGen1 thread 1: calc begins
+            (0, 2600, span_data(0, 0, 1)),          // SigGen1 thread 1: calc ends
+            (1, 3000, span_data(3, 1, 2)),          // Mainloop thread 2: poll begins
+            (2, 3100, link_data(2300, 1, 1, 1, 2)), // link to calc of SigGen1, captured at 2300
+            (2, 3200, link_data(500, 1, 1, 1, 2)),  // captured before the measurement start: not resolved
+            (2, 3300, link_data(2300, 0, 1, 1, 2)), // producer context 'none': not resolved
+            (1, 3400, span_data(0, 0, 2)),          // Mainloop thread 2: poll ends
+        ];
+        let mut writer = PerfettoWriter::new(Vec::new());
+        let daq_lists: Vec<XcpDaqList> = odt_entries
+            .into_iter()
+            .enumerate()
+            .map(|(i, entries)| XcpDaqList {
+                event_id: i as u16,
+                event_name: None,
+                entries,
+            })
+            .collect();
+        writer.start(&daq_lists, 1000);
+        for (daq, t, data) in &samples {
+            writer.sample(*daq, *t, &daq_lists[*daq].entries, data);
+        }
+        writer.stop(4000);
+        assert_eq!((writer.flow_count(), writer.unresolved_link_count()), (1, 2));
+        let json: serde_json::Value = serde_json::from_slice(&writer.into_inner()).expect("valid JSON");
+        let events = json["traceEvents"].as_array().unwrap();
+        let (siggen1, mainloop) = (CTX, CTX + 1);
+        assert_eq!(
+            flows(events),
+            [
+                ("s".to_string(), siggen1, 1, "calc".to_string(), 1, 1300),
+                ("f".to_string(), mainloop, 2, "calc".to_string(), 1, 2100)
+            ]
+        );
+        assert!(events.iter().any(|e| e["ph"] == "f" && e["bp"] == "e"));
+        // The signals of the link record are no counters or states
+        assert!(!events.iter().any(|e| e["ph"] == "C"));
+        assert!(metadata_name(events, "thread_name", mainloop, Some(TID_STATE_FIRST as u64)).is_none());
+    }
+
+    // Without the thread signals both ends are on the spans track, the producer timestamp is converted with the timestamp resolution
+    #[test]
+    fn test_span_links_without_threads() {
+        let daq_lists: Vec<XcpDaqList> = [span_entries("SigGen1", false), link_entries("Mainloop", false)]
+            .into_iter()
+            .enumerate()
+            .map(|(i, entries)| XcpDaqList {
+                event_id: i as u16,
+                event_name: None,
+                entries,
+            })
+            .collect();
+        let mut writer = PerfettoWriter::new(Vec::new());
+        writer.set_timestamp_resolution(10); // 10 ns per tick
+        writer.start(&daq_lists, 1000);
+        writer.sample(1, 5000, &daq_lists[1].entries, &link_data(250, 1, 3, 0, 0)); // captured at tick 250 = 2500 ns
+        writer.stop(6000);
+        let json: serde_json::Value = serde_json::from_slice(&writer.into_inner()).expect("valid JSON");
+        assert_eq!(
+            flows(json["traceEvents"].as_array().unwrap()),
+            [
+                ("s".to_string(), CTX, TID_SPANS as u64, "poll".to_string(), 1, 1500),
+                ("f".to_string(), ECU, TID_SPANS as u64, "poll".to_string(), 1, 4000)
+            ]
+        );
     }
 
     #[test]

@@ -59,6 +59,7 @@ struct SampleT {
     double value;     // Signal value (in Volt)
     uint64_t time_us; // Time of calculation, clockGetMonotonicUs() (in us)
     uint32_t seq;     // Sample sequence number, starts with 0, samples dropped before this one: seq - previous seq - 1
+    xcp::SpanLink link; // Span context of the producer span which calculated the sample, for the span link of the consumer
 };
 
 class SignalGenerator {

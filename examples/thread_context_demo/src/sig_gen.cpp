@@ -130,6 +130,8 @@ std::optional<SampleT> SignalGenerator::Poll() {
     if (!sample) {
         return std::nullopt; // No new sample
     }
+    // Link the span 'poll' to the producer span 'task' of the instance which calculated the sample, in the context of the caller
+    xcp::LinkSpan(sample->link);
     double polled = sample->value;
     SimulateWork(1000);  // 1ms
     DaqEventCtxVar(poll, // context=<CallerContext>, span='poll'
@@ -194,8 +196,9 @@ void SignalGenerator::Task() {
             } // endof span 'calc'
 
             // Publish the sample for Poll() called from another thread, count dropped samples
+            // The sample carries the span context of the current span 'task', Poll() links its span 'poll' to it
             uint64_t time_us = clockGetMonotonicUs();
-            if (!queue_.Push(SampleT{value_, time_us, seq_++})) {
+            if (!queue_.Push(SampleT{value_, time_us, seq_++, xcp::CaptureSpanLink()})) {
                 overflows_++;
             }
             uint32_t queue_level = queue_.Count();
