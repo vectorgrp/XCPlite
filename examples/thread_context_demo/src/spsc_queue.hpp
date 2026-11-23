@@ -79,6 +79,16 @@ template <typename T> class SpscQueue {
         return element;
     }
 
+    // Discard all unread elements, consumer thread only
+    // Safe while the producer pushes: an element pushed at the same time is either discarded or remains
+    void Clear() {
+        if (size_ == 1) {
+            middle_.fetch_and(static_cast<uint8_t>(~kNew), std::memory_order_acq_rel); // Mark the middle slot as read
+            return;
+        }
+        tail_.store(head_.load(std::memory_order_acquire), std::memory_order_release); // Hand all slots back to the producer
+    }
+
     // Number of unread elements, producer or consumer thread only
     // A snapshot: the other thread may push or pop at the same time
     uint32_t Count() const {

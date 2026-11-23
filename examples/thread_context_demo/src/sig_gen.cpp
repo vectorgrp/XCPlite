@@ -21,23 +21,28 @@ namespace signal_generator {
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double k2Pi = (kPi * 2);
-constexpr double kClipLimit = 100.0; // Output limit in Volt
+constexpr double kClipLimitMax = +100.0; // Output limit in Volt
+constexpr double kClipLimitMin = -80.0;  // Output limit in Volt
 
 // Shared helper function, called by all signal generator instances
 // It does not know for which instance it is working, the context-aware instrumentation gets the instance from the current context of the thread
 static double Clip(double input) {
     DaqSpan(clip);
-    double clipped = input;
-    if (clipped > kClipLimit)
-        clipped = kClipLimit;
-    if (clipped < -kClipLimit)
-        clipped = -kClipLimit;
-    DaqEventCtxVar(clip, // context='SigGen1' or 'SigGen2', span='clip'                                                          //
-                   A2L_MEAS_PHYS(input, "Clip function input", "Volt", -100.0, +100.0) //
-                                                                                       // A2L_MEAS_PHYS(clipped, "Clip function output", "Volt", -100.0, +100.0) //
+    double output = input;
+    bool clipped = false;
+    if (output > kClipLimitMax) {
+        output = kClipLimitMax;
+        clipped = true;
+    }
+    if (output < kClipLimitMin) {
+        output = kClipLimitMin;
+        clipped = true;
+    }
+    DaqEventCtxVar(clip,                                            // context='SigGen1' or 'SigGen2', span='clip'                                                          //
+                   A2L_MEAS(clipped, "Clip function clipped input") //
     );
     SimulateWork(1000); // 1ms
-    return clipped;
+    return output;
 }
 
 // Constructor - creates the signal generator with the given instance name and parameters
@@ -53,27 +58,19 @@ SignalGenerator::SignalGenerator(const char *instance_name, const SignalParamete
         A2lTypedefParameterComponent(phase, "Phase", "", 0, k2Pi);
         A2lTypedefParameterComponent(offset, "Offset", "Volt", -100, 100);
         A2lTypedefParameterComponent(period, "Period", "s", 0.01, 10.0);
-        A2lTypedefParameterComponent(delay_us, "Delay time in us", "us", 0, 100000);
+        A2lTypedefParameterComponent(sample_time_us, "Delay time in us", "us", 0, 100000);
         A2lTypedefEnd();
     }
 
     // Create an instance of the signal generators calibration segment
     signal_parameters_.CreateA2lTypedefInstance("SignalParametersT", "Signal parameters for the signal generator");
 
-    // Start thread
-    std::cout << "Starting task: " << instance_name_ << std::endl;
-
+    // Create the worker thread, it idles until Start()
     thread_ = new std::thread([this]() { Task(); });
-
-    // Wait until the task has executed its first cycle
-    // The events and measurements of an instance are created when its instrumentation is executed for the first time,
-    // waiting here makes the creation order and so the event ids and the A2L file independent of thread start-up timing
-    while (!started_.load(std::memory_order_acquire)) {
-        sleepUs(100);
-    }
 }
 
 SignalGenerator::~SignalGenerator() {
+    Stop();
     running_ = false;
     if (thread_ != nullptr) {
         if (thread_->joinable()) {
@@ -81,15 +78,53 @@ SignalGenerator::~SignalGenerator() {
         }
         delete thread_;
     }
+}
+
+// Start the worker thread cycles, called from the consumer thread
+void SignalGenerator::Start() {
+    if (run_.load(std::memory_order_relaxed))
+        return; // Already running
+
+    // The worker thread is idle and does not push (Stop() waited for it), clear the queue and reset the counters
+    // The writes are published to the worker thread by the release store of run_
+    queue_.Clear();
+    seq_ = 0;
+    overflows_ = 0;
+    started_.store(false, std::memory_order_relaxed);
+
+    std::cout << "Starting task: " << instance_name_ << std::endl;
+    run_.store(true, std::memory_order_release);
+
+    // Wait until the task has executed its first cycle
+    // The events and measurements of an instance are created when its instrumentation is executed for the first time,
+    // waiting here makes the creation order and so the event ids and the A2L file independent of thread start-up timing
+    while (!started_.load(std::memory_order_acquire)) {
+        sleepUs(1);
+    }
+}
+
+// Stop the worker thread cycles, called from the consumer thread
+void SignalGenerator::Stop() {
+    if (!run_.load(std::memory_order_relaxed))
+        return; // Already stopped
+    run_.store(false, std::memory_order_relaxed);
+
+    // Wait until the worker thread has finished its current cycle and seen the stop request
+    // The acquire load makes its writes of seq_ and overflows_ visible here
+    while (active_.load(std::memory_order_acquire)) {
+        sleepUs(100);
+    }
     std::cout << "Stopped task: " << instance_name_ << ", samples: " << seq_ << ", dropped: " << overflows_ << std::endl;
 }
 
 // Get the next sample from the output queue, called from another thread (the main loop)
 // Single consumer: only one thread at a time may poll an instance
 std::optional<SampleT> SignalGenerator::Poll() {
-    // Attach the signal generator instance context, possible with OPTION_DAQ_SPAN_THREAD
-    // If not done, the trace will not contain the information which instance was polled, must be context of the caller
+
+    // Attach the signal generator instance context, possible with OPTION_DAQ_SPAN_THREAD in xcplib_cfg.h (disabled by default)
+    // If not done, the trace will not contain the information which instance was polled, must be span in the context context of the caller as the current main loop does
     // xcp::Scope scope(context_);
+
     DaqSpan(poll);
     std::optional<SampleT> sample = queue_.Pop();
     if (!sample) {
@@ -110,9 +145,24 @@ void SignalGenerator::Task() {
     xcp::Scope scope(context_);
 
     double time = 0;
-    double start_time = static_cast<double>(clockGetMonotonicUs()) / 1000000; // time in s since start of the signal generator
+    double start_time = 0; // Time base of the waveform in s, set at each start
 
     while (running_) {
+
+        // Stopped: acknowledge the stop request, idle until Start()
+        // The acquire load of run_ makes the queue clear and the counter reset of Start() visible here
+        if (!run_.load(std::memory_order_acquire)) {
+            if (active_.load(std::memory_order_relaxed)) {
+                active_.store(false, std::memory_order_release); // Publish seq_ and overflows_ to Stop()
+            }
+            sleepUs(100);
+            continue;
+        }
+        if (!active_.load(std::memory_order_relaxed)) {
+            start_time = static_cast<double>(clockGetMonotonicUs()) / 1000000; // Restart the waveform
+            active_.store(true, std::memory_order_relaxed);
+        }
+
         {
             time = static_cast<double>(clockGetMonotonicUs()) / 1000000 - start_time; // time in s since start of the signal generator
             DaqSpan(task);
@@ -161,11 +211,13 @@ void SignalGenerator::Task() {
             );
         } // end of span 'task'
 
-        // First cycle done, all instrumentation of the task has been executed once
-        started_.store(true, std::memory_order_release);
+        // First cycle after Start() done, all instrumentation of the task has been executed once
+        if (!started_.load(std::memory_order_relaxed)) {
+            started_.store(true, std::memory_order_release);
+        }
 
-        // Sleep for delay_us microseconds
-        sleepUs(signal_parameters_.lock()->delay_us);
+        // Sleep for sample_time_us microseconds
+        sleepUs(signal_parameters_.lock()->sample_time_us);
     }
 }
 

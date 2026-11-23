@@ -1,102 +1,20 @@
 # thread_context_demo — context and spans for multiple instances
 
-Experimental work in progress.  
-
 Demonstrates how XCPlite can measure individual time series when the same code runs as several class instances or in several threads, using concepts borrowed from OpenTelemetry (OTel): context, scope and span.
 
-The demo has a class called `SignalGenerator`.
-Each instance of a signal generator creates a thread which calculates a configurable waveform in real time. 
-Each instance has tunable parameters like `signal_type`, `period`, `ampl`, ... .  
-The output samples can be read by other threads. A thread-safe poll function returns one sample (value, time and sequence number), or nothing when there is no new sample.
-The poll function reads from a lock-free SPSC (SC for simplicity of the demo) queue owned by the signal generator ([src/spsc_queue.hpp](src/spsc_queue.hpp)). 
-The queue size is a constructor parameter of the instance, `SigGen1` has a queue of 16 samples, `SigGen2` a queue of 1:
+## Demo application
 
-- Queue size > 1: the samples are returned in order, the generator thread drops a new sample when the queue is full.
-- Queue size 1: the queue always holds the latest sample, a new sample overwrites an unread one.
+The demo has a class called `SignalGenerator`. Each instance of a signal generator creates a thread which calculates a configurable waveform in real time. Each instance has its own calibration parameters like `sample_time_us`,`signal_type`, `period`, `ampl`, ... .  The output samples can be read by other threads. A thread-safe poll function returns one sample (value, time and sequence number), or nothing when there is no new sample. The poll function reads from a lock-free SPSC queue owned by the signal generator. The queue size is a constructor parameter of the instance. If queue size is 1, the queue always holds the latest sample, a new sample overwrites an unread one.
 
-The caller computes the number of samples dropped since its last poll from the sequence numbers: `seq - previous seq - 1`.
-The main loop polls both instances in turns until both queues are empty and only then sleeps for `Mainloop.idle_sleep_us` (calibration parameter, default 1 ms).
-For each sample it measures the latency, the time from the calculation of the sample to its poll, and the number of samples dropped before it.
+The demo main loop polls 2 instances of `SignalGenerator` until both queues are empty and only then sleeps for calibration parameter `Mainloop.idle_sleep_us`. For each sample it measures the latency, the time from the calculation of the sample to its poll, and the number of samples dropped before it.
 
-Goal is to instrument observation of generating the signal, the execution of the polling function, and the count of queue overflows in the SignalGenerator implementation, without knowing which instance it will be and who is calling the poll function. The code instrumentation shall create consistent time series for each instance and from each calling threads perspective at runtime, so a standard XCP client tool or logger does not need to know how to interpret and demultiplex the data produced by capture points in code. And the tool shall be able can select at runtime, which instance or caller it wants to observe. No data shall be transfered and collected for instances not configured. Metrics may be provided by the instrumentation, such as queue_overflows and latency_time, as counters and histograms.  
+## What can be measured and observed
 
-The API extensions needed are part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp) (included by `xcplib.hpp`). They need the option `OPTION_DAQ_CONTEXT_LIST`, which is currently enabled in the default and the shm configuration, the configurations with on-target A2L generation. It costs nothing, when not used.  
+The demo shows how to instrument observation of generating the signal, the execution of the polling function, the queue level and overflow count in the SignalGenerator implementation, without knowing which instance it will be and who is calling the poll function. The code instrumentation creates consistent time series for each instance and from each calling threads perspective at runtime, so a standard XCP client tool or logger does not need to know how to interpret and demultiplex the data produced by capture points in code. The tool is able to select, which instance or caller it wants to observe. No data shall is transfered and collected for instances not configured. Metrics are provided by the caller instrumentation, such as linking to the producing span and latency_time of the link.  
 
-The old first C implementation of context and span in multi_thread_demo has been replaced by this C++ example.
+The xcpclient tool has an option to convert the XCP measurement data to 'Chrome JSON trace format', which can be loaded in 'Perfetto' or many other tools. 
 
 
----
-
-## The problem in detail
-
-An XCP event is bound to a code location. The demo has two instances of a signal generator class, each running its own thread. It has a thread-safe poll function, to be called by other threads to read values. Instrumenting both functions in the obvious way, with one `DaqEventVar(event_name, A2L_MEAS(variable_name, ...))` in the code, both instances and each caller triggers the same event and the tool receives one signal with mixed the values for instances or callers.
-
-The existing solution (see `cpp_demo`) needs the instrumented code to know its instance and pass the name along: one dynamically created event per instance, and measurements explicitly registered with the instance name as prefix. Shared helper functions for the signal generator, which do not know for which instance they are working, can not be instrumented at all.
-
-
-## The concept
-
-| Term | Meaning |
-|---|---|
-| `xcp::Context` | A named identity, "who is executing". One per class instance here (`SigGen1`, `SigGen2`), and one for each phase of the main thread (`Startup`, `Mainloop`). |
-| `xcp::Scope` | Makes a context the current context of the calling thread and restores the previous one at the end of the block (for context propagation). The current context is ambient in thread-local storage. |
-| `DaqEventCtxVar` | Context-aware variant of `DaqEventVar`. Uses a separate event and separate measurements for each context, the event is named `<context>.<event>`. |
-| `DaqSpan` | A named, timed section of code. Begin and end are recorded on the same event `<context>.spans` of the current context. |
-
-```cpp
-xcp::Context context_;                                  // class member, constructed with the instance name
-xcp::Scope scope(context_);                             // in the thread or method which works for this instance
-DaqEventCtxVar(siggen, A2L_MEAS_PHYS(value_, ...));     // event SigGen1.siggen, measurement SigGen1.value_
-{ DaqSpan(calc); ... }                                  // span "calc", ends at the end of the block
-```
-
-With a current context, the instrumented code needs no instance parameter. The shared functions `Clip()` and `Poll()`
-in [src/sig_gen.cpp](src/sig_gen.cpp) are instrumented without knowing its instance or caller and deliver
-`SigGen1.input`, `SigGen2.input` and `Mainloop.polled`.
-
-## What the demo measures
-
-The demo has four contexts. `SigGen1` and `SigGen2` are the two signal generator instances, each attached to its own task thread.
-`Startup` and `Mainloop` are attached to the main thread, one after the other.
-
-| Event | Measurements | Triggered by |
-|---|---|---|
-| `SigGen1.siggen`, `SigGen2.siggen` | `.value_`, `.time_us` (time stamp of the sample), `.queue_level` (unread samples after the push), `.overflows_` (dropped samples) of `SigGen1` and `SigGen2` | the task thread of each instance |
-| `SigGen1.clip`, `SigGen2.clip` | `SigGen1.input`, `SigGen2.input` | the shared function `Clip()` |
-| `Mainloop.poll` | `Mainloop.polled` | the method `Poll()` of both instances, called by the main loop |
-| `Mainloop.sample1`, `Mainloop.sample2` | `Mainloop.value1`, `.latency1`, `.dropped1` and `Mainloop.value2`, `.latency2`, `.dropped2` | the main loop, for each sample polled from instance 1 or 2 |
-| `Mainloop.mainloop` | `Mainloop.channel1`, `Mainloop.channel2` (latest values) | the main loop, once per cycle |
-| `Startup.spans`, `Mainloop.spans`, `SigGen1.spans`, `SigGen2.spans` | `.span`, `.level`, `.span_dt` | begin and end of each span in this context |
-
-Spans:
-
-| Context | Spans | Executed by |
-|---|---|---|
-| `Startup` | `initialize`: creates the two signal generator instances | main thread, once |
-| `Mainloop` | `poll_loop` with the nested spans `get_channel1` and `get_channel2` in turns until both queues are empty, each with a nested `poll`, then `analyze` | main thread, after an idle sleep of `Mainloop.idle_sleep_us` |
-| `SigGen1`, `SigGen2` | `calc` with the nested span `clip` | task thread of the instance, every 5 ms |
-
-The span signals of one context show for example the sequence calc (level 1), clip (level 2), calc, none, with the
-duration of the span that just ended in `span_dt`. Span names are displayed through the enum conversion
-`conv.spans`, which the A2L generator creates from all span names registered when the A2L file is finalized.
-
-The event names carry the context name, so the event list and the event groups of the tool show what an
-event contains (`SigGen1.siggen` instead of a numbered event instance).
-
-`Poll()` does not attach the context of its instance, it runs in the context of its caller. Its span `poll` is therefore nested in
-`get_channel1` or `get_channel2` in the context `Mainloop`, and the enclosing span tells which instance was polled. The event
-`Mainloop.poll` is triggered for both instances, so `Mainloop.polled` contains the values of both. The alternative is in the code
-as a comment: with `xcp::Scope scope(context_)` in `Poll()`, the span and the event belong to the context of the instance
-(`SigGen1.poll`, `SigGen1.polled`). The span is then not nested in the span of the caller, because attaching a context starts
-without a current span, and the context is executed by two threads, which needs `OPTION_DAQ_SPAN_THREAD` to tell their spans apart.
-
-`OPTION_DAQ_SPAN_THREAD` is not defined by default. With the option, the spans event of a context has the additional measurement
-`.thread`, a small index of the thread which began or ended the span. The indices are assigned in the order in which the threads
-begin their first span. In this demo each context is executed by one thread at a time, so the option is not needed.
-
-The spans of the demo contain sleeps to simulate work, so that they are easy to see in a trace viewer: 10 ms twice in `initialize`, 1 ms in `clip`, `poll` and `analyze`,
-2 ms in `calc`, 100 us before and after each poll in `get_channel1` and `get_channel2`. A `Poll()` which finds no new sample returns without the 1 ms.
-The sleeps are enabled with `OPTION_SIMULATE_WORK` in [src/sig_gen.hpp](src/sig_gen.hpp), comment it out for a performance test.
 
 ## Building and running
 
@@ -119,36 +37,15 @@ Measure all signals with xcpclient for 5 seconds into a CSV file:
 xcpclient --udp --mea '.*' --time 5 --csv mea.csv
 ```
 
-### Measuring the startup
 
-The span `initialize` in the context `Startup` is executed once, before the main loop. To get it into a measurement, the demo
-waits in `wait_xcp()` until the XCP client has started the measurement, and then begins with the startup.
+## Using CANape
 
-This works from the second run on. The demo uses `A2L_MODE_WRITE_ONCE`, so the A2L file and the binary persistence file of the
-first run are kept. In the next run, the events of all contexts are preloaded from the persistence file, and the client can set up
-the measurement before any instrumented code has been executed.
-
-1. First run: start the demo and stop it with Ctrl-C. There is no A2L file yet, the demo does not wait and prints
-   `First run, thread_context_demo_V0.9.a2l is generated now, restart to measure the startup`. The A2L file and the `.bin` file
-   are written at shutdown, or earlier when a client connects.
-2. Second run: start the demo again. It prints `Waiting for the XCP client to start the measurement (Ctrl-C to abort) ...`.
-3. Start the measurement with xcpclient or CANape. The demo continues with the startup and the main loop.
-
-Span ids are not stored in the persistence file and need not be: with `OPTION_DAQ_SPAN_SECTION_REGISTRATION` (default) the span
-names are registered at link time, the span ids are the same in every run of the same binary and `conv.spans` of the first run
-is complete, including spans which were not executed in the first run. Without the option (Windows, SHM mode), span ids are
-assigned in the order in which the spans are executed for the first time, and the A2L file of the first run is valid for the
-second run only as long as this order is the same.
-
-The constructor of the signal generator waits for the first cycle of its task, so the events of the contexts are created in the
-same order in the first run.
-
-## CANape
+The CANape project included can measure the span event signal, but can not provide a Gantt-Chart for the span nesting in a context.
 
 <img src="CANape.png" alt="CANape overview: signals and span tracks" width="900">
 
 
-## Viewing the spans in Perfetto
+## Using Perfetto
 
 xcpclient can write the measurement as a trace file for [Perfetto](https://ui.perfetto.dev):
 
@@ -190,11 +87,144 @@ detach at the end) and spans with nesting are taken over unchanged. Three things
 The differences in the data model and in the treatment of time, order and causality are described in
 [docs/TIME_AND_CAUSALITY.md](../../docs/TIME_AND_CAUSALITY.md).
 
+
+
+
+## XCPlite API extensions
+
+The XCPlite API extensions needed are part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp) (included by `xcplib.hpp`). They need the option `OPTION_DAQ_CONTEXT_LIST`, which is currently enabled in the default and the shm configuration, the configurations with on-target A2L generation. It costs nothing, when not used.  
+
+The API extensions follow the XCPlite principles: lazy registration, lock-less and no heap allocations. Currently only in the standard and shm configuration with on-target A2L generation. Link-time registration is work in progress.
+
+
+
+| Term | Meaning |
+|---|---|
+| `xcp::Context` | A named identity, "who is executing". One per class instance here (`SigGen1`, `SigGen2`), and one for each phase of the main thread (`Startup`, `Mainloop`). |
+| `xcp::Scope` | Makes a context the current context of the calling thread and restores the previous one at the end of the block (for context propagation). The current context is ambient in thread-local storage. |
+| `DaqEventCtxVar` | Context-aware variant of `DaqEventVar`. Uses a separate event and separate measurements for each context, the event is named `<context>.<event>`. |
+| `DaqSpan` | A named, timed section of code. Begin and end are recorded on the same event `<context>.spans` of the current context. |
+
+```cpp
+xcp::Context context_;                                  // class member, constructed with the instance name
+xcp::Scope scope(context_);                             // in the thread or method which works for this instance
+DaqEventCtxVar(siggen, A2L_MEAS_PHYS(value_, ...));     // event SigGen1.siggen, measurement SigGen1.value_
+{ DaqSpan(calc); ... }                                  // span "calc", ends at the end of the block
+```
+
+
+
+---
+
+
+# What the demo measures
+
+An XCP event is bound to a code location. The demo has two instances of a signal generator class, each running its own thread. It has a thread-safe poll function, to be called by other threads to read values. Instrumenting both functions in the obvious way, with one `DaqEventVar(event_name, A2L_MEAS(variable_name, ...))` in the code, both instances and each caller triggers the same event and the tool receives one signal with mixed the values for instances or callers.
+
+The existing solution (see `cpp_demo`) needs the instrumented code to know its instance and pass the name along: one dynamically created event per instance, and measurements explicitly registered with the instance name as prefix. Shared helper functions for the signal generator, which do not know for which instance they are working, can not be instrumented at all.
+
+
+
+The demo has four contexts. `SigGen1` and `SigGen2` are the two signal generator instances, each attached to its own task thread.
+`Startup` and `Mainloop` are attached to the main thread, one after the other.
+
+| Event | Measurements | Triggered by |
+|---|---|---|
+| `SigGen1.siggen`, `SigGen2.siggen` | `.value_`, `.time_us` (time stamp of the sample), `.queue_level` (unread samples after the push), `.overflows_` (dropped samples) of `SigGen1` and `SigGen2` | the task thread of each instance |
+| `SigGen1.clip`, `SigGen2.clip` | `SigGen1.input`, `SigGen2.input` | the shared function `Clip()` |
+| `Mainloop.poll` | `Mainloop.polled` | the method `Poll()` of both instances, called by the main loop |
+| `Mainloop.sample1`, `Mainloop.sample2` | `Mainloop.value1`, `.latency1`, `.dropped1` and `Mainloop.value2`, `.latency2`, `.dropped2` | the main loop, for each sample polled from instance 1 or 2 |
+| `Mainloop.mainloop` | `Mainloop.channel1`, `Mainloop.channel2` (latest values) | the main loop, once per cycle |
+| `Startup.spans`, `Mainloop.spans`, `SigGen1.spans`, `SigGen2.spans` | `.span`, `.level`, `.span_dt` | begin and end of each span in this context |
+
+Spans:
+
+| Context | Spans | Executed by |
+|---|---|---|
+| `Startup` | `initialize`: creates the two signal generator instances | main thread, once |
+| `Mainloop` | `poll_loop` with the nested spans `get_channel1` and `get_channel2` in turns until both queues are empty, each with a nested `poll`, then `analyze` | main thread, after an idle sleep of `Mainloop.idle_sleep_us` |
+| `SigGen1`, `SigGen2` | `calc` with the nested span `clip` | task thread of the instance, every 5 ms |
+
+The span signals of one context show for example the sequence calc (level 1), clip (level 2), calc, none, with the
+duration of the span that just ended in `span_dt`. Span names are displayed through the enum conversion
+`conv.spans`, which the A2L generator creates from all span names registered when the A2L file is finalized.
+
+The event names carry the context name, so the event list and the event groups of the tool show what an
+event contains (`SigGen1.siggen` instead of a numbered event instance).
+
+`Poll()` does not attach the context of its instance, it runs in the context of its caller. Its span `poll` is therefore nested in
+`get_channel1` or `get_channel2` in the context `Mainloop`, and this tells which instance was polled. The event
+`Mainloop.poll` is triggered for both instances, so `Mainloop.polled` contains the mixed values of both (just for demonstration). The alternative is in the code as a comment: with `xcp::Scope scope(context_)` in `Poll()`, the span and the event belong to the context of the instance
+(`SigGen1.poll`, `SigGen1.polled`). The span is then not nested in the span of the caller, because attaching a context starts
+without a current span, and the context is executed by two threads. That needs `OPTION_DAQ_SPAN_THREAD` in 'xcplib_cfg.h' to tell their spans apart.
+
+`OPTION_DAQ_SPAN_THREAD` is not defined by default. With the option, the spans event of a context has the additional measurement
+`.thread`, a small index of the thread which began or ended the span. The indices are assigned in the order in which the threads
+begin their first span. In this demo each context is executed by one thread at a time, so the option is not needed.
+
+The spans of the demo contain sleeps to simulate work, so that they are easy to see in a trace viewer with reduced datarate. Without that, on a hiher performancecomputer, the datarate goes up to about 10MByte/s and Perfetto show the precise span execution time in ns resolution.
+The sleeps are enabled with `OPTION_SIMULATE_WORK` in [src/sig_gen.hpp](src/sig_gen.hpp), comment it out for a performance test.
+
+
+
+
+
+### Measuring the startup
+
+Experimental. Disabled by default.
+
+The span `initialize` in the context `Startup` is executed once, before the main loop. To get it into a measurement, the demo
+waits in `wait_xcp()` until the XCP client has started the measurement, and then begins with the startup.
+
+This works from the second run on. The demo uses `A2L_MODE_WRITE_ONCE`, so the A2L file and the binary persistence file of the
+first run are kept. In the next run, the events of all contexts are preloaded from the persistence file, and the client can set up
+the measurement before any instrumented code has been executed.
+
+1. First run: start the demo and stop it with Ctrl-C. There is no A2L file yet, the demo does not wait and prints
+   `First run, thread_context_demo_V0.9.a2l is generated now, restart to measure the startup`. The A2L file and the `.bin` file
+   are written at shutdown, or earlier when a client connects.
+2. Second run: start the demo again. It prints `Waiting for the XCP client to start the measurement (Ctrl-C to abort) ...`.
+3. Start the measurement with xcpclient or CANape. The demo continues with the startup and the main loop.
+
+Span ids are not stored in the persistence file and need not be: with `OPTION_DAQ_SPAN_SECTION_REGISTRATION` (default) the span
+names are registered at link time, the span ids are the same in every run of the same binary and `conv.spans` of the first run
+is complete, including spans which were not executed in the first run. Without the option (Windows, SHM mode), span ids are
+assigned in the order in which the spans are executed for the first time, and the A2L file of the first run is valid for the
+second run only as long as this order is the same.
+
+The constructor of the signal generator waits for the first cycle of its task, so the events of the contexts are created in the
+same order in the first run.
+
+
+
+
 ## OpenTelemetry version for comparison
 
 [otel/](otel/) contains the same demo instrumented with opentelemetry-cpp instead of XCP, as a reference
 for reading. It is not built by the XCPlite build and has not been compiled. Build and run notes,
 including a receiver for visualisation, are in the header of [otel/src/main.cpp](otel/src/main.cpp).
+
+
+## Same context in multiple threads
+
+In the current version of the demo each context's spans and context-aware events are triggered from only one thread.
+Option OPTION_DAQ_SPAN_THREAD is not defined by default.  
+
+Some places that look as if they might break this, but don't:
+
+Poll(): it runs on the main thread, but the xcp::Scope scope(context_) is commented out, so its poll span lands in the caller's context Mainloop, not in SigGen1/SigGen2. Clip(): it's only called from Task(), so it's always on one of the generator threads.
+Constructor, Start(), Stop(): they run on the main thread and create the context, but they don't begin any span or trigger any event in it.
+Main and Mainloop: both on the main thread. One thread working in several contexts is fine. The option is only about the other direction: several threads in one context.
+
+Two things to keep in mind:
+
+It's a convention, nothing enforces it. If you enable the Scope in Poll(), SigGen1 gets spans from two threads (task and main), and without the option their begin and end records end up in one level stack and corrupt each other's nesting. The comment in Poll() already says that needs the option.
+What the library actually needs is "one thread at a time" per context, not "exactly one". Handing a context from one thread to another without the option is fine, as long as the first thread has ended its spans before the next one begins.
+
+
+## Span links and Perfetto arrows
+
+Work in progress
 
 ---
 
@@ -562,7 +592,11 @@ A2L file 'thread_context_demo.a2l' finalized
 Disconnect and shutdown XCP!
 Terminate server threads
 End scope of context 'Main', back to context 'none', thread_id=4021395904
+```
 
+
+
+## Old implementation in multi_thread_demo
 
 ```c
 

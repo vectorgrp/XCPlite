@@ -140,11 +140,11 @@ int main() {
             // Create 2 instances
             // The parameters are the reference page of the calibration segment, they must outlive the instances (static)
             static const signal_generator::SignalParametersT kSignalParameters1 = {
-                .ampl = 50,
+                .ampl = 60,
                 .phase = 0.0,
                 .offset = -50.0,
                 .period = 1.0,                                          // s
-                .delay_us = 5000,                                       // us
+                .sample_time_us = 10,                                   // us
                 .signal_type = signal_generator::SignalTypeT::TRIANGLE, // Type of the signal
             };
             static const signal_generator::SignalParametersT kSignalParameters2 = {
@@ -152,10 +152,12 @@ int main() {
                 .phase = 0.0,
                 .offset = +50.0,
                 .period = 0.5,                                      // s
-                .delay_us = 5000,                                   // us
+                .sample_time_us = 1000,                             // us
                 .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
             };
             // SigGen1 queues up to 16 samples, SigGen2 has a single entry queue which always holds the latest sample
+            // Each instance is started right after its construction: its events are then created before the next instance is
+            // constructed, the event ids and the A2L file do not depend on the thread start-up timing
             signal_generator_1 = std::make_unique<signal_generator::SignalGenerator>("SigGen1", &kSignalParameters1, 16);
             signal_generator_2 = std::make_unique<signal_generator::SignalGenerator>("SigGen2", &kSignalParameters2, 1);
 
@@ -165,7 +167,7 @@ int main() {
         // Main loop calibration parameters
         // The reference page must outlive the calibration segment (static)
         static const MainloopParametersT kMainloopParameters = {
-            .idle_sleep_us = 1000, // us
+            .idle_sleep_us = 100, // us  (Note: queue size of signal_generator_1 is 16, cycle time 10us)
         };
         A2lCreateTypedef(MainloopParametersT, "Typedef for MainloopParametersT", //
                          A2L_PARAMETER_COMPONENT(idle_sleep_us, "Main loop sleep time when there are no samples", "us", 0, 100000));
@@ -179,6 +181,8 @@ int main() {
         uint32_t next_seq1 = 0, next_seq2 = 0; // Expected sequence number of the next sample
 
         std::cout << "Starting main loop..." << std::endl;
+        signal_generator_1->Start();
+        signal_generator_2->Start();
         while (running) {
 
             // Create the 'Mainloop' context and set it as the current context
