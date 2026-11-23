@@ -20,7 +20,7 @@ Contexts, spans and span links:
 
 Supporting changes in `xcpclient` (xcpclient V4.1.0):
 
-- New option `--perfetto <file>`: writes spans, span links and signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`.
+- New option `--perfetto <file>`: writes spans, span links and signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`. The span and link signals needed for the trace are added to the measurement (option `--trace-auto`).
 - Print values in physical unit or as enum strings in console and csv. Enum conversion is used to display span names. 
 - The CSV file has a new column `unit`.
 - Improved timestamp wraparound detection for very sporadic events.

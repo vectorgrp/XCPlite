@@ -30,6 +30,10 @@
 //   which encloses its timestamp on that track. Nothing is kept per span: a link is resolved when the producer context is in the
 //   measurement and the producer timestamp is not before the measurement start, otherwise it is counted and dropped.
 //
+// Trace signals
+//   The user selects the signals of interest, trace_signals finds the span and link signals to add for a complete trace, see
+//   --trace-auto. The known contexts (find_contexts) are processes, also when their spans are not measured.
+//
 // Timestamps are written relative to the start of the measurement, in microseconds with 3 decimals (ns resolution).
 
 use std::collections::HashMap;
@@ -107,7 +111,8 @@ pub struct PerfettoWriter<W: Write> {
     span_tracks: HashMap<(u32, u32), SpanTrack>, // by pid and tid
     span_count: u64,
     resync_count: u64,
-    context_pids: HashMap<String, u32>, // Process of each context with a span record, by context name
+    contexts: Vec<String>,              // Known contexts, from set_contexts
+    context_pids: HashMap<String, u32>, // Process of each context, by context name
     timestamp_resolution: u64,          // ns per DAQ timestamp tick, for the producer timestamps of the span links
     flow_count: u64,
     unresolved_link_count: u64,
@@ -131,6 +136,7 @@ impl<W: Write> PerfettoWriter<W> {
             span_tracks: HashMap::new(),
             span_count: 0,
             resync_count: 0,
+            contexts: Vec::new(),
             context_pids: HashMap::new(),
             timestamp_resolution: 1,
             flow_count: 0,
@@ -141,6 +147,12 @@ impl<W: Write> PerfettoWriter<W> {
     /// Set the resolution of the DAQ timestamps in ns per tick, needed to convert the producer timestamps of span links
     pub fn set_timestamp_resolution(&mut self, ns_per_tick: u64) {
         self.timestamp_resolution = ns_per_tick.max(1);
+    }
+
+    /// Set the known contexts (see find_contexts), each gets a process even when its spans are not measured
+    /// Without, the contexts are only those with a span record in the measurement
+    pub fn set_contexts(&mut self, contexts: &[String]) {
+        self.contexts = contexts.to_vec();
     }
 
     /// Set the name of the process for the signals which do not belong to a context
@@ -336,31 +348,38 @@ impl<W: Write> PerfettoWriter<W> {
         let ecu_name = self.ecu_name.clone();
         self.write_process_name(PID_ECU, &ecu_name);
 
-        // Contexts: the DAQ lists with a span record
+        // Contexts: the known contexts and the DAQ lists with a span record
         let mut contexts: Vec<(String, u32)> = Vec::new(); // Context name and pid
+        let known_contexts = self.contexts.clone();
+        let mut add_context = |contexts: &mut Vec<(String, u32)>, context: &str| {
+            if !contexts.iter().any(|(c, _)| c == context) {
+                let pid = PID_ECU + 1 + contexts.len() as u32;
+                contexts.push((context.to_string(), pid));
+                self.write_process_name(pid, context);
+            }
+        };
+        for context in &known_contexts {
+            add_context(&mut contexts, context);
+        }
         let mut span_records = Vec::new();
         for entries in odt_entries.iter().copied() {
             let record = Self::find_span_record(entries);
             if let Some((context, ..)) = &record {
-                let pid = PID_ECU + 1 + contexts.len() as u32;
-                contexts.push((context.clone(), pid));
-                self.write_process_name(pid, context);
+                add_context(&mut contexts, context);
             }
             span_records.push(record);
         }
         self.context_pids = contexts.iter().cloned().collect();
-        // A signal belongs to the context with the longest name which is a prefix of the signal name
-        let pid_of = |name: &str| -> u32 {
-            contexts
-                .iter()
-                .filter(|(context, _)| name.strip_prefix(context.as_str()).is_some_and(|s| s.starts_with('.')))
-                .max_by_key(|(context, _)| context.len())
-                .map_or(PID_ECU, |(_, pid)| *pid)
-        };
+        // A signal belongs to the context with the longest name which is a prefix of the signal name,
+        // otherwise to the context of the event of its DAQ list, which is named <context>.<event>
+        let context_pids = self.context_pids.clone();
+        let pid_of_name = |name: &str| -> Option<u32> { context_of(context_pids.keys().map(String::as_str), name).map(|c| context_pids[c]) };
 
         // Signals
         let mut state_tid = TID_STATE_FIRST;
-        for (entries, record) in odt_entries.iter().zip(span_records) {
+        for ((entries, record), event_name) in odt_entries.iter().zip(span_records).zip(daq_lists.iter().map(|d| d.event_name.as_deref())) {
+            let event_pid = event_name.and_then(pid_of_name).unwrap_or(PID_ECU);
+            let pid_of = |name: &str| -> u32 { pid_of_name(name).unwrap_or(event_pid) };
             let mut daq_list = DaqList::default();
             let mut skip: Vec<usize> = Vec::new();
             if let Some((context, span, level, span_dt, thread)) = record {
@@ -599,6 +618,108 @@ impl<W: Write> PerfettoWriter<W> {
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------
+// Trace signals
+//
+// A complete trace needs the signals of the spans and links events of the contexts, the user selects only the signals of interest.
+// trace_signals finds the trace signals to add to the selection, at the level given with --trace-auto.
+// The context of a signal is found by its name or by the name of its event, both are <context>.<name>.
+
+/// Which trace signals are added to the measurement (xcpclient --trace-auto)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TraceAuto {
+    Off,     // None
+    Context, // The spans of the contexts of the selected signals
+    Links,   // Also the links of these contexts and, if there are any, the spans of all contexts as possible producers
+    All,     // The spans and links of all contexts
+}
+
+impl std::str::FromStr for TraceAuto {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "off" => Ok(TraceAuto::Off),
+            "context" => Ok(TraceAuto::Context),
+            "links" => Ok(TraceAuto::Links),
+            "all" => Ok(TraceAuto::All),
+            _ => Err(format!("invalid value '{}', expected off, context, links or all", s)),
+        }
+    }
+}
+
+/// The context a signal or event name belongs to: the longest context name which is a prefix of name, followed by '.'
+pub fn context_of<'a>(contexts: impl IntoIterator<Item = &'a str>, name: &str) -> Option<&'a str> {
+    contexts
+        .into_iter()
+        .filter(|c| name.strip_prefix(c).is_some_and(|s| s.starts_with('.')))
+        .max_by_key(|c| c.len())
+}
+
+// The name of a signal of a context without the context prefix
+fn member<'a>(context: &str, name: &'a str) -> Option<&'a str> {
+    name.strip_prefix(context).and_then(|s| s.strip_prefix('.'))
+}
+
+// A signal of the span record of a context
+fn is_span_signal(context: &str, name: &str) -> bool {
+    matches!(member(context, name), Some("span" | "level" | "span_dt" | "thread"))
+}
+
+// A signal of the link record of a context
+fn is_link_signal(context: &str, name: &str) -> bool {
+    member(context, name).is_some_and(|m| m.starts_with("link_") && !m.contains('.'))
+}
+
+/// The contexts in a list of measurement names: each <context> with the signals <context>.span, .level and .span_dt
+pub fn find_contexts<'a>(names: impl IntoIterator<Item = &'a str> + Clone) -> Vec<String> {
+    let has = |name: String| names.clone().into_iter().any(|n| n == name);
+    names
+        .clone()
+        .into_iter()
+        .filter_map(|n| n.strip_suffix(".span_dt"))
+        .filter(|c| has(format!("{c}.span")) && has(format!("{c}.level")))
+        .map(str::to_string)
+        .collect()
+}
+
+/// The trace signals to add to the selected signals
+/// measurements are all measurement names with the name of their event, selected are the names of the selected signals
+/// Returns the names to add, without those already selected, in the order of measurements
+pub fn trace_signals(level: TraceAuto, measurements: &[(String, Option<String>)], selected: &[String]) -> Vec<String> {
+    let contexts = find_contexts(measurements.iter().map(|(n, _)| n.as_str()));
+    let contexts = || contexts.iter().map(String::as_str);
+    let is_selected = |name: &str| selected.iter().any(|s| s == name);
+
+    // Contexts of which the spans or the links are added
+    let (mut spans, links): (Vec<&str>, Vec<&str>) = match level {
+        TraceAuto::Off => return Vec::new(),
+        TraceAuto::All => (contexts().collect(), contexts().collect()),
+        TraceAuto::Context | TraceAuto::Links => {
+            let mut selected_contexts: Vec<&str> = Vec::new();
+            for (name, event) in measurements.iter().filter(|(name, _)| is_selected(name)) {
+                let context = context_of(contexts(), name).or_else(|| event.as_deref().and_then(|e| context_of(contexts(), e)));
+                if let Some(c) = context.filter(|c| !selected_contexts.contains(c)) {
+                    selected_contexts.push(c);
+                }
+            }
+            let links = if level == TraceAuto::Links { selected_contexts.clone() } else { Vec::new() };
+            (selected_contexts, links)
+        }
+    };
+    // The producer of a span link is only known at runtime, all contexts are possible producers
+    if measurements.iter().any(|(name, _)| links.iter().any(|c| is_link_signal(c, name))) {
+        spans = contexts().collect();
+    }
+
+    measurements
+        .iter()
+        .map(|(name, _)| name)
+        .filter(|name| !is_selected(name))
+        .filter(|name| spans.iter().any(|c| is_span_signal(c, name)) || links.iter().any(|c| is_link_signal(c, name)))
+        .cloned()
+        .collect()
+}
 
 #[cfg(test)]
 mod tests {
@@ -925,6 +1046,98 @@ mod tests {
                 ("f".to_string(), ECU, TID_SPANS as u64, "poll".to_string(), 1, 4000)
             ]
         );
+    }
+
+    // Measurements like in thread_context_demo, with the name of their event
+    fn demo_measurements() -> Vec<(String, Option<String>)> {
+        let m = |name: &str, event: Option<&str>| (name.to_string(), event.map(str::to_string));
+        vec![
+            m("Main.span_dt", Some("Main.spans")),
+            m("Main.span", Some("Main.spans")),
+            m("Main.level", Some("Main.spans")),
+            m("SigGen1.span_dt", Some("SigGen1.spans")),
+            m("SigGen1.span", Some("SigGen1.spans")),
+            m("SigGen1.level", Some("SigGen1.spans")),
+            m("SigGen1.thread", Some("SigGen1.spans")),
+            m("SigGen1.value_", Some("SigGen1.siggen")),
+            m("Mainloop.span_dt", Some("Mainloop.spans")),
+            m("Mainloop.span", Some("Mainloop.spans")),
+            m("Mainloop.level", Some("Mainloop.spans")),
+            m("Mainloop.link_time", Some("Mainloop.links")),
+            m("Mainloop.link_context", Some("Mainloop.links")),
+            m("Mainloop.link_span", Some("Mainloop.links")),
+            m("Mainloop.channel1", Some("Mainloop.mainloop")),
+            m("channel_x", Some("Mainloop.mainloop")),
+            m("Mainloop.levels", None), // not a span signal
+            m("counter", None),
+        ]
+    }
+
+    #[test]
+    fn test_trace_signals() {
+        let measurements = demo_measurements();
+        let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(find_contexts(measurements.iter().map(|(n, _)| n.as_str())), names(&["Main", "SigGen1", "Mainloop"]));
+        let mainloop_spans = ["Mainloop.span_dt", "Mainloop.span", "Mainloop.level"];
+        let mainloop_links = ["Mainloop.link_time", "Mainloop.link_context", "Mainloop.link_span"];
+        let all_spans = [
+            "Main.span_dt",
+            "Main.span",
+            "Main.level",
+            "SigGen1.span_dt",
+            "SigGen1.span",
+            "SigGen1.level",
+            "SigGen1.thread",
+        ];
+        let all: Vec<&str> = all_spans.iter().chain(mainloop_spans.iter()).chain(mainloop_links.iter()).copied().collect();
+
+        let channel1 = names(&["Mainloop.channel1"]);
+        assert!(trace_signals(TraceAuto::Off, &measurements, &channel1).is_empty());
+        assert_eq!(trace_signals(TraceAuto::Context, &measurements, &channel1), names(&mainloop_spans));
+        assert_eq!(trace_signals(TraceAuto::Links, &measurements, &channel1), names(&all));
+        // The context of a signal without context prefix is the context of its event
+        assert_eq!(trace_signals(TraceAuto::Links, &measurements, &names(&["channel_x"])), names(&all));
+        // A context without links: no producers needed
+        assert_eq!(
+            trace_signals(TraceAuto::Links, &measurements, &names(&["SigGen1.value_"])),
+            names(&["SigGen1.span_dt", "SigGen1.span", "SigGen1.level", "SigGen1.thread"])
+        );
+        // Selected trace signals are not added again
+        assert_eq!(
+            trace_signals(TraceAuto::Context, &measurements, &names(&["Mainloop.channel1", "Mainloop.span"])),
+            names(&["Mainloop.span_dt", "Mainloop.level"])
+        );
+        // A signal without context
+        assert!(trace_signals(TraceAuto::Links, &measurements, &names(&["counter"])).is_empty());
+        assert_eq!(trace_signals(TraceAuto::All, &measurements, &names(&["counter"])), names(&all));
+    }
+
+    // The known contexts are processes without measured spans, a signal belongs to the context of its event
+    #[test]
+    fn test_known_contexts() {
+        let mut writer = PerfettoWriter::new(Vec::new());
+        writer.set_contexts(&["SigGen1".to_string(), "Mainloop".to_string()]);
+        let daq_lists = vec![XcpDaqList {
+            event_id: 0,
+            event_name: Some("Mainloop.mainloop".to_string()),
+            entries: vec![
+                entry("channel_x", 8, A2lTypeEncoding::Float, 0, "Volt"),
+                entry("SigGen1.value_", 8, A2lTypeEncoding::Float, 8, "Volt"),
+            ],
+        }];
+        writer.start(&daq_lists, 1000);
+        let mut data = 1.0f64.to_le_bytes().to_vec();
+        data.extend(2.0f64.to_le_bytes());
+        writer.sample(0, 2000, &daq_lists[0].entries, &data);
+        writer.stop(3000);
+        let json: serde_json::Value = serde_json::from_slice(&writer.into_inner()).expect("valid JSON");
+        let events = json["traceEvents"].as_array().unwrap();
+        let (siggen1, mainloop) = (PID_ECU as u64 + 1, PID_ECU as u64 + 2);
+        assert_eq!(metadata_name(events, "process_name", siggen1, None).as_deref(), Some("SigGen1"));
+        assert_eq!(metadata_name(events, "process_name", mainloop, None).as_deref(), Some("Mainloop"));
+        let counter_pid = |name: &str| events.iter().find(|e| e["ph"] == "C" && e["name"] == name).map(|e| e["pid"].as_u64().unwrap());
+        assert_eq!(counter_pid("channel_x"), Some(mainloop));
+        assert_eq!(counter_pid("SigGen1.value_"), Some(siggen1));
     }
 
     #[test]

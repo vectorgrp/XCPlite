@@ -32,7 +32,7 @@ mod xcp_test_executor;
 mod a2l_fix;
 
 mod perfetto;
-use perfetto::PerfettoWriter;
+use perfetto::{PerfettoWriter, TraceAuto};
 
 use xcp_registry::McA2mlMode;
 use xcp_registry::McEvent;
@@ -318,10 +318,18 @@ struct Args {
     /// Save measurement data to a trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev).
     /// Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks,
     /// span links (xcp::LinkSpan) are flows (arrows) from the producer span to the consumer span.
-    /// The span signals of a context (<context>.span, .level, .span_dt, .thread) must be measured, for example with --mea ".*".
-    /// May be combined with --csv.
+    /// The span and link signals of the contexts needed for the trace are added to the measurement, see --trace-auto.
+    /// May be combined with --csv, the added signals are not written to the CSV file.
     #[arg(long, default_value = "", value_name = "FILE")]
     perfetto: String,
+
+    // --trace-auto
+    /// Trace signals added to the measurement with --perfetto: off (none, only hints which signals are missing),
+    /// context (the spans of the contexts of the measured signals), links (also the span links of these contexts and, if there are any,
+    /// the spans of all contexts as possible producers), all (the spans and span links of all contexts).
+    /// The context of a signal is the prefix of its name or of the name of its event (<context>.<name>).
+    #[arg(long, default_value = "links", value_parser = ["off", "context", "links", "all"], value_name = "LEVEL")]
+    trace_auto: String,
 
     // --list-cal
     /// Lists all specified calibration variables (regex) found in the A2L file
@@ -393,7 +401,8 @@ struct DaqDecoder {
     log_measurements: bool,
     csv_writer: Option<std::io::BufWriter<std::fs::File>>,
     perfetto_writer: Option<PerfettoWriter<std::io::BufWriter<std::fs::File>>>,
-    last_timestamp_ns: u64, // Newest timestamp of all DAQ lists
+    csv_skip: std::collections::HashSet<String>, // Signals not written to the CSV file, the trace signals added for --perfetto
+    last_timestamp_ns: u64,                      // Newest timestamp of all DAQ lists
 }
 
 impl DaqDecoder {
@@ -437,6 +446,7 @@ impl DaqDecoder {
             log_measurements,
             csv_writer,
             perfetto_writer,
+            csv_skip: std::collections::HashSet::new(),
             last_timestamp_ns: 0,
         }
     }
@@ -446,6 +456,23 @@ impl DaqDecoder {
         if let Some(ref mut writer) = self.perfetto_writer {
             writer.set_ecu_name(name);
         }
+    }
+
+    // Set the known contexts, each is a process in the Perfetto trace
+    pub fn set_contexts(&mut self, contexts: &[String]) {
+        if let Some(ref mut writer) = self.perfetto_writer {
+            writer.set_contexts(contexts);
+        }
+    }
+
+    // Set the signals which are not written to the CSV file
+    pub fn set_csv_skip(&mut self, names: &[String]) {
+        self.csv_skip = names.iter().cloned().collect();
+    }
+
+    // Perfetto trace output active
+    pub fn has_perfetto(&self) -> bool {
+        self.perfetto_writer.is_some()
     }
 }
 
@@ -578,6 +605,9 @@ impl XcpDaqDecoder for DaqDecoder {
                 let unit = odt_entry.conversion.unit();
 
                 if let Some(ref mut writer) = self.csv_writer {
+                    if self.csv_skip.contains(&odt_entry.name) {
+                        continue;
+                    }
                     let _ = writeln!(writer, "{},{},{},{},{}", t_ns, daq, odt_entry.name, csv_field(&value_str), csv_field(unit));
                 } else if !console {
                 } else if unit.is_empty() {
@@ -599,6 +629,45 @@ impl XcpDaqDecoder for DaqDecoder {
     fn get_event_count(&self) -> usize {
         self.event_count
     }
+}
+
+//------------------------------------------------------------------------
+// Trace signals for --perfetto
+// Adds the span and link signals needed for the trace to the measurement list, at the level given with --trace-auto
+// The added signals are not written to the CSV file, the contexts are set in the Perfetto writer
+
+fn add_trace_signals(xcp_client: &XcpClient, daq_decoder: &Arc<Mutex<DaqDecoder>>, trace_auto: &str, mut list: Vec<String>) -> Vec<String> {
+    let level: TraceAuto = trace_auto.parse().unwrap_or(TraceAuto::Links);
+    let measurements: Vec<(String, Option<String>)> = xcp_client
+        .find_measurements(".*")
+        .into_iter()
+        .map(|name| {
+            let event = xcp_client.measurement_event_name(&name);
+            (name, event)
+        })
+        .collect();
+    let contexts = perfetto::find_contexts(measurements.iter().map(|(n, _)| n.as_str()));
+    let mut daq_decoder = daq_decoder.lock();
+    daq_decoder.set_contexts(&contexts);
+    if contexts.is_empty() {
+        return list;
+    }
+
+    let added = perfetto::trace_signals(level, &measurements, &list);
+    if level == TraceAuto::Off {
+        let missing = perfetto::trace_signals(TraceAuto::Links, &measurements, &list);
+        if !missing.is_empty() {
+            warn!(
+                "Perfetto trace: the spans and span links of the contexts are not measured, add them with --trace-auto links or measure them: {}",
+                missing.join(" ")
+            );
+        }
+    } else if !added.is_empty() {
+        info!("Perfetto trace: {} trace signals added (--trace-auto {}): {}", added.len(), trace_auto, added.join(" "));
+    }
+    daq_decoder.set_csv_skip(&added);
+    list.extend(added);
+    list
 }
 
 //------------------------------------------------------------------------
@@ -659,6 +728,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
         cal: cal_args,
         csv: csv_filename,
         perfetto: perfetto_filename,
+        trace_auto,
         yes,
         ..
     } = args;
@@ -683,6 +753,9 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
     // Calibration segment relative addressing mode
     let mut segment_relative = false;
 
+    // DAQ decoder, for the trace signals added for --perfetto
+    let mut daq_decoder_handle: Option<Arc<Mutex<DaqDecoder>>> = None;
+
     // Execute main logic and capture the result
     let result = async {
         //----------------------------------------------------------------
@@ -693,6 +766,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
             // Print protocol information
             info!("XCP Connect using {}", protocol);
             let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new(true, &csv_filename, &perfetto_filename)));
+            daq_decoder_handle = Some(Arc::clone(&daq_decoder));
             match xcp_client.connect(connect_mode, Arc::clone(&daq_decoder), ServTextDecoder::new()).await {
                 Ok(_) => {
                     info!("Connected to XCP server at {}", dest_addr);
@@ -1279,6 +1353,11 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 // Just a list of names given on the command line
                 measurement_list
             };
+            // Trace signals for --perfetto
+            let list = match &daq_decoder_handle {
+                Some(daq_decoder) if daq_decoder.lock().has_perfetto() => add_trace_signals(&xcp_client, daq_decoder, &trace_auto, list),
+                _ => list,
+            };
             if list.is_empty() {
                 warn!("No measurement variables found");
             }
@@ -1443,6 +1522,7 @@ struct ConfigFile {
     time: Option<u64>,
     csv: Option<String>,
     perfetto: Option<String>,
+    trace_auto: Option<String>,
     list_cal: Option<String>,
     cal: Option<Vec<String>>,
     elf_skip_no_metadata: Option<bool>,
@@ -1501,6 +1581,7 @@ fn merge_config(matches: &clap::ArgMatches, config: ConfigFile, args: &mut Args)
     apply!(time);
     apply!(csv);
     apply!(perfetto);
+    apply!(trace_auto);
     apply!(list_cal);
     apply!(cal);
     apply!(elf_skip_no_metadata);

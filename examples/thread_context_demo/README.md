@@ -53,6 +53,12 @@ or
 xcpclient --udp --dest-addr 192.168.0.206 --upload-a2l --mea '.*' --time 5 --perfetto trace.json
 ```
 
+It is enough to measure the signals of interest, xcpclient adds the span and link signals of the contexts (`--trace-auto`):
+
+```bash
+xcpclient --udp --mea 'Mainloop.channel1' --time 5 --perfetto trace.json
+```
+
 Open `trace.json` with "Open trace file" in the Perfetto UI. Each context is shown as a process with one track `spans` and a counter
 track for each of its signals:
 
@@ -69,6 +75,7 @@ Each `poll` of `Mainloop` which returned a sample has an arrow from the `task` s
 
 <img src="perfetto2.png" alt="Perfetto zoomed in: nested spans of the contexts" width="900">
 
+This screenshot shows a span link between the producer span calc in signal generator instance 1, to the consumer span poll in mainloop: 
 <img src="perfetto3.png" alt="Perfetto zoomed in: poll_loop" width="900">
 
 ## How it differs from OpenTelemetry
@@ -433,8 +440,9 @@ Not affected by the number of contexts or code locations:
 
 ## Things to know about xcpclient
 
-- **Span signals must be measured.** `--perfetto` finds a context by its signals `<context>.span`, `.level` and `.span_dt`. Other
-  signals are assigned to a context only by the name prefix `<context>.`.
+- **Trace signals are added.** `--perfetto` finds a context by its signals `<context>.span`, `.level` and `.span_dt` in the A2L
+  file and adds the span and link signals needed for the trace to the measurement (`--trace-auto`, default `links`). Other
+  signals are assigned to a context by the name prefix `<context>.` or by the name of their event.
 - **Trace timestamps** are relative to the measurement start. The file is not sorted by time, Perfetto sorts on import.
 - **Bool signals are enums.** `conv.bool` is read as `0 "false" 1 "true"`, so bools are printed as labels and are state tracks
   in Perfetto.

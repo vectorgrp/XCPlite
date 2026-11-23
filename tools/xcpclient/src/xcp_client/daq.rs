@@ -188,6 +188,13 @@ impl XcpClient {
         &self.measurement_object_list[handle.0]
     }
 
+    /// Unique name of the fixed event of a measurement object, None if it has none or the event is not in the registry event list
+    pub fn measurement_event_name(&self, name: &str) -> Option<String> {
+        let registry = self.registry.as_ref()?;
+        let instance = registry.instance_list.get_instance(name, xcp_registry::McObjectType::Measurement, None)?;
+        self.event_name(instance.event_id()?)
+    }
+
     //------------------------------------------------------------------------
     // DAQ event names
 

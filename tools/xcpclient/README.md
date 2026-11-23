@@ -173,9 +173,15 @@ Options:
           [default: ""]
 
       --perfetto <FILE>
-          Save measurement data to a trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev). Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks, span links (xcp::LinkSpan) are flows (arrows) from the producer span to the consumer span. The span signals of a context (<context>.span, .level, .span_dt, .thread) must be measured, for example with --mea ".*". May be combined with --csv
+          Save measurement data to a trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev). Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks, span links (xcp::LinkSpan) are flows (arrows) from the producer span to the consumer span. The span and link signals of the contexts needed for the trace are added to the measurement, see --trace-auto. May be combined with --csv, the added signals are not written to the CSV file
           
           [default: ""]
+
+      --trace-auto <LEVEL>
+          Trace signals added to the measurement with --perfetto: off (none, only hints which signals are missing), context (the spans of the contexts of the measured signals), links (also the span links of these contexts and, if there are any, the spans of all contexts as possible producers), all (the spans and span links of all contexts). The context of a signal is the prefix of its name or of the name of its event (<context>.<name>)
+          
+          [default: links]
+          [possible values: off, context, links, all]
 
       --list-cal <LIST_CAL>
           Lists all specified calibration variables (regex) found in the A2L file
@@ -336,7 +342,10 @@ The number of signals which can be measured at the same time is limited by the D
 
 ```bash
 xcpclient --udp --mea '.*' --time 5 --perfetto trace.json
+xcpclient --udp --mea 'Mainloop.channel1' --time 5 --perfetto trace.json
 ```
+
+The second command measures one signal, xcpclient adds the span and link signals needed for the trace, see "Trace signals" below.
 
 | In Perfetto | From XCP |
 |---|---|
@@ -347,14 +356,27 @@ xcpclient --udp --mea '.*' --time 5 --perfetto trace.json
 | State track | An enum signal, one slice per state, named with the enum label |
 | Flow (arrow) | A span link (`xcp::LinkSpan`), from the producer span to the consumer span |
 
-- The span signals of a context (`<context>.span`, `.level`, `.span_dt`, `.thread`) must be selected for measurement. A signal is assigned to a context by its name prefix `<context>.`, and only if the span signals of this context are measured.
+- A context is found in the A2L file by its signals `<context>.span`, `.level` and `.span_dt`. A signal belongs to the context which is the prefix of its name or, if none, of the name of its event (`<context>.<name>`). Each context is a process, also when its spans are not measured.
 - `<context>.thread` needs `OPTION_DAQ_SPAN_THREAD` on the target (not defined by default). Without it, there is one track `spans` per context. This is correct as long as a context is executed by one thread at a time, otherwise spans are cut and xcpclient prints a warning with the number of samples which did not fit.
 - Lost samples and a measurement which starts inside a span are handled: the open spans are resynchronised to the nesting level of the next sample, a span the begin of which was not seen is named `(unknown)`. Spans which are still open at the end of the measurement end at the last sample of their track.
-- A span link is a sample of the event `<context>.links` of the consumer context, with the signals `<context>.link_context` (enum `conv.contexts`), `.link_time` and, if available, `.link_span`, `.link_thread` and `.link_consumer_thread`. It is written as a flow in format v1: `"ph":"s"` on the track of the producer context at the producer timestamp, and `"ph":"f"` with `"bp":"e"` on the track of the consumer at the time of the sample. Perfetto binds each end to the innermost slice which encloses its timestamp. The span signals of the producer context must be measured as well, links which can not be resolved (producer context not measured, captured before the measurement start) are counted and reported. In the Perfetto UI, click a slice to see its arrows.
+- A span link is a sample of the event `<context>.links` of the consumer context, with the signals `<context>.link_context` (enum `conv.contexts`), `.link_time` and, if available, `.link_span`, `.link_thread` and `.link_consumer_thread`. It is written as a flow in format v1: `"ph":"s"` on the track of the producer context at the producer timestamp, and `"ph":"f"` with `"bp":"e"` on the track of the consumer at the time of the sample. Perfetto binds each end to the innermost slice which encloses its timestamp. The span signals of the producer context must be measured as well (added with `--trace-auto links`), links which can not be resolved (producer context not measured, captured before the measurement start) are counted and reported. In the Perfetto UI, click a slice to see its arrows.
 - Timestamps are relative to the start of the measurement, with ns resolution.
 - A span is written when it ends, so the file is not sorted by time. Perfetto sorts on import.
 
 See `examples/thread_context_demo` for contexts and spans.
+
+### Trace signals
+
+With `--perfetto`, it is enough to select the signals of interest with `--mea`. The span and link signals of the contexts are added to the measurement, depending on `--trace-auto`:
+
+| `--trace-auto` | Added |
+|---|---|
+| `off` | Nothing. Warns which signals are missing for spans and arrows |
+| `context` | The spans of the contexts of the selected signals |
+| `links` (default) | Also the span links of these contexts and, if there are any, the spans of all contexts. The producer of a span link is only known at runtime, so every context is a possible producer |
+| `all` | The spans and span links of all contexts |
+
+The added signals are listed in the log and are not written to the CSV file. The spans of a context with a fast task add data rate, in `thread_context_demo` the spans of `SigGen1` (three nested spans every 25 µs) are most of the measured data. Use `--trace-auto context` to keep them out, the arrows from these contexts are then counted as not resolved.
 
 
 
