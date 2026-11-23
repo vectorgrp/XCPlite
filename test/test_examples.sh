@@ -251,7 +251,12 @@ run_example() {
     fi
     
     # Kill any existing XCP processes to free up ports
-    pkill -f "$example" || true
+    # Match the executable, not just the example name: the command line of this script contains the name when it is given as an
+    # argument, and pkill on Linux (unlike macOS) does not exclude its ancestors, so a plain name would kill this script
+    # The name must be the program itself (at the start of the command line or after a /) and end there, so './build/<example>'
+    # and '<path>/build/<example>' match, 'test_examples.sh <example>' and '<example>_cpp' do not
+    # pkill -x (process name) does not work, Linux truncates the process name to 15 characters (thread_context_demo)
+    pkill -f "(^|/)${example}( |$)" || true
     sleep 0.2  # Give processes time to terminate
     
     # Create temporary file for capturing output

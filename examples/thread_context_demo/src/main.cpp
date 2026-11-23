@@ -122,9 +122,10 @@ int main() {
     wait_xcp();
 #endif
 
-    // Create a named context object 'Main' and set it as the current context
-    auto context = xcp::Context("Main");
-    xcp::Scope scope(context);
+    // Enter the 'Main' context, it is the current context of the main thread until the end of main()
+    // Contexts with a literal name are entered with DaqContext, the signal generator instances use an xcp::Context member,
+    // because their name is only known at runtime
+    DaqContext(Main);
 
     {
         // The signal generator instances are created in the span initialize and destroyed at the end of this block
@@ -144,7 +145,7 @@ int main() {
                 .phase = 0.0,
                 .offset = -50.0,
                 .period = 1.0,                                          // s
-                .sample_time_us = 10,                                   // us
+                .sample_time_us = 25,                                   // us
                 .signal_type = signal_generator::SignalTypeT::TRIANGLE, // Type of the signal
             };
             static const signal_generator::SignalParametersT kSignalParameters2 = {
@@ -156,8 +157,7 @@ int main() {
                 .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
             };
             // SigGen1 queues up to 16 samples, SigGen2 has a single entry queue which always holds the latest sample
-            // Each instance is started right after its construction: its events are then created before the next instance is
-            // constructed, the event ids and the A2L file do not depend on the thread start-up timing
+            // The instances are created stopped, they are started before the main loop
             signal_generator_1 = std::make_unique<signal_generator::SignalGenerator>("SigGen1", &kSignalParameters1, 16);
             signal_generator_2 = std::make_unique<signal_generator::SignalGenerator>("SigGen2", &kSignalParameters2, 1);
 
@@ -167,7 +167,7 @@ int main() {
         // Main loop calibration parameters
         // The reference page must outlive the calibration segment (static)
         static const MainloopParametersT kMainloopParameters = {
-            .idle_sleep_us = 100, // us  (Note: queue size of signal_generator_1 is 16, cycle time 10us)
+            .idle_sleep_us = 100, // us  (Note: queue size of signal_generator_1 is 16, cycle time 25us)
         };
         A2lCreateTypedef(MainloopParametersT, "Typedef for MainloopParametersT", //
                          A2L_PARAMETER_COMPONENT(idle_sleep_us, "Main loop sleep time when there are no samples", "us", 0, 100000));
@@ -180,14 +180,17 @@ int main() {
         // Instrumentation
         uint32_t next_seq1 = 0, next_seq2 = 0; // Expected sequence number of the next sample
 
+        // Start the signal generators one after the other
+        // Start() returns after the first cycle of the task, the events of SigGen1 are then created before those of SigGen2,
+        // so the event ids and the A2L file do not depend on the thread start-up timing
         std::cout << "Starting main loop..." << std::endl;
         signal_generator_1->Start();
         signal_generator_2->Start();
         while (running) {
 
-            // Create the 'Mainloop' context and set it as the current context
-            auto mainloop_context = xcp::Context("Mainloop");
-            xcp::Scope mainloop_scope(mainloop_context);
+            // Enter the 'Mainloop' context, it is the current context until the end of this cycle
+            // The context is created in the first cycle, from then on entering it is a load and the attach of the scope
+            DaqContext(Mainloop);
 
             // Poll loop: poll signal generator 1+2 until both queues are empty, the main loop does not sleep while samples are pending
             // Each channel in its own span, the spans poll in SignalGenerator::Poll are nested in get_channel1 or get_channel2
@@ -242,7 +245,7 @@ int main() {
             // Trigger the XCP measurement event mainloop for local variables 'channel1' and 'channel2' in context 'Mainloop' with event 'mainloop'
             // There is no active span
             // DaqEventVar will also work, but the value will not be displayed in the Mainloop context track
-            DaqEventCtxVar(mainloop, // context='Mainloop', span='get_channel1'                                                                            //
+            DaqEventCtxVar(mainloop, // context='Mainloop', no span                                                                                       //
                            A2L_MEAS_PHYS(channel1, "Latest value of signal generator 1", "Volt", -100.0, +100.0), //
                            A2L_MEAS_PHYS(channel2, "Latest value of signal generator 2", "Volt", -100.0, +100.0)  //
             );

@@ -4,17 +4,15 @@ Demonstrates how XCPlite can measure individual time series when the same code r
 
 ## Demo application
 
-The demo has a class called `SignalGenerator`. Each instance of a signal generator creates a thread which calculates a configurable waveform in real time. Each instance has its own calibration parameters like `sample_time_us`,`signal_type`, `period`, `ampl`, ... .  The output samples can be read by other threads. A thread-safe poll function returns one sample (value, time and sequence number), or nothing when there is no new sample. The poll function reads from a lock-free SPSC queue owned by the signal generator. The queue size is a constructor parameter of the instance. If queue size is 1, the queue always holds the latest sample, a new sample overwrites an unread one.
+The demo has a class called `SignalGenerator`. Each instance of a signal generator creates a thread which calculates a configurable waveform in real time. Each instance has its own calibration parameters like `sample_time_us`, `signal_type`, `period`, `ampl`, ... An instance is created stopped, `Start()` clears its output queue and starts the calculation, `Stop()` stops it. The output samples can be read by other threads. The poll function returns one sample (value, time and sequence number), or nothing when there is no new sample. It may be called from any thread, but from only one thread at a time: it reads from a lock-free single producer single consumer (SPSC) queue owned by the signal generator. The queue size is a constructor parameter of the instance. If the queue size is 1, the queue always holds the latest sample, a new sample overwrites an unread one.
 
 The demo main loop polls 2 instances of `SignalGenerator` until both queues are empty and only then sleeps for calibration parameter `Mainloop.idle_sleep_us`. For each sample it measures the latency, the time from the calculation of the sample to its poll, and the number of samples dropped before it.
 
 ## What can be measured and observed
 
-The demo shows how to instrument observation of generating the signal, the execution of the polling function, the queue level and overflow count in the SignalGenerator implementation, without knowing which instance it will be and who is calling the poll function. The code instrumentation creates consistent time series for each instance and from each calling threads perspective at runtime, so a standard XCP client tool or logger does not need to know how to interpret and demultiplex the data produced by capture points in code. The tool is able to select, which instance or caller it wants to observe. No data shall is transfered and collected for instances not configured. Metrics are provided by the caller instrumentation, such as linking to the producing span and latency_time of the link.  
+The demo shows how to observe the signal generation, the execution of the poll function, the queue level and the overflow count inside the `SignalGenerator` implementation, without the code knowing which instance it is and who calls the poll function. The instrumentation creates a consistent time series for each instance and from the perspective of each calling thread at runtime, so a standard XCP client tool or logger does not need to know how to interpret and demultiplex the data produced by the capture points in the code. The tool selects which instance or caller it observes, no data is transferred and collected for instances which are not selected. The caller instrumentation provides metrics such as the latency of a sample. Planned: a link from the consumer span to the producer span of a sample, see "Span links and Perfetto arrows".
 
-The xcpclient tool has an option to convert the XCP measurement data to 'Chrome JSON trace format', which can be loaded in 'Perfetto' or many other tools. 
-
-
+The xcpclient tool has an option to convert the XCP measurement data to the Chrome JSON trace format, which can be loaded in Perfetto and many other tools.
 
 ## Building and running
 
@@ -37,13 +35,11 @@ Measure all signals with xcpclient for 5 seconds into a CSV file:
 xcpclient --udp --mea '.*' --time 5 --csv mea.csv
 ```
 
-
 ## Using CANape
 
 The CANape project included can measure the span event signal, but can not provide a Gantt-Chart for the span nesting in a context.
 
 <img src="CANape.png" alt="CANape overview: signals and span tracks" width="900">
-
 
 ## Using Perfetto
 
@@ -52,14 +48,18 @@ xcpclient can write the measurement as a trace file for [Perfetto](https://ui.pe
 ```bash
 xcpclient --udp --mea '.*' --time 5 --perfetto trace.json
 ```
+or
+```bash
+xcpclient --udp --dest-addr 192.168.0.206 --upload-a2l --mea '.*' --time 5 --perfetto trace.json
+```
 
 Open `trace.json` with "Open trace file" in the Perfetto UI. Each context is shown as a process with one track `spans` and a counter
 track for each of its signals:
 
-- `Startup`: the span `initialize`, if the measurement was started before the startup (see "Measuring the startup").
+- `Main`: the span `initialize`, if the measurement was started before the startup (see "Measuring the startup").
 - `Mainloop`: `poll_loop` with the nested spans `get_channel1` and `get_channel2`, a `poll` nested in each of them, followed by
   `analyze`. The signals are `Mainloop.channel1`, `Mainloop.channel2`, `Mainloop.polled` and the sample signals `.value1`, `.latency1`, `.dropped1`, `.value2`, `.latency2`, `.dropped2`.
-- `SigGen1`, `SigGen2`: `calc` with the nested span `clip`, and the signals `.value_`, `.time_us`, `.queue_level`, `.overflows_` and `.input`.
+- `SigGen1`, `SigGen2`: `task` with the nested span `calc`, which has the nested span `clip`, and the signals `.value_`, `.time_us`, `.queue_level`, `.overflows_` and `.input`.
 
 The main loop and the two task threads run independently, so the spans of different contexts overlap in time.
 Details are in the [xcpclient README](../../tools/xcpclient/README.md).
@@ -67,6 +67,8 @@ Details are in the [xcpclient README](../../tools/xcpclient/README.md).
 <img src="perfetto1.png" alt="Perfetto overview: signals and span tracks of the contexts" width="900">
 
 <img src="perfetto2.png" alt="Perfetto zoomed in: nested spans of the contexts" width="900">
+
+<img src="perfetto3.png" alt="Perfetto zoomed in: poll_loop" width="900">
 
 ## How it differs from OpenTelemetry
 
@@ -87,21 +89,17 @@ detach at the end) and spans with nesting are taken over unchanged. Three things
 The differences in the data model and in the treatment of time, order and causality are described in
 [docs/TIME_AND_CAUSALITY.md](../../docs/TIME_AND_CAUSALITY.md).
 
-
-
-
 ## XCPlite API extensions
 
-The XCPlite API extensions needed are part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp) (included by `xcplib.hpp`). They need the option `OPTION_DAQ_CONTEXT_LIST`, which is currently enabled in the default and the shm configuration, the configurations with on-target A2L generation. It costs nothing, when not used.  
+The XCPlite API extensions needed are part of the XCPlite C++ API, in [inc/xcplib_context.hpp](../../inc/xcplib_context.hpp) (included by `xcplib.hpp`). They need the option `OPTION_DAQ_CONTEXT_LIST`, which is enabled in the default and the shm configuration, the configurations with on-target A2L generation. They cost nothing when not used.
 
-The API extensions follow the XCPlite principles: lazy registration, lock-less and no heap allocations. Currently only in the standard and shm configuration with on-target A2L generation. Link-time registration is work in progress.
-
-
+The API extensions follow the XCPlite principles: lazy registration, lock-free and no heap allocations. Span names are registered at link time (`OPTION_DAQ_SPAN_SECTION_REGISTRATION`), contexts and their events at runtime. Contexts for no_a2l and rtos targets would need link-time registration of contexts and events as well (see "Possible follow-ups").
 
 | Term | Meaning |
 |---|---|
-| `xcp::Context` | A named identity, "who is executing". One per class instance here (`SigGen1`, `SigGen2`), and one for each phase of the main thread (`Startup`, `Mainloop`). |
+| `xcp::Context` | A named identity, "who is executing". One per class instance here (`SigGen1`, `SigGen2`), and one for each phase of the main thread (`Main`, `Mainloop`). |
 | `xcp::Scope` | Makes a context the current context of the calling thread and restores the previous one at the end of the block (for context propagation). The current context is ambient in thread-local storage. |
+| `DaqContext` | Creates a context with a literal name once per code location and enters it with a scope until the end of the block. Used here for `Main` and `Mainloop`. |
 | `DaqEventCtxVar` | Context-aware variant of `DaqEventVar`. Uses a separate event and separate measurements for each context, the event is named `<context>.<event>`. |
 | `DaqSpan` | A named, timed section of code. Begin and end are recorded on the same event `<context>.spans` of the current context. |
 
@@ -110,23 +108,19 @@ xcp::Context context_;                                  // class member, constru
 xcp::Scope scope(context_);                             // in the thread or method which works for this instance
 DaqEventCtxVar(siggen, A2L_MEAS_PHYS(value_, ...));     // event SigGen1.siggen, measurement SigGen1.value_
 { DaqSpan(calc); ... }                                  // span "calc", ends at the end of the block
+DaqContext(Mainloop);                                   // context with a literal name, entered until the end of the block
 ```
-
-
 
 ---
 
+## What the demo measures
 
-# What the demo measures
-
-An XCP event is bound to a code location. The demo has two instances of a signal generator class, each running its own thread. It has a thread-safe poll function, to be called by other threads to read values. Instrumenting both functions in the obvious way, with one `DaqEventVar(event_name, A2L_MEAS(variable_name, ...))` in the code, both instances and each caller triggers the same event and the tool receives one signal with mixed the values for instances or callers.
+An XCP event is bound to a code location. The demo has two instances of a signal generator class, each running its own thread, and a poll function which other threads call to read the values. Instrumented in the obvious way, with one `DaqEventVar(event_name, A2L_MEAS(variable_name, ...))` in the code, both instances and all callers trigger the same event, and the tool receives one signal with the values of all instances or callers mixed.
 
 The existing solution (see `cpp_demo`) needs the instrumented code to know its instance and pass the name along: one dynamically created event per instance, and measurements explicitly registered with the instance name as prefix. Shared helper functions for the signal generator, which do not know for which instance they are working, can not be instrumented at all.
 
-
-
 The demo has four contexts. `SigGen1` and `SigGen2` are the two signal generator instances, each attached to its own task thread.
-`Startup` and `Mainloop` are attached to the main thread, one after the other.
+`Main` and `Mainloop` are attached to the main thread, `Main` for the whole run and `Mainloop` for each cycle of the main loop.
 
 | Event | Measurements | Triggered by |
 |---|---|---|
@@ -135,17 +129,19 @@ The demo has four contexts. `SigGen1` and `SigGen2` are the two signal generator
 | `Mainloop.poll` | `Mainloop.polled` | the method `Poll()` of both instances, called by the main loop |
 | `Mainloop.sample1`, `Mainloop.sample2` | `Mainloop.value1`, `.latency1`, `.dropped1` and `Mainloop.value2`, `.latency2`, `.dropped2` | the main loop, for each sample polled from instance 1 or 2 |
 | `Mainloop.mainloop` | `Mainloop.channel1`, `Mainloop.channel2` (latest values) | the main loop, once per cycle |
-| `Startup.spans`, `Mainloop.spans`, `SigGen1.spans`, `SigGen2.spans` | `.span`, `.level`, `.span_dt` | begin and end of each span in this context |
+| `Main.spans`, `Mainloop.spans`, `SigGen1.spans`, `SigGen2.spans` | `.span`, `.level`, `.span_dt` | begin and end of each span in this context |
+
+That is 12 events: 4 spans events, 2 for `clip` and 2 for `siggen` (one per instance), and 4 for the code locations of the main loop.
 
 Spans:
 
 | Context | Spans | Executed by |
 |---|---|---|
-| `Startup` | `initialize`: creates the two signal generator instances | main thread, once |
+| `Main` | `initialize`: creates the two signal generator instances | main thread, once |
 | `Mainloop` | `poll_loop` with the nested spans `get_channel1` and `get_channel2` in turns until both queues are empty, each with a nested `poll`, then `analyze` | main thread, after an idle sleep of `Mainloop.idle_sleep_us` |
-| `SigGen1`, `SigGen2` | `calc` with the nested span `clip` | task thread of the instance, every 5 ms |
+| `SigGen1`, `SigGen2` | `task` with the nested span `calc`, which has the nested span `clip` | task thread of the instance, with a sleep of `sample_time_us` after each cycle (25 us for `SigGen1`, 1 ms for `SigGen2`) |
 
-The span signals of one context show for example the sequence calc (level 1), clip (level 2), calc, none, with the
+The span signals of one context show for example the sequence task (level 1), calc (level 2), clip (level 3), calc, task, none, with the
 duration of the span that just ended in `span_dt`. Span names are displayed through the enum conversion
 `conv.spans`, which the A2L generator creates from all span names registered when the A2L file is finalized.
 
@@ -156,24 +152,17 @@ event contains (`SigGen1.siggen` instead of a numbered event instance).
 `get_channel1` or `get_channel2` in the context `Mainloop`, and this tells which instance was polled. The event
 `Mainloop.poll` is triggered for both instances, so `Mainloop.polled` contains the mixed values of both (just for demonstration). The alternative is in the code as a comment: with `xcp::Scope scope(context_)` in `Poll()`, the span and the event belong to the context of the instance
 (`SigGen1.poll`, `SigGen1.polled`). The span is then not nested in the span of the caller, because attaching a context starts
-without a current span, and the context is executed by two threads. That needs `OPTION_DAQ_SPAN_THREAD` in 'xcplib_cfg.h' to tell their spans apart.
+without a current span, and the context is executed by two threads, see "Same context in multiple threads".
 
-`OPTION_DAQ_SPAN_THREAD` is not defined by default. With the option, the spans event of a context has the additional measurement
-`.thread`, a small index of the thread which began or ended the span. The indices are assigned in the order in which the threads
-begin their first span. In this demo each context is executed by one thread at a time, so the option is not needed.
+By default the spans show the real execution times: Perfetto displays them with ns resolution, the data rate goes up to about 10 MByte/s
+and xcpclient keeps up with it. For a view which is easier to follow, with a much lower data rate, enable `OPTION_SIMULATE_WORK` in
+[src/sig_gen.hpp](src/sig_gen.hpp): the spans then contain sleeps which simulate work.
 
-The spans of the demo contain sleeps to simulate work, so that they are easy to see in a trace viewer with reduced datarate. Without that, on a hiher performancecomputer, the datarate goes up to about 10MByte/s and Perfetto show the precise span execution time in ns resolution.
-The sleeps are enabled with `OPTION_SIMULATE_WORK` in [src/sig_gen.hpp](src/sig_gen.hpp), comment it out for a performance test.
+## Measuring the startup
 
+Experimental. Disabled by default (`OPTION_OBSERVE_STARTUP` in [src/main.cpp](src/main.cpp)).
 
-
-
-
-### Measuring the startup
-
-Experimental. Disabled by default.
-
-The span `initialize` in the context `Startup` is executed once, before the main loop. To get it into a measurement, the demo
+The span `initialize` in the context `Main` is executed once, before the main loop. To get it into a measurement, the demo
 waits in `wait_xcp()` until the XCP client has started the measurement, and then begins with the startup.
 
 This works from the second run on. The demo uses `A2L_MODE_WRITE_ONCE`, so the A2L file and the binary persistence file of the
@@ -181,7 +170,7 @@ first run are kept. In the next run, the events of all contexts are preloaded fr
 the measurement before any instrumented code has been executed.
 
 1. First run: start the demo and stop it with Ctrl-C. There is no A2L file yet, the demo does not wait and prints
-   `First run, thread_context_demo_V0.9.a2l is generated now, restart to measure the startup`. The A2L file and the `.bin` file
+   `First run, thread_context_demo.a2l is generated now, restart to measure the startup`. The A2L file and the `.bin` file
    are written at shutdown, or earlier when a client connects.
 2. Second run: start the demo again. It prints `Waiting for the XCP client to start the measurement (Ctrl-C to abort) ...`.
 3. Start the measurement with xcpclient or CANape. The demo continues with the startup and the main loop.
@@ -192,11 +181,8 @@ is complete, including spans which were not executed in the first run. Without t
 assigned in the order in which the spans are executed for the first time, and the A2L file of the first run is valid for the
 second run only as long as this order is the same.
 
-The constructor of the signal generator waits for the first cycle of its task, so the events of the contexts are created in the
-same order in the first run.
-
-
-
+`Start()` of the signal generator returns after the first cycle of its task, and the main function starts `SigGen1` before `SigGen2`,
+so the events of the contexts are created in the same order in every run.
 
 ## OpenTelemetry version for comparison
 
@@ -204,36 +190,52 @@ same order in the first run.
 for reading. It is not built by the XCPlite build and has not been compiled. Build and run notes,
 including a receiver for visualisation, are in the header of [otel/src/main.cpp](otel/src/main.cpp).
 
-
 ## Same context in multiple threads
 
-In the current version of the demo each context's spans and context-aware events are triggered from only one thread.
-Option OPTION_DAQ_SPAN_THREAD is not defined by default.  
+In this demo the spans and context-aware events of each context are triggered by one thread only:
 
-Some places that look as if they might break this, but don't:
+| Context | Thread | Spans |
+|---|---|---|
+| `Main` | main thread | `initialize` |
+| `Mainloop` | main thread | `poll_loop`, `get_channel1`, `get_channel2`, `poll`, `analyze` |
+| `SigGen1`, `SigGen2` | task thread of the instance | `task`, `calc`, `clip` |
 
-Poll(): it runs on the main thread, but the xcp::Scope scope(context_) is commented out, so its poll span lands in the caller's context Mainloop, not in SigGen1/SigGen2. Clip(): it's only called from Task(), so it's always on one of the generator threads.
-Constructor, Start(), Stop(): they run on the main thread and create the context, but they don't begin any span or trigger any event in it.
-Main and Mainloop: both on the main thread. One thread working in several contexts is fine. The option is only about the other direction: several threads in one context.
+So the demo does not need `OPTION_DAQ_SPAN_THREAD` in `xcplib_cfg.h`, which is not defined by default. With the option, the spans event
+of a context has the additional measurement `.thread`, a small index of the thread which began or ended the span, and xcpclient
+writes one track per thread. The indices are assigned in the order in which the threads begin their first span.
 
-Two things to keep in mind:
+Places which look as if they break the rule, but do not:
 
-It's a convention, nothing enforces it. If you enable the Scope in Poll(), SigGen1 gets spans from two threads (task and main), and without the option their begin and end records end up in one level stack and corrupt each other's nesting. The comment in Poll() already says that needs the option.
-What the library actually needs is "one thread at a time" per context, not "exactly one". Handing a context from one thread to another without the option is fine, as long as the first thread has ended its spans before the next one begins.
+- `Poll()` runs in the main thread. It does not attach the context of its instance (`xcp::Scope scope(context_)` is commented out),
+  so its span `poll` belongs to the context of the caller, `Mainloop`, not to `SigGen1` or `SigGen2`.
+- `Clip()` is called from `Task()` only, so it always runs in the task thread of its instance.
+- The constructor, `Start()` and `Stop()` run in the main thread. The constructor creates the context, but none of them begins a span
+  or triggers an event in it.
+- `Main` and `Mainloop` are both executed by the main thread. One thread working in several contexts is fine, the option is about the
+  other direction: several threads in one context.
 
+To keep in mind:
+
+- This is a convention, nothing enforces it. With `xcp::Scope scope(context_)` enabled in `Poll()`, `SigGen1` gets spans from two
+  threads, the task thread and the main thread. Without the option, xcpclient puts the begin and end samples of both threads on one
+  level stack, and they corrupt the nesting of each other.
+- The library needs one thread at a time per context, not exactly one. Handing a context from one thread to another without the
+  option is fine, as long as the first thread has ended its spans before the next one begins. See also "Findings and limitations".
 
 ## Span links and Perfetto arrows
 
-Work in progress
+Not implemented yet. The analysis (Perfetto flow events, OTel links, what has to be measured on the target) and example traces are in
+[perfetto_flow/README.md](perfetto_flow/README.md).
 
 ---
 
 ## Implementation notes
 
-An event index > 0 always means a context. The library knows the context names, and an event which belongs to a context is named
-`<context>.<event>` in the A2L event list, the event groups, `conv.events` and `GET_DAQ_EVENT_INFO` (`SigGen1.siggen`).
+An event stores the id of its context, a context id > 0 means that the event belongs to a context (0 = no context). The library knows
+the context names, and an event which belongs to a context is named `<context>.<event>` in the A2L event list, the event groups,
+`conv.events` and `GET_DAQ_EVENT_INFO` (`SigGen1.siggen`).
 
-Library
+### Library
 
 - Options `OPTION_DAQ_CONTEXT_LIST`, `OPTION_DAQ_CONTEXT_COUNT` (8), `OPTION_DAQ_SPAN_SECTION_REGISTRATION`,
   `OPTION_DAQ_SPAN_COUNT` (32) and `OPTION_DAQ_SPAN_THREAD`,
@@ -249,8 +251,9 @@ Library
   `DaqContext`, `DaqSpan`, `DaqEventCtxVar`, `DaqEventCtxVar_`. There is no C instrumentation API for contexts.
 - `DaqContext(name)` enters a context with a literal name for the enclosing block. The context object is a static at the code
   location and is created when the code location is executed for the first time, so code which is executed repeatedly does not
-  search the context list each time. The demo creates its contexts with `xcp::Context` objects, because they are entered once
-  (`Startup`, `Mainloop`) or have a name which is only known at runtime (the signal generator instances).
+  search the context list each time. The demo enters its contexts with a literal name with `DaqContext`: `Main` once at the begin
+  of `main()`, `Mainloop` in each cycle of the main loop. The signal generator instances use an `xcp::Context` member, because
+  their name is only known at runtime and each instance needs its own context, a static at one code location would be shared.
 - The span event of a context is `<context>.spans`. A sample is the state after a span begin or end: `span`, `level`, `span_dt`
   and, with `OPTION_DAQ_SPAN_THREAD`, `thread`. The record has 8 bytes with and without the option, `level` has 8 bit with the
   option and 16 bit without.
@@ -259,7 +262,7 @@ Library
   coexist. `XcpGetEventContext` returns the context id of an event. The A2L short name of an event is its name without the context.
 - Test: `test/context_test`, registered with CTest (unit).
 
-Persistence
+### Persistence
 
 - The context name is stored with each event in the binary persistence file, the context list is rebuilt from the events on load.
 - `tools/bintool` shows an event which belongs to a context as `<context>.<event>`, with the context name and id.
@@ -278,13 +281,14 @@ Fixed, allocated whether or not a context is used:
 
 | Setting | Default | Per entry | Total |
 |---|---|---|---|
-| `OPTION_DAQ_EVENT_COUNT` | 32 | 28 bytes per event | 452 bytes |
-| `OPTION_DAQ_CONTEXT_COUNT` | 8 | 16 bytes per context | 130 bytes |
-| `OPTION_DAQ_SPAN_COUNT` | 32 | 32 bytes per span name | 1026 bytes |
+| `OPTION_DAQ_EVENT_COUNT` | 32 | 28 bytes per event | 896 bytes |
+| `OPTION_DAQ_CONTEXT_COUNT` | 8 | 16 bytes per context | 128 bytes |
+| `OPTION_DAQ_SPAN_COUNT` (only without `OPTION_DAQ_SPAN_SECTION_REGISTRATION`) | 32 | span name list | 1792 bytes |
 | Event name buffer | | | 32 bytes |
 
-The context feature itself adds about 0.5 KB of RAM with the defaults. With link time registration, a span name is a constant of
-32 bytes per `DaqSpan` code location (8 in this demo), there is no span name table in RAM.
+The event list exists without contexts as well. The context feature itself adds the context list and the event name buffer, about
+160 bytes of RAM with the defaults. With link-time registration (default), a span name is a constant descriptor of 32 bytes per
+`DaqSpan` code location (9 in this demo), there is no span name list in RAM.
 
 Per use, in the application:
 
@@ -295,7 +299,7 @@ Per use, in the application:
 | `xcp::Context` object | 24 bytes | per context |
 | Current context and span | 16 bytes thread-local | per thread which uses a scope or a span |
 | Thread index (`OPTION_DAQ_SPAN_THREAD`) | 1 byte thread-local | per thread which uses a span |
-| `DaqSpan` code location | 2 bytes and a static initialization guard | per code location |
+| `DaqSpan` code location | none with link-time registration (a 32 byte constant descriptor), otherwise 2 bytes for the cached span id, constant initialized | per code location |
 
 The number of events is what has to be planned. With C contexts and L `DaqEventCtxVar` code locations:
 
@@ -305,18 +309,18 @@ events = C (one spans event per context) + C x L + code locations also executed 
 
 Only combinations which are actually executed create an event. Worst case with the default of 8 contexts:
 
-| Code locations L | Events needed | Event list | Fits the default of 16 events |
+| Code locations L | Events needed | Event list | Fits the default of 32 events |
 |---|---|---|---|
-| 1 | 16 | 448 bytes | yes, with no other event |
-| 2 | 24 | 672 bytes | no |
+| 1 | 16 | 448 bytes | yes |
+| 2 | 24 | 672 bytes | yes |
+| 3 | 32 | 896 bytes | yes, with no other event |
 | 4 | 40 | 1.1 KB | no |
 | 8 | 72 | 2.0 KB | no |
 | 16 | 136 | 3.8 KB | no |
 
-This demo has 4 contexts and 4 code locations, of which `clip` and `siggen` are executed in 2 contexts and `poll` and `mainloop` in one,
-which is 10 events. The limit is
-1000 events (`OPTION_DAQ_EVENT_COUNT`). When the event list is full, `DaqEventCtxVar` measures nothing
-for this context and code location, and tries to create the event again on every call.
+This demo has 4 contexts and 6 code locations, of which `clip` and `siggen` are executed in 2 contexts and `poll`, `sample1`, `sample2`
+and `mainloop` in one, which is 4 + 4 + 4 = 12 events. When the event list is full (`OPTION_DAQ_EVENT_COUNT`), `DaqEventCtxVar`
+measures nothing for this context and code location, and tries to create the event again on every call.
 
 Not affected by the number of contexts or code locations:
 
@@ -325,15 +329,14 @@ Not affected by the number of contexts or code locations:
 - The A2L generator writes to the file, it does not keep the declarations in memory.
 - The binary persistence file grows by 256 bytes per event.
 
-
 ## Findings and limitations
 
 - **Event budget.** One event per context, plus one per context and context-aware code location
-  (10 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 16 by default). The number of contexts is limited
-  by `OPTION_DAQ_CONTEXT_COUNT` (8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (32).
+  (12 events in this demo, `OPTION_DAQ_EVENT_COUNT` is 32 by default). The number of contexts is limited
+  by `OPTION_DAQ_CONTEXT_COUNT` (8), the number of span names by `OPTION_DAQ_SPAN_COUNT` (32) without link-time registration.
 - **One thread at a time.** A context should be executed by one thread at a time. Several threads may work in it one after
   the other, the hand-over between them (a queue, a mutex, a join) keeps the timestamps of its events in order. A context
-  and its spans describe one track of activity. For a worker pool, use one context per worker.
+  and its spans describe one track of activity. For a worker pool, use one context per worker. See "Same context in multiple threads".
 - **Declining timestamps.** The timestamps of an XCP event should not decline. If a context is attached
   to several threads at the same time (for example a task thread and a method called from another thread), this is not
   guaranteed. The order of the samples is decided when the event is queued, after the timestamp was taken, so a thread which
@@ -361,10 +364,8 @@ Not affected by the number of contexts or code locations:
   In SHM mode, each application has its own namespace for context names, see [docs/SHM.md](../../docs/SHM.md).
 - **Library implementation.** The context names are kept in a context list in the C core
   ([src/ctx.c](../../src/ctx.c)), an event stores the id of its context. The binary persistence file
-  stores the context name with each event, so event ids are stable across restarts. 
+  stores the context name with each event, so event ids are stable across restarts.
 - **C++ only.** There is no C instrumentation API for contexts.
-
-
 
 ## Open questions
 
@@ -403,187 +404,66 @@ Not affected by the number of contexts or code locations:
 - **Bool signals are enums.** `conv.bool` is read as `0 "false" 1 "true"`, so bools are printed as labels and are state tracks
   in Perfetto.
 
-
-
-
 ## Example debug output
+
+With `OPTION_DAQ_CONTEXT_TEST` defined in `xcplib_cfg.h` (debug prints, the main loop stops after one cycle), shortened.
+The prints of several threads interleave.
 
 ```
 Created Context 'Main': 1
 Create Event 0: spans context=1, cycle=0ns, prio=0
-Register measurements for type SpanRecord 
+Register measurements for type SpanRecord
 Set scope to context 'Main', thread_id=4021395904
-Register span 'initialize': id = 1
-Trigger span event 0, span 'initialize': level=1, dt=0ns
 Span begin, 'Main': 'none' -> 'initialize', 1
+Trigger span event Main.spans, span 'initialize', level=1, dt=0ns
 Create CalSeg 'SigGen1' size=40, type=seg
 Created Context 'SigGen1': 2
 Create Event 1: spans context=2, cycle=0ns, prio=0
-Register measurements for type SpanRecord 
-Starting task: SigGen1
-Set scope to context 'SigGen1', thread_id=1796435968
-Register span 'calc': id = 2
-Trigger span event 1, span 'calc': level=1, dt=0ns
-Span begin, 'SigGen1': 'none' -> 'calc', 1
-Register span 'clip': id = 3
-Trigger span event 1, span 'clip': level=2, dt=0ns
-Span begin, 'SigGen1': 'calc' -> 'clip', 2
-Create Event 2: clip context=2, cycle=0ns, prio=0
-Span end, 'SigGen1': 'clip' -> 'calc', 2
-Trigger span event 1, span 'calc': level=1, dt=1266541ns
-Span end, 'SigGen1': 'calc' -> 'none', 1
-Trigger span event 1, span 'none': level=0, dt=3542833ns
-Create Event 3: siggen context=2, cycle=0ns, prio=0
+Register measurements for type SpanRecord
 Create CalSeg 'SigGen2' size=40, type=seg
 Created Context 'SigGen2': 3
-Create Event 4: spans context=3, cycle=0ns, prio=0
-Register measurements for type SpanRecord 
-Starting task: SigGen2
-Set scope to context 'SigGen2', thread_id=1797009408
-Trigger span event 4, span 'calc': level=1, dt=0ns
-Span begin, 'SigGen2': 'none' -> 'calc', 1
-Trigger span event 4, span 'clip': level=2, dt=0ns
-Span begin, 'SigGen2': 'calc' -> 'clip', 2
-Create Event 5: clip context=3, cycle=0ns, prio=0
-Trigger span event 1, span 'calc': level=1, dt=0ns
-Span begin, 'SigGen1': 'none' -> 'calc', 1
-Span end, 'SigGen2': 'clip' -> 'calc', 2
-Trigger span event 4, span 'calc': level=1, dt=1621542ns
-Span end, 'SigGen2': 'calc' -> 'none', 1
-Trigger span event 4, span 'none': level=0, dt=5522334ns
-Create Event 6: siggen context=3, cycle=0ns, prio=0
-Trigger span event 1, span 'clip': level=2, dt=0ns
-Span begin, 'SigGen1': 'calc' -> 'clip', 2
-Span end, 'SigGen1': 'clip' -> 'calc', 2
-Trigger span event 1, span 'calc': level=1, dt=1288166ns
-Span end, 'SigGen1': 'calc' -> 'none', 1
-Trigger span event 1, span 'none': level=0, dt=3827916ns
-Trigger span event 4, span 'calc': level=1, dt=0ns
-Span begin, 'SigGen2': 'none' -> 'calc', 1
-Trigger span event 4, span 'clip': level=2, dt=0ns
-Span begin, 'SigGen2': 'calc' -> 'clip', 2
-Trigger span event 1, span 'calc': level=1, dt=0ns
-Span begin, 'SigGen1': 'none' -> 'calc', 1
-Span end, 'SigGen2': 'clip' -> 'calc', 2
-Trigger span event 4, span 'calc': level=1, dt=1280625ns
-Span end, 'SigGen2': 'calc' -> 'none', 1
-Trigger span event 4, span 'none': level=0, dt=3811459ns
-Trigger span event 1, span 'clip': level=2, dt=0ns
-Span begin, 'SigGen1': 'calc' -> 'clip', 2
-Span end, 'Main': 'initialize' -> 'none', 1
-Trigger span event 0, span 'none': level=0, dt=31860875ns
+Create Event 2: spans context=3, cycle=0ns, prio=0
+Register measurements for type SpanRecord
+Set scope to context 'SigGen1', thread_id=1797386240
+Span end, 'Main': 'initialize' -> 'none', 0
+Trigger span event Main.spans, span 'none', level=0, dt=109833ns
+Set scope to context 'SigGen2', thread_id=1797959680
 Create CalSeg 'Mainloop' size=4, type=seg
 Starting main loop...
+Starting task: SigGen1
+Span begin, 'SigGen1': 'none' -> 'task', 1
+Trigger span event SigGen1.spans, span 'task', level=1, dt=0ns
+Span begin, 'SigGen1': 'task' -> 'calc', 2
+Trigger span event SigGen1.spans, span 'calc', level=2, dt=0ns
+Span begin, 'SigGen1': 'calc' -> 'clip', 3
+Trigger span event SigGen1.spans, span 'clip', level=3, dt=0ns
+Create Event 3: clip context=2, cycle=0ns, prio=0
+Span end, 'SigGen1': 'clip' -> 'calc', 2
+Trigger span event SigGen1.spans, span 'calc', level=2, dt=12917ns
+Span end, 'SigGen1': 'calc' -> 'task', 1
+Trigger span event SigGen1.spans, span 'task', level=1, dt=17500ns
+Create Event 4: siggen context=2, cycle=0ns, prio=0
+Span end, 'SigGen1': 'task' -> 'none', 0
+Trigger span event SigGen1.spans, span 'none', level=0, dt=110500ns
+...
+(lines of the SigGen threads omitted)
 Created Context 'Mainloop': 4
 Create Event 7: spans context=4, cycle=0ns, prio=0
-Register measurements for type SpanRecord 
+Register measurements for type SpanRecord
 Set scope to context 'Mainloop', thread_id=4021395904
-Register span 'poll_loop': id = 4
-Trigger span event 7, span 'poll_loop': level=1, dt=0ns
 Span begin, 'Mainloop': 'none' -> 'poll_loop', 1
-Register span 'get_channel1': id = 5
-Trigger span event 7, span 'get_channel1': level=2, dt=0ns
+Trigger span event Mainloop.spans, span 'poll_loop', level=1, dt=0ns
 Span begin, 'Mainloop': 'poll_loop' -> 'get_channel1', 2
-Register span 'poll': id = 6
-Trigger span event 7, span 'poll': level=3, dt=0ns
+Trigger span event Mainloop.spans, span 'get_channel1', level=2, dt=0ns
 Span begin, 'Mainloop': 'get_channel1' -> 'poll', 3
-Span end, 'SigGen1': 'clip' -> 'calc', 2
-Trigger span event 1, span 'calc': level=1, dt=1267875ns
-Span end, 'SigGen1': 'calc' -> 'none', 1
-Trigger span event 1, span 'none': level=0, dt=3808708ns
+Trigger span event Mainloop.spans, span 'poll', level=3, dt=0ns
 Create Event 8: poll context=4, cycle=0ns, prio=0
-Span end, 'Mainloop': 'poll' -> 'get_channel1', 3
-Trigger span event 7, span 'get_channel1': level=2, dt=1166875ns
+Span end, 'Mainloop': 'poll' -> 'get_channel1', 2
+Trigger span event Mainloop.spans, span 'get_channel1', level=2, dt=12542ns
 Create Event 9: sample1 context=4, cycle=0ns, prio=0
-Span end, 'Mainloop': 'get_channel1' -> 'poll_loop', 2
-Trigger span event 7, span 'poll_loop': level=1, dt=1473459ns
-Register span 'get_channel2': id = 7
-Trigger span event 7, span 'get_channel2': level=2, dt=0ns
-Span begin, 'Mainloop': 'poll_loop' -> 'get_channel2', 2
-Trigger span event 7, span 'poll': level=3, dt=0ns
-Span begin, 'Mainloop': 'get_channel2' -> 'poll', 3
-Span end, 'Mainloop': 'poll' -> 'get_channel2', 3
-Trigger span event 7, span 'get_channel2': level=2, dt=1261167ns
-Create Event 10: sample2 context=4, cycle=0ns, prio=0
-Span end, 'Mainloop': 'get_channel2' -> 'poll_loop', 2
-Trigger span event 7, span 'poll_loop': level=1, dt=1533750ns
-Trigger span event 7, span 'get_channel1': level=2, dt=0ns
-Span begin, 'Mainloop': 'poll_loop' -> 'get_channel1', 2
-Trigger span event 7, span 'poll': level=3, dt=0ns
-Span begin, 'Mainloop': 'get_channel1' -> 'poll', 3
-Span end, 'Mainloop': 'poll' -> 'get_channel1', 3
-Trigger span event 7, span 'get_channel1': level=2, dt=1264416ns
-Trigger span event 4, span 'calc': level=1, dt=0ns
-Span begin, 'SigGen2': 'none' -> 'calc', 1
-Span end, 'Mainloop': 'get_channel1' -> 'poll_loop', 2
-Trigger span event 7, span 'poll_loop': level=1, dt=1529166ns
-Trigger span event 7, span 'get_channel2': level=2, dt=0ns
-Span begin, 'Mainloop': 'poll_loop' -> 'get_channel2', 2
-Trigger span event 7, span 'poll': level=3, dt=0ns
-Span begin, 'Mainloop': 'get_channel2' -> 'poll', 3
-Span end, 'Mainloop': 'poll' -> 'get_channel2', 3
-Trigger span event 7, span 'get_channel2': level=2, dt=4500ns
-Span end, 'Mainloop': 'get_channel2' -> 'poll_loop', 2
-Trigger span event 7, span 'poll_loop': level=1, dt=269458ns
-Trigger span event 7, span 'get_channel1': level=2, dt=0ns
-Span begin, 'Mainloop': 'poll_loop' -> 'get_channel1', 2
-Trigger span event 7, span 'poll': level=3, dt=0ns
-Span begin, 'Mainloop': 'get_channel1' -> 'poll', 3
-Span end, 'Mainloop': 'poll' -> 'get_channel1', 3
-Trigger span event 7, span 'get_channel1': level=2, dt=1280667ns
-Span end, 'Mainloop': 'get_channel1' -> 'poll_loop', 2
-Trigger span event 7, span 'poll_loop': level=1, dt=1574500ns
-Trigger span event 7, span 'get_channel2': level=2, dt=0ns
-Span begin, 'Mainloop': 'poll_loop' -> 'get_channel2', 2
-Trigger span event 7, span 'poll': level=3, dt=0ns
-Span begin, 'Mainloop': 'get_channel2' -> 'poll', 3
-Span end, 'Mainloop': 'poll' -> 'get_channel2', 3
-Trigger span event 7, span 'get_channel2': level=2, dt=13750ns
-Span end, 'Mainloop': 'get_channel2' -> 'poll_loop', 2
-Trigger span event 7, span 'poll_loop': level=1, dt=300709ns
-Trigger span event 7, span 'get_channel1': level=2, dt=0ns
-Span begin, 'Mainloop': 'poll_loop' -> 'get_channel1', 2
-Trigger span event 7, span 'poll': level=3, dt=0ns
-Span begin, 'Mainloop': 'get_channel1' -> 'poll', 3
-Span end, 'Mainloop': 'poll' -> 'get_channel1', 3
-Trigger span event 7, span 'get_channel1': level=2, dt=15333ns
-Trigger span event 4, span 'clip': level=2, dt=0ns
-Span begin, 'SigGen2': 'calc' -> 'clip', 2
-Span end, 'Mainloop': 'get_channel1' -> 'poll_loop', 2
-Trigger span event 7, span 'poll_loop': level=1, dt=295459ns
-Trigger span event 7, span 'get_channel2': level=2, dt=0ns
-Span begin, 'Mainloop': 'poll_loop' -> 'get_channel2', 2
-Trigger span event 7, span 'poll': level=3, dt=0ns
-Span begin, 'Mainloop': 'get_channel2' -> 'poll', 3
-Span end, 'Mainloop': 'poll' -> 'get_channel2', 3
-Trigger span event 7, span 'get_channel2': level=2, dt=9417ns
-Span end, 'Mainloop': 'get_channel2' -> 'poll_loop', 2
-Trigger span event 7, span 'poll_loop': level=1, dt=282208ns
-Span end, 'Mainloop': 'poll_loop' -> 'none', 1
-Trigger span event 7, span 'none': level=0, dt=7280042ns
-Create Event 11: mainloop context=4, cycle=0ns, prio=0
-Register span 'analyze': id = 8
-Trigger span event 7, span 'analyze': level=1, dt=0ns
-Span begin, 'Mainloop': 'none' -> 'analyze', 1
-Trigger span event 1, span 'calc': level=1, dt=0ns
-Span begin, 'SigGen1': 'none' -> 'calc', 1
-Span end, 'SigGen2': 'clip' -> 'calc', 2
-Trigger span event 4, span 'calc': level=1, dt=1269000ns
-Span end, 'SigGen2': 'calc' -> 'none', 1
-Trigger span event 4, span 'none': level=0, dt=3798959ns
-Span end, 'Mainloop': 'analyze' -> 'none', 1
-Trigger span event 7, span 'none': level=0, dt=1259333ns
-End scope of context 'Mainloop', back to context 'Main', thread_id=4021395904
-Trigger span event 1, span 'clip': level=2, dt=0ns
-Span begin, 'SigGen1': 'calc' -> 'clip', 2
-Span end, 'SigGen1': 'clip' -> 'calc', 2
-Trigger span event 1, span 'calc': level=1, dt=1211667ns
-Span end, 'SigGen1': 'calc' -> 'none', 1
-Trigger span event 1, span 'none': level=0, dt=3777084ns
-End scope of context 'SigGen2', back to context 'none', thread_id=1797009408
-Stopped task: SigGen2, samples: 3, dropped: 1
-End scope of context 'SigGen1', back to context 'none', thread_id=1796435968
-Stopped task: SigGen1, samples: 4, dropped: 0
+...
+Stopped task: SigGen1, samples: 38, dropped: 13
+End scope of context 'SigGen1', back to context 'none', thread_id=1797386240
 Finalizing A2L file ...
 A2L include file 'thread_context_demo_include.a2l' finalized: 31 measurements, 0 params, 2 typedefs, 7 components, 3 instances, 1 conversions
 Write A2L file thread_context_demo.a2l, project_name 'thread_context_demo', epk 'V100'
@@ -594,9 +474,10 @@ Terminate server threads
 End scope of context 'Main', back to context 'none', thread_id=4021395904
 ```
 
+## Historical: the first implementation in multi_thread_demo
 
-
-## Old implementation in multi_thread_demo
+The first experimental implementation of thread contexts, formerly in `multi_thread_demo` (`EXPERIMENTAL_THREAD_CONTEXT`), no longer
+in the code. Kept for reference.
 
 ```c
 
