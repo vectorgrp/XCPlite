@@ -180,12 +180,12 @@ int main() {
         // Instrumentation
         uint32_t next_seq1 = 0, next_seq2 = 0; // Expected sequence number of the next sample
 
-        // Start the signal generators one after the other
+        // Start the signal generators one after the other (the slower signal_generator_2 first)
         // Start() returns after the first cycle of the task, the events of SigGen1 are then created before those of SigGen2,
         // so the event ids and the A2L file do not depend on the thread start-up timing
         std::cout << "Starting main loop..." << std::endl;
-        signal_generator_1->Start();
         signal_generator_2->Start();
+        signal_generator_1->Start();
         while (running) {
 
             // Enter the 'Mainloop' context, it is the current context until the end of this cycle

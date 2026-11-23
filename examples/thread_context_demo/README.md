@@ -1,6 +1,7 @@
-# thread_context_demo — context and spans for multiple instances
+# thread_context_demo — context, spans and links for multiple threads and instances
 
 Demonstrates how XCPlite can measure individual time series when the same code runs as several class instances or in several threads, using concepts borrowed from OpenTelemetry (OTel): context, scope and span.
+
 
 ## Demo application
 
@@ -8,11 +9,14 @@ The demo has a class called `SignalGenerator`. Each instance of a signal generat
 
 The demo main loop polls 2 instances of `SignalGenerator` until both queues are empty and only then sleeps for calibration parameter `Mainloop.idle_sleep_us`. For each sample it measures the latency, the time from the calculation of the sample to its poll, and the number of samples dropped before it.
 
+
 ## What can be measured and observed
 
 The demo shows how to observe the signal generation, the execution of the poll function, the queue level and the overflow count inside the `SignalGenerator` implementation, without the code knowing which instance it is and who calls the poll function. The instrumentation creates a consistent time series for each instance and from the perspective of each calling thread at runtime, so a standard XCP client tool or logger does not need to know how to interpret and demultiplex the data produced by the capture points in the code. The tool selects which instance or caller it observes, no data is transferred and collected for instances which are not selected. The caller instrumentation provides metrics such as the latency of a sample, and a span link from the consumer span to the producer span of each sample, which Perfetto shows as an arrow, see "Span links and Perfetto arrows".
 
 The xcpclient tool has an option to convert the XCP measurement data to the Chrome JSON trace format, which can be loaded in Perfetto and many other tools.
+
+---
 
 ## Building and running
 
@@ -35,25 +39,31 @@ Measure all signals with xcpclient for 5 seconds into a CSV file:
 xcpclient --udp --mea '.*' --time 5 --csv mea.csv
 ```
 
+---
+
 ## Using CANape
 
-The CANape project included can measure the span event signal, but can not provide a Gantt-Chart for the span nesting in a context.
+The CANape project included, can measure the span event signal, but can not provide a Gantt-Chart with nested spans in a context. It is perfectly suited to visualize the individual signal time series. The screenshot was taken at a 100Hz sampling rate.
 
 <img src="CANape.png" alt="CANape overview: signals and span tracks" width="900">
 
+
+---
+
 ## Using Perfetto
 
-xcpclient can write the measurement as a trace file for [Perfetto](https://ui.perfetto.dev):
+xcpclient can write the measurement as a trace file (Chrome JSON trace format) for [Perfetto](https://ui.perfetto.dev):
 
 ```bash
 xcpclient --udp --mea '.*' --time 5 --perfetto trace.json
 ```
-or
+or remote
+
 ```bash
 xcpclient --udp --dest-addr 192.168.0.206 --upload-a2l --mea '.*' --time 5 --perfetto trace.json
 ```
 
-It is enough to measure the signals of interest, xcpclient adds the span and link signals of the contexts (`--trace-auto`):
+It is enough to measure the signals of interest, xcpclient adds the span and link signals of the contexts automatically (`--trace-auto` is default):
 
 ```bash
 xcpclient --udp --mea 'Mainloop.channel1' --time 5 --perfetto trace.json
@@ -62,7 +72,6 @@ xcpclient --udp --mea 'Mainloop.channel1' --time 5 --perfetto trace.json
 Open `trace.json` with "Open trace file" in the Perfetto UI. Each context is shown as a process with one track `spans` and a counter
 track for each of its signals:
 
-- `Main`: the span `initialize`, if the measurement was started before the startup (see "Measuring the startup").
 - `Mainloop`: `poll_loop` with the nested spans `get_channel1` and `get_channel2`, a `poll` nested in each of them, followed by
   `analyze`. The signals are `Mainloop.channel1`, `Mainloop.channel2`, `Mainloop.polled` and the sample signals `.value1`, `.latency1`, `.dropped1`, `.value2`, `.latency2`, `.dropped2`.
 - `SigGen1`, `SigGen2`: `task` with the nested span `calc`, which has the nested span `clip`, and the signals `.value_`, `.time_us`, `.queue_level`, `.overflows_` and `.input`.
@@ -71,12 +80,48 @@ The main loop and the two task threads run independently, so the spans of differ
 Each `poll` of `Mainloop` which returned a sample has an arrow from the `task` span of the signal generator which calculated it, see
 "Span links and Perfetto arrows". Details are in the [xcpclient README](../../tools/xcpclient/README.md).
 
-<img src="perfetto1.png" alt="Perfetto overview: signals and span tracks of the contexts" width="900">
+### Screenshots
 
-<img src="perfetto2.png" alt="Perfetto zoomed in: nested spans of the contexts" width="900">
+#### Signals
 
-This screenshot shows a span link between the producer span calc in signal generator instance 1, to the consumer span poll in mainloop: 
-<img src="perfetto3.png" alt="Perfetto zoomed in: poll_loop" width="900">
+This screenshot below shows the generated sine (SigGen2) and clipped triangle (SigGen1) signals from producer context (SigGen1,SigGen2) and consumer context (Mainloop) perspective:
+
+<img src="perfetto1.png" alt="Perfetto overview: Signals" width="900">
+
+
+
+#### Queue level
+
+The next zoomed in screenshot below shows the queue level of signal generator 1.  
+The main loop always empties both queues in span 'poll_loop', before it goes to sleep for 100us (10kHz) again.  
+The sample rate of SigGen1 is 25us (40kHz).   
+
+Created with:
+
+```bash
+xcpclient --udp --mea 'Mainloop.channel1' 'SigGen1.queue_level' 'SigGen1.overflows_' --perfetto trace.json  --trace-auto all
+```
+
+<img src="perfetto2.png" alt="Perfetto zoomed in: Queue level" width="900">
+
+
+
+#### Producer consumer links
+
+The screenshot below is further zoomed in to a 5us time range, shows a span link in more detail.   
+The arrow connects the producer span calc in the thread of signal generator instance 1, to the consumer span poll in the mainloop thread, when it got a new value. 
+It was created with:
+
+```bash
+xcpclient --udp --mea 'Mainloop.channel1' --perfetto trace.json --trace all
+```
+
+It measures only 'Mainloop.channel1' and with '--trace all' xcpclient added all required context, span and link information, which leads to about 0.5 million events per second.    
+
+<img src="perfetto3.png" alt="Perfetto zoomed in: Link" width="900">
+
+
+---
 
 ## How it differs from OpenTelemetry
 
@@ -96,6 +141,9 @@ detach at the end) and spans with nesting are taken over unchanged. Three things
 
 The differences in the data model and in the treatment of time, order and causality are described in
 [docs/TIME_AND_CAUSALITY.md](../../docs/TIME_AND_CAUSALITY.md).
+
+
+---
 
 ## XCPlite API extensions
 
@@ -171,6 +219,9 @@ By default the spans show the real execution times: Perfetto displays them with 
 and xcpclient keeps up with it. For a view which is easier to follow, with a much lower data rate, enable `OPTION_SIMULATE_WORK` in
 [src/sig_gen.hpp](src/sig_gen.hpp): the spans then contain sleeps which simulate work.
 
+
+
+
 ## Measuring the startup
 
 Experimental. Disabled by default (`OPTION_OBSERVE_STARTUP` in [src/main.cpp](src/main.cpp)).
@@ -197,11 +248,17 @@ second run only as long as this order is the same.
 `Start()` of the signal generator returns after the first cycle of its task, and the main function starts `SigGen1` before `SigGen2`,
 so the events of the contexts are created in the same order in every run.
 
+
+
+
 ## OpenTelemetry version for comparison
 
 [otel/](otel/) contains the same demo instrumented with opentelemetry-cpp instead of XCP, as a reference
 for reading. It is not built by the XCPlite build and has not been compiled. Build and run notes,
 including a receiver for visualisation, are in the header of [otel/src/main.cpp](otel/src/main.cpp).
+
+
+
 
 ## Same context in multiple threads
 
@@ -234,6 +291,9 @@ To keep in mind:
   level stack, and they corrupt the nesting of each other.
 - The library needs one thread at a time per context, not exactly one. Handing a context from one thread to another without the
   option is fine, as long as the first thread has ended its spans before the next one begins. See also "Findings and limitations".
+
+
+
 
 ## Span links and Perfetto arrows
 
