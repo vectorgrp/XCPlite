@@ -74,18 +74,17 @@
 #endif
 #include "platform.h" // for atomics
 #include "queue.h"    // for QueueXxx transport queue layer interface
-#ifdef OPTION_SHM_MODE
-#include "shm.h" // for shared memory management, declares nothing outside SHM mode
-#endif
-#include "xcp.h"   // XCP protocol definitions
-#include "xcptl.h" // for transport layer abstraction XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
-
+#include "xcp.h"      // XCP protocol definitions
+#include "xcptl.h"    // for transport layer abstraction XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
 #ifdef OPTION_CAL_SEGMENTS
 #include "cal.h" // for XcpCalSegXxx
 #endif
-
-#include "ctx.h" // for XcpInitContextList, XcpGetContextName, declares nothing without OPTION_DAQ_CONTEXT_LIST
-
+#ifdef OPTION_DAQ_CONTEXT_LIST
+#include "ctx.h" // for XcpInitContextList, XcpGetContextName
+#endif
+#ifdef OPTION_SHM_MODE
+#include "shm.h" // for shared memory management, declares nothing outside SHM mode
+#endif
 #if defined(XCPTL_ENABLE_MULTICAST)
 #include "xcpethtl.h" // for ethernet specific transport layer functions XcpEthTl
 #endif
@@ -822,7 +821,7 @@ uint8_t XcpGetEventAppId(tXcpEventId event) {
 }
 #endif // SHM_MODE
 
-// Get the full event name, for an event which belongs to a context this is <context name>.<event name>
+// Get the full event name, for an event which belongs to a context (XCP_ENABLE_DAQ_CONTEXT_LIST) this is <context name>.<event name>
 // Result has lifetime until next call of XcpGetEventName()
 const char *XcpGetEventName(tXcpEventId event) {
     if (!isActivated() || event >= getEventCount())

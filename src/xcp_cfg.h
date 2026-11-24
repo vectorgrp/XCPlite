@@ -77,9 +77,7 @@
 #define XCP_ENABLE_DAQ_EVENT_INFO
 
 #else
-
 #error "Please define OPTION_DAQ_EVENT_COUNT, remove this error if you want arbitrary event numbers without a maximum count"
-
 #endif
 
 #endif // !defined(OPTION_DAQ_EVENT_LIST)

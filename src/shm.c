@@ -26,15 +26,16 @@
 #include <string.h> // for memcpy, memset
 #include <unistd.h> // for getpid()
 
-#include "shm.h"
-
-#include "ctx.h"         // for XcpGetContextCount, XcpGetContextName, declares nothing without OPTION_DAQ_CONTEXT_LIST
 #include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "persistence.h" // for XcpBinGetFilename()
 #include "platform.h"    // for atomics
+#include "shm.h"         // for shared memory management
 #include "xcp_cfg.h"     // XCP protocol layer configuration parameters (XCP_xxx)
 #include "xcplite.h"     // XCP protocol layer interface functions
 #include "xcptl_cfg.h"   // XCP transport layer configuration parameters (XCPTL_xxx)
+#ifdef OPTION_DAQ_CONTEXT_LIST
+#include "ctx.h" // for XcpCreateContext, XcpGetContextName
+#endif
 
 // Check required options and settings for SHM mode
 #ifndef XCP_ENABLE_DAQ_EVENT_LIST
@@ -260,8 +261,8 @@ void XcpShmDebugPrint(void) {
         if (ev == NULL)
             printf("  [%u] not found\n", id);
         else
-            printf("  [%u] '%s', cycle_ns=%u, context=%u, app_id=%u, daq_first=%u, flags=0x%02X\n", id, XcpGetEventName(id), ev->cycle_time_ns, ev->context, ev->app_id, ev->daq_first,
-                   ev->flags);
+            printf("  [%u] '%s', cycle_ns=%u, context=%u, app_id=%u, daq_first=%u, flags=0x%02X\n", id, XcpGetEventName(id), ev->cycle_time_ns, ev->context, ev->app_id,
+                   ev->daq_first, ev->flags);
     }
     printf(ANSI_COLOR_RESET);
 

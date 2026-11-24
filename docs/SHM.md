@@ -50,7 +50,7 @@ Contexts and spans (`OPTION_DAQ_CONTEXT_LIST`, C++ API `xcp::Context`, `xcp::Sco
 - Each application has its own namespace for context names. Two applications may both have a context `SigGen1`; these are two contexts with different context ids, and their events and measurements are `<app>.SigGen1.<event>` and `<app>.SigGen1.<variable>` in the A2L file.
 - Span names and span ids are common to all applications, the server writes one enum conversion `conv.spans`.
 - `OPTION_DAQ_CONTEXT_COUNT`, `OPTION_DAQ_SPAN_COUNT` and `OPTION_DAQ_EVENT_COUNT` are limits for all applications together.
-- The persistence file stores the context name with each event, the contexts are rebuilt for the owning application on load.
+- The persistence file stores the context list with the owning application of each context, the contexts are restored with their ids on load, before the events.
 - Like event creation, context creation is protected by a process local mutex only: two applications must not create contexts or events at the same time.
 - `shmtool status -v` lists the contexts and span names. 
 
@@ -102,7 +102,6 @@ The shared memory mode is experimental. This list covers the problems which are 
 - **Span names are registered at runtime.** Link time registration (`OPTION_DAQ_SPAN_SECTION_REGISTRATION`) is not available in SHM mode, each process would have its own span ids.
 - **Span ids are shared.** Span names of all applications are in one list and one conversion `conv.spans`. A span name used by two applications has one id. The limit `OPTION_DAQ_SPAN_COUNT` is reached sooner with several applications.
 - **Span names are not persisted.** Span ids are assigned in the order of first execution and may differ between runs, when the applications start in a different order. An existing A2L file (`A2L_MODE_WRITE_ONCE`) then shows wrong span names.
-- **Contexts without events are not persisted.** The context list is rebuilt from the events in the persistence file. This has no effect for `xcp::Context`, which always has its `spans` event.
 - **Context ids are not stable across restarts** when the set of applications changes. The names are stable, the per code location caches are per process and are rebuilt.
 - **Declining timestamps.** When several threads trigger the same event at the same time, a sample can have an older timestamp than the sample before. This applies to the `spans` event of a context in which several threads work at the same time, and to a context-aware event triggered by several threads in the same context at the same code location. Nothing is serialized. A context should be executed by one thread at a time, see [TIME_AND_CAUSALITY.md](TIME_AND_CAUSALITY.md).
 - **Span duration** `span_dt` belongs to the span which just ended, the sample does not name it.

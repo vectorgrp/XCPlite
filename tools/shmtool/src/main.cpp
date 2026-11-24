@@ -40,11 +40,11 @@
 #include <unistd.h>
 
 #define XCPLIB_CFG_OVERRIDE "xcplib_shm_cfg.h"
-#include "xcplib_cfg.h"
-
-#include "shm.h" // for shared memory management
 #include "xcp_cfg.h"
+#include "xcplib_cfg.h"
 #include "xcplite.h" // for tXcpData layout
+
+#include "shm.h" // for shared memory management, declares nothing outside SHM mode
 
 // ---------------------------------------------------------------------------
 // Helpers

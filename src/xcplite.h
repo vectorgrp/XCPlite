@@ -27,11 +27,9 @@
 #include "xcp.h"       // for XCP protocol definitions
 #include "xcp_cfg.h"   // for XCP_PROTOCOL_LAYER_VERSION, XCP_ENABLE_...
 #include "xcptl_cfg.h" // for XCPTL_MAX_CTO_SIZE
-
 #ifdef OPTION_CAL_SEGMENTS
 #include "cal.h" // for tXcpCalSegList
 #endif
-
 #ifdef OPTION_SHM_MODE
 #include "shm.h" // for tShmHeader
 #endif

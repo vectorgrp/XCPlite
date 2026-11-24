@@ -25,13 +25,16 @@
 #include <stdio.h>    // for fclose, fopen, fread
 #include <string.h>   // for
 
-#include "ctx.h"       // for XcpGetContextCount, XcpGetSpanName, declares nothing without OPTION_DAQ_CONTEXT_LIST
 #include "dbg_print.h" // for DBG_PRINT
 #include "platform.h"  // for SNPRINTF, SPRINTF
 #include "sockets.h"   // for socketGetLocalAddr
 #include "xcp_cfg.h"   // for XCP_xxx
 #include "xcplite.h"   // for tXcpCalSeg, tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcptl_cfg.h" // for XCPTL_xxx
+
+#ifdef OPTION_DAQ_CONTEXT_LIST
+#include "ctx.h" // for XcpGetContextCount, XcpGetSpanName to create the enum conversions for context and span
+#endif
 
 //----------------------------------------------------------------------------------
 // Static
@@ -318,12 +321,7 @@ static void A2lCreate_IF_DATA_DAQ(const char *project_name) {
 
         // Long name and short name (max 8 chars)
         // The short name is built without the project prefix and without the context name
-#ifdef XCP_ENABLE_DAQ_EVENT_LIST
-        char name[8 + 1];
-        SNPRINTF(name, sizeof(name), "%.8s", XcpGetEventBaseName(id));
-#else
-        const char *name = XcpGetEventName(id);
-#endif
+        const char *name = XcpGetEventBaseName(id);
         const char *pname = A2lGetEventName_(project_name, id); // Long name with prefix
         fprintf(gA2lFile, "/begin EVENT \"%s\" \"%.8s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", pname, name, id, timeCycle, timeUnit, XcpGetEventPriority(id));
         fprintf(gA2lFile, " /end EVENT\n");
@@ -409,7 +407,7 @@ static void createEventGroupsAndConversions(const char *project_name, bool event
     // It is referenced by the measurement <context name>.span of each context
     // Create the enum conversion conv.contexts with all context names, the value is the context id, 0 is no context
     // It is referenced by the measurement <context name>.link_context of the span links of a context
-#ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
+#ifdef OPTION_DAQ_CONTEXT_LIST
     if (XcpGetContextCount() > 0) {
         uint16_t contextCount = XcpGetContextCount();
         fprintf(gA2lFile, "\n/begin COMPU_METHOD conv.contexts \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.contexts.table /end COMPU_METHOD\n");

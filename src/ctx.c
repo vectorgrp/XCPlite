@@ -49,20 +49,13 @@
 #include <mach-o/ldsyms.h>  // for _mh_execute_header
 #endif
 
-#include "ctx.h" // for the context list interface
-
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "ctx.h"       // for the context list interface
+#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINTx, DBG_PRINTFx, ...
 #include "namelist.h"  // for NameListRegister, NameListGetName, ...
 #include "platform.h"  // for mutex
-#include "shm.h"       // for XcpShmGetAppId, declares nothing outside SHM mode
 #include "xcplite.h"   // for tXcpData, tXcpLocalData, XcpCreateIndexedEvent, XcpFindContextEvent
-
-// Debug prints
-#ifndef OPTION_DAQ_CONTEXT_TEST
-#undef DBG_PRINTF3
-#define DBG_PRINTF3(s, ...)
-#undef DBG_PRINT3
-#define DBG_PRINT3(s)
+#ifdef OPTION_SHM_MODE
+#include "shm.h" // for XcpShmGetAppId, declares nothing outside SHM mode
 #endif
 
 // XCP singleton state, defined in xcplite.c
@@ -118,9 +111,9 @@ static void initSpanSection(void) {
     gXcpSpanSectionBegin = begin;
     gXcpSpanSectionCount = (uint16_t)count;
 
-    DBG_PRINTF3("Found %u span names in section xcp_spans\n", (unsigned int)count);
+    DBG_PRINTF3(ANSI_COLOR_YELLOW "Found %u span names in section xcp_spans\n" ANSI_COLOR_RESET, (unsigned int)count);
     for (uint16_t i = 0; i < gXcpSpanSectionCount; i++) {
-        DBG_PRINTF5("  Span %u: '%s'\n", i + 1, begin[i].name);
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "  Span %u: '%s'\n" ANSI_COLOR_RESET, i + 1, begin[i].name);
     }
 }
 
@@ -217,8 +210,9 @@ uint16_t XcpCreateContext(const char *name) {
         return XCP_UNDEFINED_CONTEXT;
     }
 
-    DBG_PRINTF3(ANSI_COLOR_YELLOW "%s Context '%s': %u\n" ANSI_COLOR_RESET, created ? "Created" : "Found", name, (unsigned int)id + 1);
-
+    if (created) {
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "Created context '%s': %u\n" ANSI_COLOR_RESET, name, (unsigned int)id + 1);
+    }
     return (uint16_t)(id + 1);
 }
 

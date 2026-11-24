@@ -14,6 +14,9 @@
 //   2. Modify the working pages through the XCP write path and freeze a subset of the segments
 //   3. Restart (XcpDeinit, XcpInit with XCP_MODE_PERSISTENCE): indices are stable, frozen segments have the frozen data, the others the default data
 //   4. Freeze again (file positions now recorded by load()), restart and check again
+//   5. A file of the previous version 0x0205 (without context list) is still loaded
+//   6. Contexts (OPTION_DAQ_CONTEXT_LIST): context ids are visible in the A2L file (conv.contexts) and in measurement data, they must be stable across restarts,
+//      also when the events are created in a different order than their contexts and for contexts without events
 
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
@@ -26,7 +29,10 @@
 #include "cal.h"         // for XcpCalSegWriteMemory, XcpSetCalSegMode, XcpFreezeSelectedCalSegs
 #include "persistence.h" // for XcpBinWrite, XcpBinGetFilename
 #include "xcp.h"         // for PAG_PROPERTY_FREEZE, CRC_CMD_OK
-#include "xcplite.h"     // for XcpGetEcuEpk
+#include "xcplite.h"     // for XcpGetEcuEpk, XcpFindContextEvent
+#ifdef OPTION_DAQ_CONTEXT_LIST
+#include "ctx.h" // for XcpCreateContext, XcpCreateContextEvent, XcpGetContextName, XcpGetContextCount
+#endif
 
 #include "../../support/check.h" // for the shared CHECK macro
 
@@ -179,6 +185,67 @@ static void restartAndCheck(uint8_t frozen_value) {
     }
 }
 
+// Set the file version in the header of the BIN file (offset 16, after the signature)
+static void setFileVersion(uint16_t version) {
+    FILE *file = fopen(BIN_FILE_NAME, "r+b");
+    CHECK(file != NULL, "BIN file '%s' does not exist", BIN_FILE_NAME);
+    const uint8_t v[2] = {(uint8_t)(version & 0xFF), (uint8_t)(version >> 8)};
+    CHECK(fseek(file, 16, SEEK_SET) == 0 && fwrite(v, sizeof(v), 1, file) == 1, "patch file version");
+    fclose(file);
+}
+
+//-----------------------------------------------------------------------------------------------------
+// Contexts
+
+#ifdef OPTION_DAQ_CONTEXT_LIST
+
+#define CTX_COUNT 3
+static const char *ctx_names[CTX_COUNT] = {"ctx_a", "ctx_b", "ctx_c"}; // ctx_c has no events
+static tXcpEventId ctx_events[CTX_COUNT - 1];
+
+// Check the context list and the context events after a restart
+static void checkContexts(void) {
+    CHECK(XcpGetContextCount() == CTX_COUNT, "context count is %u after restart", XcpGetContextCount());
+    for (uint16_t id = 1; id <= CTX_COUNT; id++) {
+        const char *name = XcpGetContextName(id);
+        CHECK(name != NULL && strcmp(name, ctx_names[id - 1]) == 0, "context %u is '%s', expected '%s'", id, name ? name : "", ctx_names[id - 1]);
+        CHECK(XcpCreateContext(ctx_names[id - 1]) == id, "context '%s' id changed", ctx_names[id - 1]);
+    }
+    for (uint16_t id = 1; id < CTX_COUNT; id++) {
+        CHECK(XcpFindContextEvent(id, "evt") == ctx_events[id - 1], "event '%s.evt' not preloaded with id %u", ctx_names[id - 1], ctx_events[id - 1]);
+        CHECK(XcpCreateContextEvent(id, "evt", 0, 0) == ctx_events[id - 1], "event '%s.evt' id changed", ctx_names[id - 1]);
+    }
+}
+
+static void testContexts(void) {
+    XcpDeinit();
+    remove(BIN_FILE_NAME);
+    start(false);
+
+    // Create the contexts in the order a, b, c and their events in the reverse order, context c without events
+    for (uint16_t i = 0; i < CTX_COUNT; i++) {
+        CHECK(XcpCreateContext(ctx_names[i]) == i + 1, "create context '%s'", ctx_names[i]);
+    }
+    for (int i = CTX_COUNT - 2; i >= 0; i--) {
+        ctx_events[i] = XcpCreateContextEvent((uint16_t)(i + 1), "evt", 0, 0);
+        CHECK(ctx_events[i] != XCP_UNDEFINED_EVENT_ID, "create event '%s.evt'", ctx_names[i]);
+    }
+    CHECK(XcpBinWrite(XcpGetEcuEpk()));
+
+    // Restart, the contexts must have their ids
+    XcpDeinit();
+    start(true);
+    checkContexts();
+
+    // A freeze writes into the file, the context list must not be affected
+    writeWorkingPages(FROZEN_VALUE_1);
+    freezeSelected();
+    restartAndCheck(FROZEN_VALUE_1);
+    checkContexts();
+}
+
+#endif
+
 //-----------------------------------------------------------------------------------------------------
 
 int main(int argc, char *argv[]) {
@@ -210,6 +277,17 @@ int main(int argc, char *argv[]) {
     freezeSelected();
     writeWorkingPages(WORKING_VALUE); // Not frozen, must be lost on restart
     restartAndCheck(FROZEN_VALUE_2);
+
+    // 5. The file has no contexts yet, version 0x0205 has the same layout and must still be loaded
+    printf("Version 0x0205, restart and check\n");
+    setFileVersion(0x0205);
+    restartAndCheck(FROZEN_VALUE_2);
+
+#ifdef OPTION_DAQ_CONTEXT_LIST
+    // 6. Contexts, created in a different order than their events, and a context without events
+    printf("Contexts, restart and check\n");
+    testContexts();
+#endif
 
     XcpDeinit();
     remove(BIN_FILE_NAME);

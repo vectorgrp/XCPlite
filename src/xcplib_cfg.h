@@ -150,7 +150,6 @@
 // Enables XcpCreateContext, XcpCreateContextEvent, XcpRegisterSpanName and the C++ API in xcplib_context.hpp (xcp::Context, xcp::Scope, DaqSpan, DaqEventCtxVar)
 // (Needs OPTION_DAQ_EVENT_LIST and on-target A2L generation, enabled in the default and the shm configuration only)
 #define OPTION_DAQ_CONTEXT_LIST
-// #define OPTION_DAQ_CONTEXT_TEST // Enable high frequency debug prints on level 3 for temporary debugging
 
 // Maximum number of contexts
 // Needs 16 bytes of memory per context

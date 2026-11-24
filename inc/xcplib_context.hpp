@@ -3,7 +3,7 @@
 
 // xcplib_context.hpp
 // Contexts and spans for XCPlite, inspired by OpenTelemetry
-// Included by xcplib.hpp, when OPTION_DAQ_CONTEXT_LIST is enabled (default and shm configuration only)
+// Included by xcplib.hpp, when OPTION_DAQ_CONTEXT_LIST is enabled
 
 // Copyright (c) Vector Informatik GmbH. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for details.
@@ -72,23 +72,8 @@
 #include <cstdio>      // for snprintf
 #include <type_traits> // for std::is_trivially_destructible
 
-#include "dbg_print.h" // @@@@ TODO: remove
 #include <a2l.hpp>     // for xcp::a2l::GetTypeIdFromExpr
 #include <xcplib.hpp>  // for MeasurementInfo, InstanceInfo
-
-// Debug prints
-#ifndef OPTION_DAQ_CONTEXT_TEST
-#undef DBG_PRINTF3
-#define DBG_PRINTF3(s, ...)
-#undef DBG_PRINT3
-#define DBG_PRINT3(s)
-#else
-#include "platform.h"
-extern "C" {
-const char *XcpGetSpanName(uint16_t span);
-const char *XcpGetEventName(tXcpEventId event);
-}
-#endif
 
 // Require constant initialization of a static variable: no initialization at runtime, so no compiler generated guard
 // (__cxa_guard_acquire) on the first execution of the code location, a guard is not lock-free
@@ -129,7 +114,7 @@ inline Current &current() {
 // Measurement data of a span begin or end, sampled from the stack of the triggering thread
 // The size is 8 bytes with and without OPTION_DAQ_SPAN_THREAD
 struct SpanRecord {
-    uint32_t span_dt;     // Duration of the span that just ended in clock ticks (ns in the default configuration), 0 at span begin
+    uint32_t span_dt; // Duration of the span that just ended in clock ticks (ns in the default configuration), 0 at span begin
     uint16_t span;    // Current span id after the begin or end
 
 #ifdef OPTION_DAQ_SPAN_THREAD
@@ -158,9 +143,7 @@ inline uint8_t threadIndex() {
     return index;
 }
 
-inline SpanRecord makeSpanRecord(uint32_t span_dt, uint16_t span, uint16_t level) {
-    return SpanRecord{span_dt, span, (uint8_t)(level > 255 ? 255 : level), threadIndex()};
-}
+inline SpanRecord makeSpanRecord(uint32_t span_dt, uint16_t span, uint16_t level) { return SpanRecord{span_dt, span, (uint8_t)(level > 255 ? 255 : level), threadIndex()}; }
 
 #else
 
@@ -269,8 +252,6 @@ class Context {
     // Using the newest timestamp of the context instead of an older one does not solve this. With more than two threads it
     // gave more declining timestamps than no correction in a stress test, and it needs a shared atomic in the context
     void TriggerSpanEvent(const detail::SpanRecord &record, uint64_t clock) const {
-        DBG_PRINTF3(ANSI_COLOR_YELLOW "Trigger span event %s, span '%s', level=%u, dt=%uns\n" ANSI_COLOR_RESET, //
-                    XcpGetEventName(event()), XcpGetSpanName(record.span), record.level, record.span_dt);
         const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), (const uint8_t *)&record, (const uint8_t *)&record};
         XcpEventExtAt_(event(), (int)(sizeof(bases) / sizeof(bases[0])), bases, clock);
     }
@@ -295,7 +276,6 @@ class Context {
                 // Register the span measurements of this context, addressed relative to a SpanRecord given at the trigger
                 // Exactly one thread does this for a context id
                 if (detail::contextRegisterOnce(id)) {
-                    DBG_PRINT3(ANSI_COLOR_YELLOW "Register measurements for type SpanRecord \n" ANSI_COLOR_RESET);
                     detail::SpanRecord record{};
                     A2lLock();
                     A2lSetRelativeAddrMode__i(event, 1, (const uint8_t *)&record);
@@ -337,13 +317,10 @@ class Scope {
 
   public:
     explicit Scope(const Context *context) : previous_(detail::current()) {
-        DBG_PRINTF3(ANSI_COLOR_YELLOW "Set scope to context '%s', thread_id=%u\n" ANSI_COLOR_RESET, context->name(), get_thread_id());
         detail::current() = detail::Current{context, 0, 0};
     }
     explicit Scope(const Context &context) : Scope(&context) {}
     ~Scope() {
-        DBG_PRINTF3(ANSI_COLOR_YELLOW "End scope of context '%s', back to context '%s', thread_id=%u\n" ANSI_COLOR_RESET, //
-                    detail::current().context->name(), previous_.context != nullptr ? previous_.context->name() : "none", get_thread_id());
 
         detail::current() = previous_;
     }
@@ -385,8 +362,6 @@ class Span {
         begin_ = ApplXcpGetClock64();
         previous_span_ = current.span;
         current.span = span_id;
-        DBG_PRINTF3(ANSI_COLOR_YELLOW "Span begin, '%s': '%s' -> '%s', %u\n" ANSI_COLOR_RESET, //
-                    current.context->name(), XcpGetSpanName(previous_span_), XcpGetSpanName(span_id), current.level);
         current.context->TriggerSpanEvent(detail::makeSpanRecord(0, current.span, current.level), begin_);
     }
 
@@ -395,8 +370,6 @@ class Span {
             return;
         detail::Current &current = detail::current();
         current.level--;
-        DBG_PRINTF3(ANSI_COLOR_YELLOW "Span end, '%s': '%s' -> '%s', %u\n" ANSI_COLOR_RESET, //
-                    current.context->name(), XcpGetSpanName(current.span), XcpGetSpanName(previous_span_), current.level);
 
         // The end record is the state after the end: span and level of the enclosing span
         current.span = previous_span_;
@@ -613,7 +586,6 @@ inline tXcpEventId linksEvent(const Context &context) {
     }
 
     // Register the link measurements of this context, addressed relative to a LinkRecord given at the trigger
-    DBG_PRINT3(ANSI_COLOR_YELLOW "Register measurements for type LinkRecord \n" ANSI_COLOR_RESET);
     const char *context_name = context.name();
     LinkRecord record{};
     A2lLock();
@@ -671,8 +643,6 @@ inline void LinkSpan(const SpanLink &link) {
 #ifdef OPTION_DAQ_SPAN_THREAD
     record.consumer_thread = detail::threadIndex();
 #endif
-    DBG_PRINTF3(ANSI_COLOR_YELLOW "Link span in context '%s': producer context %u, span '%s', clock=%llu\n" ANSI_COLOR_RESET, //
-                context->name(), link.context, XcpGetSpanName(link.span), (unsigned long long)link.clock);
     const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), (const uint8_t *)&record, (const uint8_t *)&record};
     XcpEventExtAt_(event, (int)(sizeof(bases) / sizeof(bases[0])), bases, 0);
 }

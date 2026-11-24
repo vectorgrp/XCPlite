@@ -6,11 +6,17 @@ All notable changes to XCPlite are documented in this file.
 ## [V2.4.2]
 
 - Breaking change (impact only on use cases with run-time A2L generation using event instances):
-    * Support for anonymous multi-threaded event instances (`<name>_<index>`) has been removed. The API functions `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex` do not exist anymore. Create an event with dynamic name (`DaqCreateEvent_s`) instead and manage your event instances by name or use the new named event instances (event context). Related examples were updated. See below.
-    * The binary persistence file stores the context name with each event, in previously reserved bytes of the event record. The file version is unchanged. A file which contains the old anonymous event instances is rejected. `tools/bintool` shows such an event as `<context>.<event>` with its context name.
+    * Support for anonymous multi-threaded event instances (`<name>_<index>`) has been removed. 
+    * The API functions `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex` do not exist anymore. Create an event with dynamic name (`DaqCreateEvent_s`) instead and manage your event instances by name or use the new named event instances (event context).
+    * Binary persistence file version 0x0206: the context list (name and owning application, in context id order) follows the header, an event references its context by context id. On load, the contexts are restored with their saved ids before the events, so context ids stay stable across restarts (they are visible in the A2L file, `conv.contexts`, and in the span link measurements), also for contexts without events and when events are created in a different order than their contexts. Files of version 0x0205 are still loaded, a file which contains the old anonymous event instances is rejected. `tools/bintool` shows an event of a context as `<context>.<event>`.
+
+Changed files:
+a2l_writer.c: handle event context, create name with getEventBaseName() 
+persistence.c: write and load the context list, an event references its context by id instead of the event instance index
+xcplite.c: added context list, tXcpContext, tXcpContextList, XcpCreateEventWithIndex; removed `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex`
 
 
-Contexts, spans and span links:
+Additions for contexts, spans and span links:
 
 - New `thread_context_demo`: contexts, spans and span links inspired by OpenTelemetry, measured with XCP and shown in Perfetto. The old experimental event context in `multi_thread_demo` has been removed, the demo now only shows the same event triggered by several worker threads, like the Rust xcp-lite `rayon_demo`.
 - New C++ API in the new header `xcplib_context.hpp` (included by `xcplib.hpp`, option `OPTION_DAQ_CONTEXT_LIST`, default and shm configuration only): `xcp::Context`, `xcp::Scope`, `DaqContext`, `DaqSpan`, `DaqEventCtxVar` and span links (`xcp::CaptureSpanLink`, `xcp::LinkSpan`). The same code running for several class instances or threads gets separate measurements per context, an event of a context is named `<context>.<event>`. The context list is implemented in the C core (`src/ctx.c`).

@@ -44,13 +44,8 @@ constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
 constexpr size_t OPTION_QUEUE_SIZE = (1024 * 64);
 constexpr int OPTION_LOG_LEVEL = 4;
-#ifdef OPTION_OBSERVE_STARTUP
 constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL);
 constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS);
-#else
-constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_LOCAL);
-constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS);
-#endif
 
 void init_xcp() {
 
@@ -257,11 +252,6 @@ int main() {
 
             // Both queues were empty, sleep
             sleep_us(mainloop_parameters.lock()->idle_sleep_us);
-
-// @@@@ TODO: Remove
-#ifdef OPTION_DAQ_CONTEXT_TEST
-            running = false;
-#endif
 
         } // while (running)
 
