@@ -38,7 +38,7 @@ struct MainloopParametersT {
 // #define OPTION_OBSERVE_STARTUP // Wait for XCP client to observe initialization (needs deterministic span and context creation!)
 
 constexpr const char *OPTION_PROJECT_NAME = "thread_context_demo";
-constexpr const char OPTION_PROJECT_VERSION[] = "V100";
+constexpr const char OPTION_PROJECT_VERSION[] = "V101";
 constexpr bool OPTION_USE_TCP = false;
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
