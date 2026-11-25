@@ -20,7 +20,7 @@
 // find_package(xcplite) reports to a consuming project.
 #define OPTION_VERSION_MAJOR 2
 #define OPTION_VERSION_MINOR 4
-#define OPTION_VERSION_PATCH 0
+#define OPTION_VERSION_PATCH 3
 
 // CANape version compatibility
 // Disable workarounds for CANape versions < 24SP2

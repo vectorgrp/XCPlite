@@ -44,7 +44,10 @@
 
 #define BIN_SIGNATURE "XCPLITE__BINARY"
 #define BIN_VERSION 0x0206        // Context list after the header, events reference their context by id
-#define BIN_VERSION_LEGACY 0x0205 // Without context list, still loaded (same layout with context_count = 0)
+// Version 0x0205 has no context list and is still loaded, the layout is the same with context_count = 0:
+// context_count is in header bytes which were reserved and always written as 0, a nonzero tBinEvent.context is the index of an
+// anonymous event instance, which is not supported anymore and fails as an invalid context
+#define BIN_VERSION_LEGACY 0x0205
 
 // File layout:
 //   tBinHeader
@@ -474,9 +477,6 @@ static bool load(const char *filename, const char *epk) {
         fclose(file);
         return false;
     }
-    if (gBinHeader.version == BIN_VERSION_LEGACY) {
-        gBinHeader.context_count = 0; // Reserved in version 0x0205
-    }
 
     // Check EPK match
     if (epk != NULL && strncmp(gBinHeader.Epk, epk, XCP_EPK_MAX_LENGTH) != 0) {
@@ -556,27 +556,23 @@ static bool load(const char *filename, const char *epk) {
         // Not thread safe, but called in XcpInit() before XCP is activated, so no concurrent access to event list here, and no need to lock the event list mutex
         // @@@@ TODO: Find a process safe solution for SHM mode
         // An event which belongs to a context references it by id, the context list was loaded above
+        // Version 0x0205: a nonzero value is the index of an anonymous event instance (<name>_<index>), which is not supported anymore,
+        // it is rejected here as an invalid context, because a 0x0205 file has no contexts
         uint16_t context = 0;
         if (desc.context != 0) {
-            if (gBinHeader.version == BIN_VERSION_LEGACY) {
-                // Written by an older version with anonymous event instances (<name>_<index>), which are not supported anymore
-                DBG_PRINTF_ERROR("Event instance '%s_%u' in persistence file is not supported\n", desc.name, desc.context);
-                error_count++;
-            } else {
 #ifdef OPTION_DAQ_CONTEXT_LIST
-                if (desc.context <= gBinHeader.context_count) {
-                    context = desc.context;
-                }
+            if (desc.context <= gBinHeader.context_count) {
+                context = desc.context;
+            }
 #ifdef OPTION_SHM_MODE // the context must belong to the application of the event
-                if (context != 0 && XcpGetContextAppId(context) != desc.app_id) {
-                    context = 0;
-                }
+            if (context != 0 && XcpGetContextAppId(context) != desc.app_id) {
+                context = 0;
+            }
 #endif
 #endif
-                if (context == 0) {
-                    DBG_PRINTF_ERROR("Invalid context %u of event '%s' in persistence file\n", desc.context, desc.name);
-                    error_count++;
-                }
+            if (context == 0) {
+                DBG_PRINTF_ERROR("Invalid context %u of event '%s' in persistence file\n", desc.context, desc.name);
+                error_count++;
             }
         }
         event_id = XcpCreateIndexedEvent(desc.name, context, desc.cycle_time_ns, desc.priority);
