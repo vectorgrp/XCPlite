@@ -3,7 +3,7 @@
 All notable changes to XCPlite are documented in this file.
 
 
-## [V2.4.2]
+## [V2.4.3]
 
 - Breaking change (impact only on use cases with run-time A2L generation using event instances):
     * Support for anonymous multi-threaded event instances (`<name>_<index>`) has been removed. 

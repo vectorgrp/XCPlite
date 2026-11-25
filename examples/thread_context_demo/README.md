@@ -5,7 +5,7 @@ Demonstrates how XCPlite can measure individual time series when the same code r
 
 ## Demo application
 
-The demo has a class called `SignalGenerator`. Each instance of a signal generator creates a cyclic task (thread) which calculates a configurable waveform in real time. Each instance has its own calibration parameters like `sample_time_us`, `signal_type`, `period`, `ampl`, ... The output samples can be read by other threads. The poll function returns one sample (value, time), or nothing when there is no new sample. It may be called from any thread by using a lock-free single producer single consumer (SPSC) queue owned by the signal generator. 
+The demo has a class called `SignalGenerator`. Each instance of a signal generator creates a cyclic task (thread) which calculates a configurable waveform in real time. Each instance has its own calibration parameters like `sample_time_us`, `signal_type`, `period`, `ampl`, the output limits `clip_min` and `clip_max`, ... The output samples can be read by other threads. The poll function returns one sample (value, time), or nothing when there is no new sample. It may be called from any thread by using a lock-free single producer single consumer (SPSC) queue owned by the signal generator. 
 
 The demo main loop polls 2 instances of `SignalGenerator` until both queues (16 and 1 entries) are empty and then sleeps for some time. The queue size is a parameter of the signal generator instance. If the queue size is 1, the queue always holds the latest sample, a new sample overwrites an unread one.
  
@@ -75,7 +75,7 @@ track for each of its signals:
 
 - `Mainloop`: `poll_loop` with the nested spans `get_channel1` and `get_channel2`, a `poll` nested in each of them, followed by
   `analyze`. The signals are `Mainloop.channel1`, `Mainloop.channel2`, `Mainloop.polled` and the sample signals `.value1`, `.latency1`, `.dropped1`, `.value2`, `.latency2`, `.dropped2`.
-- `SigGen1`, `SigGen2`: `task` with the nested span `calc`, which has the nested span `clip`, and the signals `.value_`, `.time_us`, `.queue_level`, `.overflows_` and `.input`.
+- `SigGen1`, `SigGen2`: `task` with the nested span `calc`, which has the nested span `clip`, and the signals `.value_`, `.time_us`, `.queue_level`, `.overflows_` and `.clipped`.
 
 The main loop and the two task threads run independently, so the spans of different contexts overlap in time.
 Each `poll` of `Mainloop` which returned a sample has an arrow from the `task` span of the signal generator which calculated it, see "Span links and Perfetto arrows". Details are in the [xcpclient README](../../tools/xcpclient/README.md).
@@ -174,7 +174,7 @@ The demo has four contexts. `SigGen1` and `SigGen2` are the two signal generator
 | Event | Measurements | Triggered by |
 |---|---|---|
 | `SigGen1.siggen`, `SigGen2.siggen` | `.value_`, `.time_us` (time stamp of the sample), `.queue_level` (unread samples after the push), `.overflows_` (dropped samples) of `SigGen1` and `SigGen2` | the task thread of each instance |
-| `SigGen1.clip`, `SigGen2.clip` | `SigGen1.input`, `SigGen2.input` | the shared function `Clip()` |
+| `SigGen1.clip`, `SigGen2.clip` | `SigGen1.clipped`, `SigGen2.clipped` | the member function `Clip()`, which limits the output to the calibration parameters `clip_min` and `clip_max` |
 | `Mainloop.poll` | `Mainloop.polled` | the method `Poll()` of both instances, called by the main loop |
 | `Mainloop.links` | `Mainloop.link_context`, `.link_span`, `.link_time` (the producer span of the sample) | `xcp::LinkSpan()` in `Poll()`, for each sample |
 | `Mainloop.sample1`, `Mainloop.sample2` | `Mainloop.value1`, `.latency1`, `.dropped1` and `Mainloop.value2`, `.latency2`, `.dropped2` | the main loop, for each sample polled from instance 1 or 2 |

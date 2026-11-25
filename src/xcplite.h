@@ -233,7 +233,7 @@ typedef struct {
 
 typedef struct {
     atomic_uint_fast16_t count;           // number of events
-    tXcpEvent event[XCP_MAX_EVENT_COUNT]; // event list
+    tXcpEvent event[XCP_MAX_EVENT_COUNT]; // event list, event id is the index
 } tXcpEventList;
 
 // Optional context list and span name list, see ctx.h

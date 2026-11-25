@@ -140,6 +140,8 @@ int main() {
                 .phase = 0.0,
                 .offset = -50.0,
                 .period = 1.0,                                          // s
+                .clip_min = -80.0,                                      // Volt
+                .clip_max = +100.0,                                     // Volt
                 .sample_time_us = 25,                                   // us
                 .signal_type = signal_generator::SignalTypeT::TRIANGLE, // Type of the signal
             };
@@ -148,6 +150,8 @@ int main() {
                 .phase = 0.0,
                 .offset = +50.0,
                 .period = 0.5,                                      // s
+                .clip_min = -80.0,                                  // Volt
+                .clip_max = +100.0,                                 // Volt
                 .sample_time_us = 1000,                             // us
                 .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
             };
@@ -176,7 +180,7 @@ int main() {
         uint32_t next_seq1 = 0, next_seq2 = 0; // Expected sequence number of the next sample
 
         // Start the signal generators one after the other (the slower signal_generator_2 first)
-        // Start() returns after the first cycle of the task, the events of SigGen1 are then created before those of SigGen2,
+        // Start() returns after the first cycle of the task, the events of SigGen2 are then created before those of SigGen1,
         // so the event ids and the A2L file do not depend on the thread start-up timing
         std::cout << "Starting main loop..." << std::endl;
         signal_generator_2->Start();

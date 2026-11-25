@@ -5,7 +5,7 @@
 
 /*
 An instance of class SignalGenerator creates various waveforms, such as sine, square, triangle, sawtooth
-Depending on calibration parameters ampl, phase, offset and period in struct SignalParametersT
+Depending on calibration parameters ampl, phase, offset, period and the clip limits in struct SignalParametersT
 */
 
 #include <atomic>   // for std::atomic
@@ -48,6 +48,8 @@ struct SignalParametersT {
     double phase;                             // Phase shift in radians (in Rad)
     double offset;                            // Offset (in Volt)
     double period;                            // Period of the signal (in Sec)
+    double clip_min;                          // Lower output limit (in Volt)
+    double clip_max;                          // Upper output limit (in Volt)
     uint32_t sample_time_us;                  // Task loop delay (Hz) raw in microseconds, physical value defines the sampling rate (1000000/sample_time_us in Hz) of the signal
     uint8_t /*enum SignalTypeT*/ signal_type; // Type of the signal (in enum SignalTypeT)
 };
@@ -84,6 +86,7 @@ class SignalGenerator {
     uint32_t overflows_{0};    // Number of dropped samples, written in the task thread only (reset by Start() while stopped)
 
     void Task();
+    double Clip(double input); // Clip input to the limits clip_min and clip_max of the calibration parameters
 
   public:
     // The signal generator is created stopped, its worker thread idles until Start()

@@ -21,27 +21,34 @@ namespace signal_generator {
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double k2Pi = (kPi * 2);
-constexpr double kClipLimitMax = +100.0; // Output limit in Volt
-constexpr double kClipLimitMin = -80.0;  // Output limit in Volt
 
-// Shared helper function, called by all signal generator instances
-// It does not know for which instance it is working, the context-aware instrumentation gets the instance from the current context of the thread
-static double Clip(double input) {
+// Clip the input value to the limits clip_min and clip_max of the calibration parameters of this instance
+// The context-aware instrumentation gets the instance from the current context of the thread, which is the context of this instance
+double SignalGenerator::Clip(double input) {
+
+    // Create and begin span 'clip'
     DaqSpan(clip);
+
     double output = input;
     bool clipped = false;
-    if (output > kClipLimitMax) {
-        output = kClipLimitMax;
-        clipped = true;
+    {
+        // Nested lock, the caller holds a lock of the same calibration segment
+        // A nested lock may return a newer page than the outer lock (docs/CAL_RCU.md), the limits may be newer than the other parameters
+        auto p = signal_parameters_.lock();
+        if (output > p->clip_max) {
+            output = p->clip_max;
+            clipped = true;
+        }
+        if (output < p->clip_min) {
+            output = p->clip_min;
+            clipped = true;
+        }
     }
-    if (output < kClipLimitMin) {
-        output = kClipLimitMin;
-        clipped = true;
-    }
-    DaqEventCtxVar(clip,                                            // context='SigGen1' or 'SigGen2', span='clip'                                                          //
-                   A2L_MEAS(clipped, "Clip function clipped input") //
-    );
     SimulateWork(1000); // 1ms
+
+    // Trigger a context aware measurement event 'clip'
+    DaqEventCtxVar(clip, // context='SigGen1' or 'SigGen2', span='clip'
+                   A2L_MEAS(clipped, "Clip function clipped input"));
     return output;
 }
 
@@ -58,11 +65,13 @@ SignalGenerator::SignalGenerator(const char *instance_name, const SignalParamete
         A2lTypedefParameterComponent(phase, "Phase", "", 0, k2Pi);
         A2lTypedefParameterComponent(offset, "Offset", "Volt", -100, 100);
         A2lTypedefParameterComponent(period, "Period", "s", 0.01, 10.0);
+        A2lTypedefParameterComponent(clip_min, "Lower output limit", "Volt", -100, 100);
+        A2lTypedefParameterComponent(clip_max, "Upper output limit", "Volt", -100, 100);
         A2lTypedefParameterComponent(sample_time_us, "Delay time in us", "us", 0, 100000);
         A2lTypedefEnd();
     }
 
-    // Create an instance of the signal generators calibration segment
+    // Create an instance of this signal generators calibration segment
     signal_parameters_.CreateA2lTypedefInstance("SignalParametersT", "Signal parameters for the signal generator");
 
     // Create the worker thread, it idles until Start()
@@ -121,28 +130,37 @@ void SignalGenerator::Stop() {
 // Single consumer: only one thread at a time may poll an instance
 std::optional<SampleT> SignalGenerator::Poll() {
 
+    // Optional feature:
     // Attach the signal generator instance context, possible with OPTION_DAQ_SPAN_THREAD in xcplib_cfg.h (disabled by default)
-    // If not done, the trace will not contain the information which instance was polled, must be span in the context context of the caller as the current main loop does
+    // If not done, the trace will not contain the information which instance was polled, there must be an active  span in the context of the caller as the current main loop does
     // xcp::Scope scope(context_);
 
+    // Create and begin span 'poll'
     DaqSpan(poll);
+
+    // Read a sample from queue
     std::optional<SampleT> sample = queue_.Pop();
     if (!sample) {
         return std::nullopt; // No new sample
     }
-    // Link the span 'poll' to the producer span 'task' of the instance which calculated the sample, in the context of the caller
-    xcp::LinkSpan(sample->link);
     double polled = sample->value;
-    SimulateWork(1000);  // 1ms
+
+    SimulateWork(1000); // 1ms
+
+    // Link the span 'poll' to the producer span of the instance which calculated the sample, in the context of the caller
+    xcp::LinkSpan(sample->link);
+
+    // Trigger a context aware measurement event 'poll'
     DaqEventCtxVar(poll, // context=<CallerContext>, span='poll'
                    A2L_MEAS_PHYS(polled, "Value polled by another thread", "Volt", -100.0, +100.0));
+
     return sample;
 } // end of span 'poll'
 
 // Cyclic calculation function - runs in a separate thread
 void SignalGenerator::Task() {
 
-    // Attach the context of this instance to this thread
+    // Attach the context propagated to this instance to this thread
     // The context was created in the thread which constructed the instance, a new thread does not inherit a context
     xcp::Scope scope(context_);
 
@@ -166,12 +184,17 @@ void SignalGenerator::Task() {
         }
 
         {
-            time = static_cast<double>(clockGetMonotonicUs()) / 1000000 - start_time; // time in s since start of the signal generator
+            // Create span 'task'
             DaqSpan(task);
+
+            time = static_cast<double>(clockGetMonotonicUs()) / 1000000 - start_time; // time in s since start of the signal generator
 
             // Calculate the waveform value based on the current time and signal parameters
             {
+                // Create and start span 'calc'
                 DaqSpan(calc);
+
+                // Calculate value_
                 auto p = signal_parameters_.lock();
                 normalized_time_ = fmod(time, p->period) / p->period; // Normalize time ([0.0..1.0[ to the period
                 double v = 0;
@@ -193,17 +216,18 @@ void SignalGenerator::Task() {
                 }
                 SimulateWork(2000); // 2ms
                 value_ = Clip((p->ampl * v) + p->offset);
-            } // endof span 'calc'
+            } // End of span 'calc'
 
             // Publish the sample for Poll() called from another thread, count dropped samples
-            // The sample carries the span context of the current span 'task', Poll() links its span 'poll' to it
+            // Context propagation: The sample carries the span context of the current span 'task', Poll() links its span 'poll' to it
             uint64_t time_us = clockGetMonotonicUs();
             if (!queue_.Push(SampleT{value_, time_us, seq_++, xcp::CaptureSpanLink()})) {
                 overflows_++;
             }
             uint32_t queue_level = queue_.Count();
 
-            // XCP event in the current context
+            // Measurement
+            // Trigger a context aware measurement event 'siggen'
             // Each instance gets its own event instance siggen_<n> and its own measurements <instance_name>.value_, ...
             // The default limits of 64 bit types are +-1e12, the monotonic clock may exceed them (1e12 us are 11.6 days)
             DaqEventCtxVar(siggen, // context='SigGen1' or 'SigGen2', span='task'                                                                                    //

@@ -73,13 +73,15 @@ ALIGNMENT_INT64 1
 /begin MEASUREMENT SigGen1.level "Current span nesting level" UWORD NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x400006 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT SigGen1.span_dt "Duration of the span that ended" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x400000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "ns" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
-/begin TYPEDEF_STRUCTURE SignalParametersT "A2L typedef for SignalParametersT" 0x28
-  /begin STRUCTURE_COMPONENT signal_type C_signal_type 0x24 /end STRUCTURE_COMPONENT
+/begin TYPEDEF_STRUCTURE SignalParametersT "A2L typedef for SignalParametersT" 0x38
+  /begin STRUCTURE_COMPONENT signal_type C_signal_type 0x34 /end STRUCTURE_COMPONENT
   /begin STRUCTURE_COMPONENT ampl C_ampl 0x0 /end STRUCTURE_COMPONENT
   /begin STRUCTURE_COMPONENT phase C_phase 0x8 /end STRUCTURE_COMPONENT
   /begin STRUCTURE_COMPONENT offset C_offset 0x10 /end STRUCTURE_COMPONENT
   /begin STRUCTURE_COMPONENT period C_period 0x18 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT sample_time_us C_sample_time_us 0x20 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT clip_min C_clip_min 0x20 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT clip_max C_clip_max 0x28 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT sample_time_us C_sample_time_us 0x30 /end STRUCTURE_COMPONENT
 /end TYPEDEF_STRUCTURE
 
 /begin INSTANCE SigGen1 "Signal parameters for the signal generator" SignalParametersT 0x80010000 /end INSTANCE
@@ -93,16 +95,16 @@ ALIGNMENT_INT64 1
 /end TYPEDEF_STRUCTURE
 
 /begin INSTANCE Mainloop "Main loop parameters" MainloopParametersT 0x80030000 /end INSTANCE
-/begin MEASUREMENT SigGen1.clipped "Clip function clipped input" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0xC00000 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT SigGen1.value_ "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x1000000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT SigGen1.time_us "Time stamp of the sample, clockGetMonotonicUs()" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+18  ECU_ADDRESS 0x1000000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "us" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT SigGen1.queue_level "Number of unread samples in the output queue after the push" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x1000000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT SigGen1.overflows_ "Number of samples dropped because the output queue was full" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x1000000 ECU_ADDRESS_EXTENSION 6 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT SigGen2.clipped "Clip function clipped input" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x1400000 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x5 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT SigGen2.value_ "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x1800000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x6 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT SigGen2.time_us "Time stamp of the sample, clockGetMonotonicUs()" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+18  ECU_ADDRESS 0x1800000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "us" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x6 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT SigGen2.queue_level "Number of unread samples in the output queue after the push" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x1800000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x6 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT SigGen2.overflows_ "Number of samples dropped because the output queue was full" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x1800000 ECU_ADDRESS_EXTENSION 6 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x6 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen2.clipped "Clip function clipped input" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0xC00000 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen2.value_ "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x1000000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen2.time_us "Time stamp of the sample, clockGetMonotonicUs()" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+18  ECU_ADDRESS 0x1000000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "us" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen2.queue_level "Number of unread samples in the output queue after the push" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x1000000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen2.overflows_ "Number of samples dropped because the output queue was full" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x1000000 ECU_ADDRESS_EXTENSION 6 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen1.clipped "Clip function clipped input" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x1400000 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x5 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen1.value_ "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0x1800000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "Volt" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x6 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen1.time_us "Time stamp of the sample, clockGetMonotonicUs()" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+18  ECU_ADDRESS 0x1800000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "us" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x6 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen1.queue_level "Number of unread samples in the output queue after the push" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x1800000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x6 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen1.overflows_ "Number of samples dropped because the output queue was full" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x1800000 ECU_ADDRESS_EXTENSION 6 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x6 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT Mainloop.span "Current span" UWORD conv.spans 0 0 0 9  ECU_ADDRESS 0x1C00004 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x7 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT Mainloop.level "Current span nesting level" UWORD NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x1C00006 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x7 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT Mainloop.span_dt "Duration of the span that ended" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x1C00000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "ns" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x7 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
@@ -125,6 +127,8 @@ ALIGNMENT_INT64 1
 /begin TYPEDEF_CHARACTERISTIC C_phase "Phase" VALUE F64 0 NO_COMPU_METHOD 0 6.28319 /end TYPEDEF_CHARACTERISTIC
 /begin TYPEDEF_CHARACTERISTIC C_offset "Offset" VALUE F64 0 NO_COMPU_METHOD -100 100 PHYS_UNIT "Volt" /end TYPEDEF_CHARACTERISTIC
 /begin TYPEDEF_CHARACTERISTIC C_period "Period" VALUE F64 0 NO_COMPU_METHOD 0.01 10 PHYS_UNIT "s" /end TYPEDEF_CHARACTERISTIC
+/begin TYPEDEF_CHARACTERISTIC C_clip_min "Lower output limit" VALUE F64 0 NO_COMPU_METHOD -100 100 PHYS_UNIT "Volt" /end TYPEDEF_CHARACTERISTIC
+/begin TYPEDEF_CHARACTERISTIC C_clip_max "Upper output limit" VALUE F64 0 NO_COMPU_METHOD -100 100 PHYS_UNIT "Volt" /end TYPEDEF_CHARACTERISTIC
 /begin TYPEDEF_CHARACTERISTIC C_sample_time_us "Delay time in us" VALUE U32 0 NO_COMPU_METHOD 0 100000 PHYS_UNIT "us" /end TYPEDEF_CHARACTERISTIC
 /begin TYPEDEF_CHARACTERISTIC C_idle_sleep_us "Main loop sleep time when there are no samples" VALUE U32 0 NO_COMPU_METHOD 0 100000 PHYS_UNIT "us" /end TYPEDEF_CHARACTERISTIC
 
@@ -137,10 +141,10 @@ ALIGNMENT_INT64 1
 /begin GROUP SigGen2.spans "Measurement event group"  /begin REF_MEASUREMENT SigGen2.span SigGen2.level SigGen2.span_dt /end REF_MEASUREMENT /end GROUP
 /begin GROUP SigGen2 "Calibration Segment" ROOT /begin REF_CHARACTERISTIC SigGen2 /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP Mainloop "Calibration Segment" ROOT /begin REF_CHARACTERISTIC Mainloop /end REF_CHARACTERISTIC /end GROUP
-/begin GROUP SigGen1.clip "Measurement event group"  /begin REF_MEASUREMENT SigGen1.clipped /end REF_MEASUREMENT /end GROUP
-/begin GROUP SigGen1.siggen "Measurement event group"  /begin REF_MEASUREMENT SigGen1.value_ SigGen1.time_us SigGen1.queue_level SigGen1.overflows_ /end REF_MEASUREMENT /end GROUP
 /begin GROUP SigGen2.clip "Measurement event group"  /begin REF_MEASUREMENT SigGen2.clipped /end REF_MEASUREMENT /end GROUP
 /begin GROUP SigGen2.siggen "Measurement event group"  /begin REF_MEASUREMENT SigGen2.value_ SigGen2.time_us SigGen2.queue_level SigGen2.overflows_ /end REF_MEASUREMENT /end GROUP
+/begin GROUP SigGen1.clip "Measurement event group"  /begin REF_MEASUREMENT SigGen1.clipped /end REF_MEASUREMENT /end GROUP
+/begin GROUP SigGen1.siggen "Measurement event group"  /begin REF_MEASUREMENT SigGen1.value_ SigGen1.time_us SigGen1.queue_level SigGen1.overflows_ /end REF_MEASUREMENT /end GROUP
 /begin GROUP Mainloop.spans "Measurement event group"  /begin REF_MEASUREMENT Mainloop.span Mainloop.level Mainloop.span_dt /end REF_MEASUREMENT /end GROUP
 /begin GROUP Mainloop.links "Measurement event group"  /begin REF_MEASUREMENT Mainloop.link_context Mainloop.link_span Mainloop.link_time /end REF_MEASUREMENT /end GROUP
 /begin GROUP Mainloop.poll "Measurement event group"  /begin REF_MEASUREMENT Mainloop.polled /end REF_MEASUREMENT /end GROUP
@@ -155,7 +159,7 @@ ALIGNMENT_INT64 1
 /*-----------------------------------------------------------------------------------------*/
 
 
-/begin GROUP Events "Events" ROOT /begin SUB_GROUP Main.spans SigGen1.spans SigGen2.spans SigGen1.clip SigGen1.siggen SigGen2.clip SigGen2.siggen Mainloop.spans Mainloop.links Mainloop.poll Mainloop.sample1 Mainloop.sample2 Mainloop.mainloop /end SUB_GROUP /end GROUP
+/begin GROUP Events "Events" ROOT /begin SUB_GROUP Main.spans SigGen1.spans SigGen2.spans SigGen2.clip SigGen2.siggen SigGen1.clip SigGen1.siggen Mainloop.spans Mainloop.links Mainloop.poll Mainloop.sample1 Mainloop.sample2 Mainloop.mainloop /end SUB_GROUP /end GROUP
 
 /begin COMPU_METHOD conv.contexts "" TAB_VERB "%.0 " "" COMPU_TAB_REF conv.contexts.table /end COMPU_METHOD
 /begin COMPU_VTAB conv.contexts.table "" TAB_VERB 5
@@ -164,11 +168,11 @@ ALIGNMENT_INT64 1
 
 /begin COMPU_METHOD conv.spans "" TAB_VERB "%.0 " "" COMPU_TAB_REF conv.spans.table /end COMPU_METHOD
 /begin COMPU_VTAB conv.spans.table "" TAB_VERB 10
- 0 "none" 1 "initialize" 2 "poll_loop" 3 "get_channel1" 4 "get_channel2" 5 "analyze" 6 "poll" 7 "task" 8 "calc" 9 "clip"
+ 0 "none" 1 "initialize" 2 "poll_loop" 3 "get_channel1" 4 "get_channel2" 5 "analyze" 6 "clip" 7 "poll" 8 "task" 9 "calc"
 /end COMPU_VTAB
 
 /begin MOD_PAR ""
-EPK "V100" ADDR_EPK 0x80000000
+EPK "V101" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 32 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 0 /* number */ 2 /* pages */ 0 /*addr_ext*/ 0 0
@@ -178,7 +182,7 @@ EPK "V100" ADDR_EPK 0x80000000
   /end SEGMENT
 /end IF_DATA
 /end MEMORY_SEGMENT
-/begin MEMORY_SEGMENT SigGen1 "" DATA FLASH INTERN 0x80010000 40 -1 -1 -1 -1 -1
+/begin MEMORY_SEGMENT SigGen1 "" DATA FLASH INTERN 0x80010000 56 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 1 /* number */ 2 /* pages */ 0 /*addr_ext*/ 0 0
   /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -187,7 +191,7 @@ EPK "V100" ADDR_EPK 0x80000000
   /end SEGMENT
 /end IF_DATA
 /end MEMORY_SEGMENT
-/begin MEMORY_SEGMENT SigGen2 "" DATA FLASH INTERN 0x80020000 40 -1 -1 -1 -1 -1
+/begin MEMORY_SEGMENT SigGen2 "" DATA FLASH INTERN 0x80020000 56 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 2 /* number */ 2 /* pages */ 0 /*addr_ext*/ 0 0
   /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -253,10 +257,10 @@ DYNAMIC 0 13 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_F
 /begin EVENT "Main.spans" "spans" 0x0 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /begin EVENT "SigGen1.spans" "spans" 0x1 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /begin EVENT "SigGen2.spans" "spans" 0x2 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "SigGen1.clip" "clip" 0x3 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "SigGen1.siggen" "siggen" 0x4 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "SigGen2.clip" "clip" 0x5 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "SigGen2.siggen" "siggen" 0x6 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "SigGen2.clip" "clip" 0x3 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "SigGen2.siggen" "siggen" 0x4 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "SigGen1.clip" "clip" 0x5 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "SigGen1.siggen" "siggen" 0x6 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /begin EVENT "Mainloop.spans" "spans" 0x7 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /begin EVENT "Mainloop.links" "links" 0x8 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /begin EVENT "Mainloop.poll" "poll" 0x9 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT

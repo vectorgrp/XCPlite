@@ -162,11 +162,10 @@ Example work: renders the Mandelbrot set line by line into a PNG file, the area 
 
 ### [thread_context_demo](thread_context_demo/README.md)
 
-Experimental.  
 Shows how to separate the measurement data of the same code running for multiple class instances and in multiple threads.  
-Uses context, scope and span (`xcp::Context`, `xcp::Scope`, `DaqSpan`, `DaqEventCtxVar`), a concept inspired by OpenTelemetry: instrumented code gets its instance from the current context of the thread, events are named `<context>.<event>`.  
-Measures span begin, end, nesting and duration for each context.  
-Contains the same demo instrumented with opentelemetry-cpp for comparison (not built).   
+Uses context, scope and span (`xcp::Context`, `xcp::Scope`, `xcp::LinkSpan`, `DaqContext`, `DaqSpan`, `DaqEventCtxVar`).  
+Concept inspired by OpenTelemetry: instrumented code gets its instance from the current context of the thread, events are named `<context>.<event>`.  
+Measures span begin, end, nesting and duration for each context.    
 
 
 ### [point_cloud_demo](point_cloud_demo/README.md)
