@@ -276,6 +276,7 @@ struct Args {
     // --upload-bin
     /// Upload all calibration segments working page data from target and store into a binary file.
     /// Requires that the XCP server supports GET_ID A2L upload.
+    /// A .bin file is an XCPlite persistence file with the event list and the context list (conv.contexts in the A2L file), a .hex file contains the segment data only.
     #[arg(long, default_value_t = false)]
     upload_bin: bool,
 
@@ -1290,7 +1291,15 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 return Err("XCP client not connected, cannot upload or download calibration segment data".into());
             }
             if upload_bin {
-                xcp_client.save_calibration_segments_to_file(&path).await?;
+                // The context list of the target is the enum conversion table conv.contexts in the A2L file
+                let contexts = std::fs::read_to_string(&a2l_path)
+                    .ok()
+                    .and_then(|a2l_text| bin_reader::parse_a2l_context_table(&a2l_text))
+                    .unwrap_or_default();
+                if !contexts.is_empty() {
+                    info!("{} contexts found in A2L file {}", contexts.len(), a2l_path.display());
+                }
+                xcp_client.save_calibration_segments_to_file(&path, &contexts).await?;
             } else {
                 xcp_client.load_calibration_segments_from_file(&path).await?;
             }

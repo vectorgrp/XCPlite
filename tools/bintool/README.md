@@ -11,7 +11,9 @@ Disclaimer: This is an AI generated tool. Don't use it for production. Improper 
 This tool provides comprehensive management of XCPlite binary persistence files:
 - **BIN to HEX**: Extract calibration segment data to Intel-Hex format
 - **HEX to BIN**: Update calibration segment data in a BIN file from Intel-Hex files
-- **Dump/Inspect**: View file structure, events, segments, and hex dumps
+- **Dump/Inspect**: View file structure, contexts, events, segments, and hex dumps
+
+Supported file versions are 0x0206 (current) and 0x0205, 0x0204 written by older XCPlite versions. Since 0x0206, the context list (contexts of `OPTION_DAQ_CONTEXT_LIST`, in context id order) follows the header, an event references its context by context id. `--apply-hex` updates the segment data in place.
 
 
 ## Usage

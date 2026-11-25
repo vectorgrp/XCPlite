@@ -8,7 +8,7 @@ use log::{debug, error, info, trace, warn};
 
 use std::error::Error;
 
-use crate::bin_reader::bin_format::{CalSegDescriptor, EventDescriptor};
+use crate::bin_reader::bin_format::{CALSEG_NUMBER_UNDEFINED, CalSegDescriptor, ContextDescriptor, EventDescriptor};
 use crate::bin_reader::{write_bin_file, write_hex_file};
 
 use super::*;
@@ -301,7 +301,10 @@ impl XcpClient {
         Ok(())
     }
 
-    pub async fn save_calibration_segments_to_file<P: AsRef<std::path::Path>>(&mut self, bin_path: &P) -> Result<(), Box<dyn Error>> {
+    // Save the working page data of all calibration segments to a HEX or BIN file
+    // A BIN file is an XCPlite persistence file, it also contains the event list and the context list
+    // contexts is the context list of the target (conv.contexts in the A2L file), events named <context>.<name> are written as events of this context
+    pub async fn save_calibration_segments_to_file<P: AsRef<std::path::Path>>(&mut self, bin_path: &P, contexts: &[ContextDescriptor]) -> Result<(), Box<dyn Error>> {
         info!("Save calibration segments to file {}", bin_path.as_ref().display());
 
         assert!(bin_path.as_ref().extension().is_some());
@@ -313,12 +316,21 @@ impl XcpClient {
             .unwrap()
             .cal_seg_list
             .into_iter()
-            .map(|cal_seg| (cal_seg.get_index(), cal_seg.size, cal_seg.addr, cal_seg.addr_ext, cal_seg.get_name().to_string()))
+            .map(|cal_seg| {
+                (
+                    cal_seg.get_index(),
+                    cal_seg.get_number().unwrap_or(CALSEG_NUMBER_UNDEFINED),
+                    cal_seg.size,
+                    cal_seg.addr,
+                    cal_seg.addr_ext,
+                    cal_seg.get_name().to_string(),
+                )
+            })
             .collect();
 
         // Now upload data for each segment (mutable borrows of self)
         let mut cal_seg_desc: Vec<(CalSegDescriptor, Vec<u8>)> = Vec::new();
-        for (index, size, addr, addr_ext, name) in cal_seg_info {
+        for (index, number, size, addr, addr_ext, name) in cal_seg_info {
             self.set_mta(addr_ext, addr).await.unwrap();
             let data: Vec<u8> = self.upload_memory_block(size).await.unwrap();
             debug!("  Uploaded {} bytes from segment {}", data.len(), name);
@@ -328,6 +340,7 @@ impl XcpClient {
                     size: size as u16,
                     addr,
                     app_id: 0,
+                    number,
                     name,
                 },
                 data,
@@ -344,16 +357,24 @@ impl XcpClient {
                 .unwrap()
                 .event_list
                 .into_iter()
-                .map(|event| EventDescriptor {
-                    index: event.index,
-                    id: event.id,
-                    cycle_time_ns: event.target_cycle_time_ns,
-                    priority: 0,
-                    app_id: 0,
-                    name: event.get_name().to_string(),
+                .map(|event| {
+                    // An event of a context is named <context>.<name> in the A2L file, it references its context by id
+                    let full_name = event.get_name();
+                    let context = full_name
+                        .split_once('.')
+                        .and_then(|(context_name, name)| contexts.iter().find(|c| c.name == context_name).map(|c| (c.id, name)));
+                    let (context, name) = context.unwrap_or((0, full_name));
+                    EventDescriptor {
+                        id: event.id,
+                        context,
+                        cycle_time_ns: event.target_cycle_time_ns,
+                        priority: 0,
+                        app_id: 0,
+                        name: name.to_string(),
+                    }
                 })
                 .collect::<Vec<_>>();
-            write_bin_file(&bin_path.as_ref().to_path_buf(), self.get_epk().unwrap(), &event_desc, &cal_seg_desc)?;
+            write_bin_file(&bin_path.as_ref().to_path_buf(), self.get_epk().unwrap(), &event_desc, &cal_seg_desc, contexts)?;
         }
 
         info!("Successfully saved {} segment(s) to {}", cal_seg_desc.len(), bin_path.as_ref().display());
@@ -526,6 +547,7 @@ mod tests {
             size: 93,
             addr: 0x1000,
             app_id: 0,
+            number: 0,
             name: "hex_test".into(),
         };
         write_hex_file(&fixture.0, &[(descriptor, data.clone())]).unwrap();
@@ -545,6 +567,7 @@ mod tests {
             size: 300,
             addr: address,
             app_id: 0,
+            number: 0,
             name: "large_hex_test".into(),
         };
         // The writer emits 32-byte HEX records. The loader must assemble them

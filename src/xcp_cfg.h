@@ -489,3 +489,5 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 // Enable extended error checks in xcplite.c and cal.c
 // Small DAQ performance penalty (base address count and NULL pointer checks) in the inner DAQ loop !
 #define XCP_ENABLE_TEST_CHECKS
+
+// @@@@ TODO: Make the protocol check (check_len()) in xcplite.c unconditional

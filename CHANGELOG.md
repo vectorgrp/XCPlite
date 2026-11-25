@@ -29,6 +29,8 @@ Supporting changes in `xcpclient` (xcpclient V4.1.0):
 - New option `--perfetto <file>`: writes spans, span links and signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`. The span and link signals needed for the trace are added to the measurement (option `--trace-auto`).
 - Print values in physical unit or as enum strings in console and csv. Enum conversion is used to display span names. 
 - The CSV file has a new column `unit`.
+- `--upload-bin` with a `.bin` file writes the context list from `conv.contexts` of the A2L file and the events of a context with their context id, and the memory segment number of each calibration segment (was 0 for all segments, which failed the consistency check of the target). The file is identical to the persistence file of the target and can be loaded by it.
+- `tools/bintool` and the BIN reader of xcpclient show the context list and the memory segment numbers.
 - Improved timestamp wraparound detection for very sporadic events.
 - The console output of `--mea` shows events by name, `EVENT: <event> (id=<id>, daq=<daq>), ...` instead of the DAQ list number only.
 - Measurement (`--mea`) is no longer limited to 123 signals or one packet (MAX_DTO - 8 bytes) per event. An event with more ODT entries gets as many DAQ lists as needed, the XCP server samples them with the same timestamp. Multiple ODTs per DAQ list are not used, as before. In the console output and the CSV file, such an event appears once per DAQ list, with the same event name and timestamp and a different `daq`. The limit of 64 measured events is removed.

@@ -146,7 +146,7 @@ Options:
           [default: ""]
 
       --upload-bin
-          Upload all calibration segments working page data from target and store into a binary file. Requires that the XCP server supports GET_ID A2L upload
+          Upload all calibration segments working page data from target and store into a binary file. Requires that the XCP server supports GET_ID A2L upload. A .bin file is an XCPlite persistence file with the event list and the context list (conv.contexts in the A2L file), a .hex file contains the segment data only
 
       --download-bin
           Download all calibration segments working page data in a binary file to the target
