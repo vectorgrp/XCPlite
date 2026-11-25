@@ -31,8 +31,17 @@ mod xcp_test_executor;
 
 mod a2l_fix;
 
-mod perfetto;
-use perfetto::{PerfettoWriter, TraceAuto};
+mod daq_writer;
+use daq_writer::{DaqDecoder, DaqWriter};
+
+mod console_writer;
+use console_writer::ConsoleWriter;
+
+mod csv_writer;
+use csv_writer::CsvWriter;
+
+mod perfetto_writer;
+use perfetto_writer::{PerfettoWriter, TraceAuto};
 
 use xcp_registry::McA2mlMode;
 use xcp_registry::McEvent;
@@ -379,265 +388,44 @@ impl ToLogLevelFilter for u8 {
 }
 
 //------------------------------------------------------------------------
-// Handle incoming DAQ data
-// Prints the decoded data to the console
+// Measurement data output
+// The DAQ decoder hands the DAQ packets to writers, one for each output format, see module daq_writer
 
-// Quote a CSV field, if it contains a separator, a quote or a line break
-fn csv_field(s: &str) -> std::borrow::Cow<'_, str> {
-    if s.contains([',', '"', '\n', '\r']) {
-        std::borrow::Cow::Owned(format!("\"{}\"", s.replace('"', "\"\"")))
-    } else {
-        std::borrow::Cow::Borrowed(s)
+// Create the writers for the measurement data output, without an output file the data is printed to the console
+// contexts are the known contexts and trace_signals the signals added to the measurement for --perfetto (see add_trace_signals)
+fn create_daq_writers(
+    csv_filename: &str,
+    perfetto_filename: &str,
+    ecu_name: &str,
+    contexts: &[String],
+    trace_signals: &[String],
+) -> Result<Vec<Box<dyn DaqWriter>>, Box<dyn Error>> {
+    let mut writers: Vec<Box<dyn DaqWriter>> = Vec::new();
+    if !csv_filename.is_empty() {
+        let writer = CsvWriter::create(csv_filename).map_err(|e| format!("Failed to create CSV file '{}': {}", csv_filename, e))?;
+        info!("CSV output to file: {}", csv_filename);
+        // The trace signals are not written to the CSV file
+        writers.push(Box::new(writer.with_skip(trace_signals)));
     }
-}
-
-struct DaqDecoder {
-    daq_lists: Option<Vec<XcpDaqList>>,
-    timestamp_resolution: u64,
-    daq_header_size: u8,
-    event_count: usize,
-    byte_count: usize,
-    daq_timestamp: Vec<u64>,                  // Last timestamp of each DAQ list, to check for monotonic timestamps
-    timestamp_extender: DaqTimestampExtender, // 32 to 64 bit timestamp extension, shared by all DAQ lists
-    log_measurements: bool,
-    csv_writer: Option<std::io::BufWriter<std::fs::File>>,
-    perfetto_writer: Option<PerfettoWriter<std::io::BufWriter<std::fs::File>>>,
-    csv_skip: std::collections::HashSet<String>, // Signals not written to the CSV file, the trace signals added for --perfetto
-    last_timestamp_ns: u64,                      // Newest timestamp of all DAQ lists
-}
-
-impl DaqDecoder {
-    pub fn new(log_measurements: bool, csv_filename: &str, perfetto_filename: &str) -> DaqDecoder {
-        let csv_writer = if csv_filename.is_empty() {
-            None
-        } else {
-            match std::fs::File::create(csv_filename) {
-                Ok(f) => {
-                    info!("CSV output to file: {}", csv_filename);
-                    Some(std::io::BufWriter::new(f))
-                }
-                Err(e) => {
-                    error!("Failed to create CSV file '{}': {}", csv_filename, e);
-                    None
-                }
-            }
-        };
-        let perfetto_writer = if perfetto_filename.is_empty() {
-            None
-        } else {
-            match PerfettoWriter::create(perfetto_filename) {
-                Ok(w) => {
-                    info!("Perfetto trace output to file: {}", perfetto_filename);
-                    Some(w)
-                }
-                Err(e) => {
-                    error!("Failed to create Perfetto trace file '{}': {}", perfetto_filename, e);
-                    None
-                }
-            }
-        };
-        DaqDecoder {
-            daq_lists: None,
-            timestamp_resolution: 0,
-            daq_header_size: 0,
-            event_count: 0,
-            byte_count: 0,
-            daq_timestamp: Vec::new(),
-            timestamp_extender: DaqTimestampExtender::new(0),
-            log_measurements,
-            csv_writer,
-            perfetto_writer,
-            csv_skip: std::collections::HashSet::new(),
-            last_timestamp_ns: 0,
-        }
+    if !perfetto_filename.is_empty() {
+        let mut writer = PerfettoWriter::create(perfetto_filename).map_err(|e| format!("Failed to create Perfetto trace file '{}': {}", perfetto_filename, e))?;
+        info!("Perfetto trace output to file: {}", perfetto_filename);
+        writer.set_ecu_name(ecu_name);
+        writer.set_contexts(contexts);
+        writers.push(Box::new(writer));
     }
-
-    // Set the ECU name, used as process name in the Perfetto trace for signals which do not belong to a context
-    pub fn set_ecu_name(&mut self, name: &str) {
-        if let Some(ref mut writer) = self.perfetto_writer {
-            writer.set_ecu_name(name);
-        }
+    if writers.is_empty() {
+        writers.push(Box::new(ConsoleWriter::stdout()));
     }
-
-    // Set the known contexts, each is a process in the Perfetto trace
-    pub fn set_contexts(&mut self, contexts: &[String]) {
-        if let Some(ref mut writer) = self.perfetto_writer {
-            writer.set_contexts(contexts);
-        }
-    }
-
-    // Set the signals which are not written to the CSV file
-    pub fn set_csv_skip(&mut self, names: &[String]) {
-        self.csv_skip = names.iter().cloned().collect();
-    }
-
-    // Perfetto trace output active
-    pub fn has_perfetto(&self) -> bool {
-        self.perfetto_writer.is_some()
-    }
-}
-
-impl XcpDaqDecoder for DaqDecoder {
-    // Set start time and init
-    fn start(&mut self, daq_lists: Vec<XcpDaqList>, timestamp: u64) {
-        // Init
-        // The timestamp resolution is known, set_daq_properties is called at connect
-        self.last_timestamp_ns = timestamp * self.timestamp_resolution;
-        if let Some(ref mut writer) = self.perfetto_writer {
-            writer.set_timestamp_resolution(self.timestamp_resolution);
-            writer.start(&daq_lists, self.last_timestamp_ns);
-        }
-        self.daq_timestamp = vec![timestamp; daq_lists.len()];
-        self.daq_lists = Some(daq_lists);
-        self.event_count = 0;
-        self.byte_count = 0;
-        self.timestamp_extender = DaqTimestampExtender::new(timestamp);
-
-        // Write CSV header
-        if let Some(ref mut writer) = self.csv_writer {
-            let _ = writeln!(writer, "time_ns,daq,name,value,unit");
-        }
-    }
-
-    fn stop(&mut self) {
-        // Flush CSV output
-        if let Some(ref mut writer) = self.csv_writer {
-            let _ = writer.flush();
-        }
-        // Complete the Perfetto trace file
-        if let Some(ref mut writer) = self.perfetto_writer {
-            writer.stop(self.last_timestamp_ns);
-            info!("Perfetto trace: {} spans written", writer.span_count());
-        }
-    }
-
-    // Set timestamp resolution
-    fn set_daq_properties(&mut self, timestamp_resolution: u64, daq_header_size: u8) {
-        self.daq_header_size = daq_header_size;
-        self.timestamp_resolution = timestamp_resolution;
-    }
-
-    // Decode DAQ data
-    fn decode(&mut self, lost: u32, buf: &[u8]) {
-        let daq: u16;
-        let odt: u8;
-        let mut timestamp_raw: u32 = 0;
-        let data: &[u8];
-
-        // Decode header and raw timestamp
-        if self.daq_header_size == 4 {
-            daq = (buf[2] as u16) | ((buf[3] as u16) << 8);
-            odt = buf[0];
-            if odt == 0 {
-                timestamp_raw = (buf[4] as u32) | ((buf[4 + 1] as u32) << 8) | ((buf[4 + 2] as u32) << 16) | ((buf[4 + 3] as u32) << 24);
-                data = &buf[8..];
-            } else {
-                data = &buf[4..];
-            }
-        } else {
-            daq = buf[1] as u16;
-            odt = buf[0];
-            if odt == 0 {
-                timestamp_raw = (buf[2] as u32) | ((buf[2 + 1] as u32) << 8) | ((buf[2 + 2] as u32) << 16) | ((buf[2 + 3] as u32) << 24);
-                data = &buf[6..];
-            } else {
-                data = &buf[2..];
-            }
-        }
-
-        // Only DAQ lists of the measurement setup with a single ODT are expected, ignore anything else
-        if daq as usize >= self.daq_timestamp.len() || odt != 0 {
-            warn!(
-                "Unexpected DAQ packet ignored: daq={}, odt={}, {} DAQ lists with one ODT configured",
-                daq,
-                odt,
-                self.daq_timestamp.len()
-            );
-            return;
-        }
-
-        // Decode full 64 bit daq timestamp
-        // The extension uses the newest timestamp of all DAQ lists as reference, the order is checked for each DAQ list on its own
-        let t_last = self.daq_timestamp[daq as usize];
-        let t: u64 = if odt == 0 {
-            let t = self.timestamp_extender.extend(timestamp_raw);
-            if t < t_last {
-                warn!("Timestamp of daq {} declining {} -> {}", daq, t_last, t);
-            }
-            self.daq_timestamp[daq as usize] = t;
-            t
-        } else {
-            t_last
-        };
-
-        let t_ns = t * self.timestamp_resolution;
-        let delta_us = (t.saturating_sub(t_last) * self.timestamp_resolution) / 1000;
-
-        self.last_timestamp_ns = self.last_timestamp_ns.max(t_ns);
-
-        // Print to the console, if there is no output file
-        let console = self.csv_writer.is_none() && self.perfetto_writer.is_none();
-        let daq_list = &self.daq_lists.as_ref().unwrap()[daq as usize];
-        if console {
-            match &daq_list.event_name {
-                Some(name) => println!("EVENT: {} (id={}, daq={}), lost={}, t={}ns (+{}us)", name, daq_list.event_id, daq, lost, t_ns, delta_us),
-                None => println!("EVENT: id={}, daq={}, lost={}, t={}ns (+{}us)", daq_list.event_id, daq, lost, t_ns, delta_us),
-            }
-        }
-
-        // Decode all odt entries — for terminal (log_level >= 2) and/or CSV output
-        {
-            let daq_list = &daq_list.entries;
-
-            if let Some(ref mut writer) = self.perfetto_writer {
-                writer.sample(daq as usize, t_ns, daq_list, data);
-            }
-
-            let decode_values = console || self.csv_writer.is_some();
-            for odt_entry in daq_list.iter().filter(|_| decode_values) {
-                // Physical value: factor and offset applied, the label of an enum value
-                let value_str = match odt_entry.decode(data) {
-                    Some(value) => value.to_string(),
-                    None => {
-                        warn!("{}: {} not supported", odt_entry.name, odt_entry.a2l_type);
-                        String::new()
-                    }
-                };
-                let unit = odt_entry.conversion.unit();
-
-                if let Some(ref mut writer) = self.csv_writer {
-                    if self.csv_skip.contains(&odt_entry.name) {
-                        continue;
-                    }
-                    let _ = writeln!(writer, "{},{},{},{},{}", t_ns, daq, odt_entry.name, csv_field(&value_str), csv_field(unit));
-                } else if !console {
-                } else if unit.is_empty() {
-                    println!(" {} = {}", odt_entry.name, value_str);
-                } else {
-                    println!(" {} = {} {}", odt_entry.name, value_str, unit);
-                }
-            }
-        }
-
-        self.byte_count += data.len(); // overall payload byte count
-        self.event_count += 1; // overall event count
-    }
-
-    fn get_byte_count(&self) -> usize {
-        self.byte_count
-    }
-
-    fn get_event_count(&self) -> usize {
-        self.event_count
-    }
+    Ok(writers)
 }
 
 //------------------------------------------------------------------------
 // Trace signals for --perfetto
 // Adds the span and link signals needed for the trace to the measurement list, at the level given with --trace-auto
-// The added signals are not written to the CSV file, the contexts are set in the Perfetto writer
+// Returns the measurement list, the known contexts (each is a process in the Perfetto trace) and the added signals
 
-fn add_trace_signals(xcp_client: &XcpClient, daq_decoder: &Arc<Mutex<DaqDecoder>>, trace_auto: &str, mut list: Vec<String>) -> Vec<String> {
+fn add_trace_signals(xcp_client: &XcpClient, trace_auto: &str, mut list: Vec<String>) -> (Vec<String>, Vec<String>, Vec<String>) {
     let level: TraceAuto = trace_auto.parse().unwrap_or(TraceAuto::Links);
     let measurements: Vec<(String, Option<String>)> = xcp_client
         .find_measurements(".*")
@@ -647,16 +435,14 @@ fn add_trace_signals(xcp_client: &XcpClient, daq_decoder: &Arc<Mutex<DaqDecoder>
             (name, event)
         })
         .collect();
-    let contexts = perfetto::find_contexts(measurements.iter().map(|(n, _)| n.as_str()));
-    let mut daq_decoder = daq_decoder.lock();
-    daq_decoder.set_contexts(&contexts);
+    let contexts = perfetto_writer::find_contexts(measurements.iter().map(|(n, _)| n.as_str()));
     if contexts.is_empty() {
-        return list;
+        return (list, contexts, Vec::new());
     }
 
-    let added = perfetto::trace_signals(level, &measurements, &list);
+    let added = perfetto_writer::trace_signals(level, &measurements, &list);
     if level == TraceAuto::Off {
-        let missing = perfetto::trace_signals(TraceAuto::Links, &measurements, &list);
+        let missing = perfetto_writer::trace_signals(TraceAuto::Links, &measurements, &list);
         if !missing.is_empty() {
             warn!(
                 "Perfetto trace: the spans and span links of the contexts are not measured, add them with --trace-auto links or measure them: {}",
@@ -666,9 +452,8 @@ fn add_trace_signals(xcp_client: &XcpClient, daq_decoder: &Arc<Mutex<DaqDecoder>
     } else if !added.is_empty() {
         info!("Perfetto trace: {} trace signals added (--trace-auto {}): {}", added.len(), trace_auto, added.join(" "));
     }
-    daq_decoder.set_csv_skip(&added);
-    list.extend(added);
-    list
+    list.extend(added.iter().cloned());
+    (list, contexts, added)
 }
 
 //------------------------------------------------------------------------
@@ -754,7 +539,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
     // Calibration segment relative addressing mode
     let mut segment_relative = false;
 
-    // DAQ decoder, for the trace signals added for --perfetto
+    // DAQ decoder, the measurement data writers are set at measurement start
     let mut daq_decoder_handle: Option<Arc<Mutex<DaqDecoder>>> = None;
 
     // Execute main logic and capture the result
@@ -766,7 +551,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
             // Connect to the XCP server
             // Print protocol information
             info!("XCP Connect using {}", protocol);
-            let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new(true, &csv_filename, &perfetto_filename)));
+            let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new()));
             daq_decoder_handle = Some(Arc::clone(&daq_decoder));
             match xcp_client.connect(connect_mode, Arc::clone(&daq_decoder), ServTextDecoder::new()).await {
                 Ok(_) => {
@@ -788,7 +573,6 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 Ok((_, Some(id))) => {
                     ecu_name = id;
                     info!("  GET_ID IDT_ASCII = {}", ecu_name);
-                    daq_decoder.lock().set_ecu_name(&ecu_name);
                 }
                 Err(e) => {
                     error!("GET_ID IDT_ASCII failed, Error: {}", e);
@@ -1363,9 +1147,10 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 measurement_list
             };
             // Trace signals for --perfetto
-            let list = match &daq_decoder_handle {
-                Some(daq_decoder) if daq_decoder.lock().has_perfetto() => add_trace_signals(&xcp_client, daq_decoder, &trace_auto, list),
-                _ => list,
+            let (list, contexts, trace_signals) = if perfetto_filename.is_empty() {
+                (list, Vec::new(), Vec::new())
+            } else {
+                add_trace_signals(&xcp_client, &trace_auto, list)
             };
             if list.is_empty() {
                 warn!("No measurement variables found");
@@ -1380,6 +1165,12 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                     if let Some(o) = xcp_client.create_measurement_object(name) {
                         info!(r#"  {}: {}"#, o.0, name);
                     }
+                }
+
+                // Measurement data output
+                let writers = create_daq_writers(&csv_filename, &perfetto_filename, &ecu_name, &contexts, &trace_signals)?;
+                if let Some(daq_decoder) = &daq_decoder_handle {
+                    daq_decoder.lock().set_writers(writers);
                 }
 
                 // Measure
@@ -1695,14 +1486,6 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_csv_field() {
-        assert_eq!(csv_field("1.5"), "1.5");
-        assert_eq!(csv_field("stand by"), "stand by");
-        assert_eq!(csv_field("a,b"), "\"a,b\"");
-        assert_eq!(csv_field("a\"b"), "\"a\"\"b\"");
-    }
 
     #[test]
     fn test_default_event_parse() {

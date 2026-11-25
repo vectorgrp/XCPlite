@@ -13,7 +13,6 @@ use super::*;
 // Limits of the DAQ setup
 const MAX_DAQ_COUNT: usize = 1024; // DAQ lists
 const MAX_ODT_ENTRY_COUNT: usize = 0x7B; // ODT entries in an ODT
-const DAQ_TIMESTAMP_SIZE: usize = 4; // Size of the timestamp in the first ODT of a DAQ list
 
 // Signals of the span record of a context: <context>.span, <context>.level, <context>.span_dt and <context>.thread
 const SPAN_RECORD_SUFFIXES: [&str; 4] = ["span", "level", "span_dt", "thread"];
@@ -283,6 +282,7 @@ impl XcpClient {
                 event_id: plan.event,
                 event_name: self.event_name(plan.event),
                 entries: odt_entries,
+                size: plan.size,
             });
         }
 

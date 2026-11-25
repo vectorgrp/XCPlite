@@ -6,6 +6,13 @@
 use super::types::{A2lAddr, A2lConversion, A2lType, A2lValue};
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
+// DAQ packet layout
+
+/// Size of the DAQ timestamp in bytes, behind the DAQ header in the first ODT of a DAQ list
+/// xcpclient uses one ODT per DAQ list, so every DAQ packet has a timestamp
+pub const DAQ_TIMESTAMP_SIZE: usize = 4;
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------
 // OdtEntry — describes one DAQ signal entry in an ODT
 
 /// DAQ information
@@ -38,11 +45,13 @@ impl OdtEntry {
 
 /// DAQ list information
 /// A DAQ list is attached to exactly one event and has one ODT
+/// The DAQ packet of a DAQ list is: DAQ header, timestamp (DAQ_TIMESTAMP_SIZE), payload (size bytes), the transport layer may add fill bytes
 #[derive(Debug)]
 pub struct XcpDaqList {
     pub event_id: u16,              // id of the event the DAQ list is attached to
     pub event_name: Option<String>, // unique name of the event (with instance index), None if the event is not in the registry event list
-    pub entries: Vec<OdtEntry>,     // signals of the DAQ list
+    pub entries: Vec<OdtEntry>,     // signals of the DAQ list, offsets are relative to the payload
+    pub size: usize,                // payload size in bytes, without DAQ header and timestamp
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------------------------------------------------------------------------------------
-// perfetto.rs — Export of DAQ measurement data as a trace file for Perfetto (xcpclient --perfetto <file>)
+// Module perfetto_writer — Export of DAQ measurement data as a trace file for Perfetto (xcpclient --perfetto <file>)
 //
 // The file is written in the Chrome Trace Event JSON format, which the Perfetto UI (https://ui.perfetto.dev) opens directly.
 //
@@ -37,11 +37,12 @@
 // Timestamps are written relative to the start of the measurement, in microseconds with 3 decimals (ns resolution).
 
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{self, Write};
 
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
+use crate::daq_writer::{DaqLayout, DaqSample, DaqWriter};
 use crate::xcp_client::{A2lValue, OdtEntry, XcpDaqList};
 
 // Process id of the signals which do not belong to a context, the contexts follow
@@ -116,6 +117,7 @@ pub struct PerfettoWriter<W: Write> {
     timestamp_resolution: u64,          // ns per DAQ timestamp tick, for the producer timestamps of the span links
     flow_count: u64,
     unresolved_link_count: u64,
+    error: Option<io::Error>, // First write error
 }
 
 impl PerfettoWriter<std::io::BufWriter<std::fs::File>> {
@@ -141,11 +143,12 @@ impl<W: Write> PerfettoWriter<W> {
             timestamp_resolution: 1,
             flow_count: 0,
             unresolved_link_count: 0,
+            error: None,
         }
     }
 
     /// Set the resolution of the DAQ timestamps in ns per tick, needed to convert the producer timestamps of span links
-    pub fn set_timestamp_resolution(&mut self, ns_per_tick: u64) {
+    fn set_timestamp_resolution(&mut self, ns_per_tick: u64) {
         self.timestamp_resolution = ns_per_tick.max(1);
     }
 
@@ -210,10 +213,19 @@ impl<W: Write> PerfettoWriter<W> {
         format!("{}.{:03}", ns / 1000, ns % 1000)
     }
 
+    // Write to the file, keep the first error
+    fn write_str(&mut self, s: &str) {
+        if self.error.is_none() {
+            if let Err(e) = self.writer.write_all(s.as_bytes()) {
+                self.error = Some(e);
+            }
+        }
+    }
+
     fn write_event(&mut self, event: &str) {
         let sep = if self.first { "" } else { ",\n" };
         self.first = false;
-        let _ = write!(self.writer, "{}{}", sep, event);
+        self.write_str(&format!("{}{}", sep, event));
     }
 
     fn write_process_name(&mut self, pid: u32, name: &str) {
@@ -334,7 +346,7 @@ impl<W: Write> PerfettoWriter<W> {
 
     /// Start of the measurement
     /// daq_lists are the signals of each DAQ list, start is the timestamp of the measurement start in ns
-    pub fn start(&mut self, daq_lists: &[XcpDaqList], start: u64) {
+    fn start_trace(&mut self, daq_lists: &[XcpDaqList], start: u64) {
         let odt_entries: Vec<&[OdtEntry]> = daq_lists.iter().map(|d| d.entries.as_slice()).collect();
         self.start = start;
         self.daq_lists.clear();
@@ -344,7 +356,7 @@ impl<W: Write> PerfettoWriter<W> {
         self.flow_count = 0;
         self.unresolved_link_count = 0;
         self.first = true;
-        let _ = write!(self.writer, "{{\"displayTimeUnit\":\"ns\",\"traceEvents\":[\n");
+        self.write_str("{\"displayTimeUnit\":\"ns\",\"traceEvents\":[\n");
         let ecu_name = self.ecu_name.clone();
         self.write_process_name(PID_ECU, &ecu_name);
 
@@ -482,7 +494,7 @@ impl<W: Write> PerfettoWriter<W> {
 
     /// A sample of a DAQ list
     /// t is the timestamp in ns, data is the DAQ data without header and timestamp
-    pub fn sample(&mut self, daq: usize, t: u64, odt_entries: &[OdtEntry], data: &[u8]) {
+    fn sample(&mut self, daq: usize, t: u64, odt_entries: &[OdtEntry], data: &[u8]) {
         if daq >= self.daq_lists.len() {
             return;
         }
@@ -571,7 +583,7 @@ impl<W: Write> PerfettoWriter<W> {
 
     /// End of the measurement, t is the last timestamp of the measurement in ns
     /// Ends the open spans and states and completes the file
-    pub fn stop(&mut self, t: u64) {
+    fn stop_trace(&mut self, t: u64) -> io::Result<()> {
         // Open spans end at the last timestamp of their track
         let mut tracks: Vec<((u32, u32), SpanTrack)> = self.span_tracks.drain().collect();
         tracks.sort_by_key(|(key, _)| *key);
@@ -596,8 +608,12 @@ impl<W: Write> PerfettoWriter<W> {
             self.write_slice(pid, tid, &name, begin, t.max(begin));
         }
 
-        let _ = write!(self.writer, "\n]}}\n");
-        let _ = self.writer.flush();
+        self.write_str("\n]}\n");
+        if self.error.is_none() {
+            if let Err(e) = self.writer.flush() {
+                self.error = Some(e);
+            }
+        }
 
         if self.flow_count > 0 {
             info!("Perfetto trace: {} span links written as flows", self.flow_count);
@@ -614,6 +630,33 @@ impl<W: Write> PerfettoWriter<W> {
                 self.resync_count
             );
         }
+        match self.error.take() {
+            Some(e) => Err(e),
+            None => Ok(()),
+        }
+    }
+}
+
+impl<W: Write + Send> DaqWriter for PerfettoWriter<W> {
+    fn name(&self) -> &'static str {
+        "Perfetto"
+    }
+
+    fn start(&mut self, layout: &DaqLayout, start_ns: u64) -> io::Result<()> {
+        self.set_timestamp_resolution(layout.timestamp_resolution_ns);
+        self.start_trace(&layout.daq_lists, start_ns);
+        self.error.take().map_or(Ok(()), Err)
+    }
+
+    fn write(&mut self, s: &DaqSample) -> io::Result<()> {
+        self.sample(s.daq as usize, s.time_ns, &s.daq_list.entries, s.data);
+        self.error.take().map_or(Ok(()), Err)
+    }
+
+    fn stop(&mut self, stop_ns: u64) -> io::Result<()> {
+        self.stop_trace(stop_ns)?;
+        info!("Perfetto trace: {} spans written", self.span_count);
+        Ok(())
     }
 }
 
@@ -772,13 +815,14 @@ mod tests {
                 event_id: i as u16,
                 event_name: None,
                 entries,
+                size: 0,
             })
             .collect();
-        writer.start(&daq_lists, 1000);
+        writer.start_trace(&daq_lists, 1000);
         for (daq, t, data) in samples {
             writer.sample(*daq, *t, &daq_lists[*daq].entries, data);
         }
-        writer.stop(stop);
+        writer.stop_trace(stop).unwrap();
         let (spans, resyncs) = (writer.span_count(), writer.resync_count());
         let json: serde_json::Value = serde_json::from_slice(&writer.into_inner()).expect("valid JSON");
         (json["traceEvents"].as_array().unwrap().clone(), spans, resyncs)
@@ -997,13 +1041,14 @@ mod tests {
                 event_id: i as u16,
                 event_name: None,
                 entries,
+                size: 0,
             })
             .collect();
-        writer.start(&daq_lists, 1000);
+        writer.start_trace(&daq_lists, 1000);
         for (daq, t, data) in &samples {
             writer.sample(*daq, *t, &daq_lists[*daq].entries, data);
         }
-        writer.stop(4000);
+        writer.stop_trace(4000).unwrap();
         assert_eq!((writer.flow_count(), writer.unresolved_link_count()), (1, 2));
         let json: serde_json::Value = serde_json::from_slice(&writer.into_inner()).expect("valid JSON");
         let events = json["traceEvents"].as_array().unwrap();
@@ -1031,13 +1076,14 @@ mod tests {
                 event_id: i as u16,
                 event_name: None,
                 entries,
+                size: 0,
             })
             .collect();
         let mut writer = PerfettoWriter::new(Vec::new());
         writer.set_timestamp_resolution(10); // 10 ns per tick
-        writer.start(&daq_lists, 1000);
+        writer.start_trace(&daq_lists, 1000);
         writer.sample(1, 5000, &daq_lists[1].entries, &link_data(250, 1, 3, 0, 0)); // captured at tick 250 = 2500 ns
-        writer.stop(6000);
+        writer.stop_trace(6000).unwrap();
         let json: serde_json::Value = serde_json::from_slice(&writer.into_inner()).expect("valid JSON");
         assert_eq!(
             flows(json["traceEvents"].as_array().unwrap()),
@@ -1124,12 +1170,13 @@ mod tests {
                 entry("channel_x", 8, A2lTypeEncoding::Float, 0, "Volt"),
                 entry("SigGen1.value_", 8, A2lTypeEncoding::Float, 8, "Volt"),
             ],
+            size: 16,
         }];
-        writer.start(&daq_lists, 1000);
+        writer.start_trace(&daq_lists, 1000);
         let mut data = 1.0f64.to_le_bytes().to_vec();
         data.extend(2.0f64.to_le_bytes());
         writer.sample(0, 2000, &daq_lists[0].entries, &data);
-        writer.stop(3000);
+        writer.stop_trace(3000).unwrap();
         let json: serde_json::Value = serde_json::from_slice(&writer.into_inner()).expect("valid JSON");
         let events = json["traceEvents"].as_array().unwrap();
         let (siggen1, mainloop) = (PID_ECU as u64 + 1, PID_ECU as u64 + 2);

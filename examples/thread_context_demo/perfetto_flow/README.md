@@ -41,7 +41,7 @@ Due to its established nature and simple structure, various libraries and tools 
 - The main loop polls the current value of each generator with `Poll()`. This samples the signal, it is not the complete stream.
   The complete stream exists on the producer side only (`SigGen1.value_` on event `SigGen1.siggen`).
 
-`xcpclient --perfetto trace.json` ([tools/xcpclient/src/perfetto.rs](../../../tools/xcpclient/src/perfetto.rs)):
+`xcpclient --perfetto trace.json` ([tools/xcpclient/src/perfetto_writer/mod.rs](../../../tools/xcpclient/src/perfetto_writer/mod.rs)):
 
 - One Perfetto process per context, `pid` = context index.
 - Track `spans` (`tid` 1), or one track per thread index with `<context>.thread`. Nesting is rebuilt from the level samples with
