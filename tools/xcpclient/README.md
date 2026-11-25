@@ -177,6 +177,11 @@ Options:
           
           [default: ""]
 
+      --mcap <FILE>
+          Save measurement data to an MCAP file (https://mcap.dev). One channel per DAQ list, the topic is the event name, the payload of the DAQ packets is stored as received, as ros1 messages. Values are raw values, MCAP has no conversions or units, they are in the comments of the message definitions and in the channel metadata. May be combined with --csv, --mdf and --perfetto
+          
+          [default: ""]
+
       --perfetto <FILE>
           Save measurement data to a trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev). Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks, span links (xcp::LinkSpan) are flows (arrows) from the producer span to the consumer span. The span and link signals of the contexts needed for the trace are added to the measurement, see --trace-auto. May be combined with --csv, the added signals are not written to the CSV file
           
@@ -352,6 +357,20 @@ xcpclient --udp --mea '.*' --time 5 --mdf measurement.mf4
 The payload of the DAQ packets is stored as received, without decoding, the MDF metadata describes its binary layout. Each DAQ list is a channel group with the event name as acquisition name and the ECU name as source. A record is the DAQ list number (2 byte record id), the timestamp (64 bit, ticks since the measurement start, the master channel `time` in s) and the payload of the DAQ packet. The signals are raw values with their conversion: factor and offset as linear conversion, enums as value to text conversion, and the unit.
 
 The file is unsorted (all channel groups in one data group), MDF tools sort it when they open it. It is finalized when the measurement stops. If xcpclient is terminated without stopping the measurement, the file stays unfinalized (`UnFinMF`), MDF tools can repair it.
+
+## Save measurement data to MCAP
+
+`--mcap <file>` writes the measurement to an [MCAP](https://mcap.dev) file, the container format of Foxglove, Lichtblick and ROS 2 tools.
+
+```bash
+xcpclient --udp --mea '.*' --time 5 --mcap measurement.mcap
+```
+
+MCAP stores timestamped messages, a schema describes their format. Each DAQ list is a channel, its topic is the event name (`/Mainloop`). A message is the payload of a DAQ packet as received, `log_time` is the DAQ timestamp in ns. The schema is a ROS 1 message definition (`ros1msg`): ros1 serializes packed and little endian, so the definition describes the binary layout of the payload exactly, gaps are `uint8[n]` padding fields. The field names are the signal names with `.` and other characters which are not allowed replaced by `_` (`Mainloop.value1` is the field `Mainloop_value1`).
+
+MCAP has no conversions and units, the values are raw values. Factor and offset, enum labels and the unit of each signal are in the comments of the message definition and in the channel metadata (`<field>.factor`, `<field>.offset`, `<field>.labels`, `<field>.unit`, `<field>.name` is the signal name). A metadata record `xcp` contains the ECU name and the timestamp resolution.
+
+The messages are written in zstd compressed chunks of 1 MB, the index and statistics are written when the measurement stops. If xcpclient is terminated without stopping the measurement, the last chunk is lost and the file has no index, `mcap recover` from the [MCAP CLI](https://mcap.dev/guides/cli) repairs it.
 
 ## Export spans and signals to Perfetto
 
