@@ -22,8 +22,11 @@
 |         socketSendTo copies each datagram into a pbuf owned by lwIP
 |       + OPTION_FREERTOS_LWIP_SOCKET_API: lwIP socket API, SOCKET_HANDLE is the lwIP socket fd,
 |         zero copy transmit depending on the lwIP build options and the Ethernet driver
-|     OPTION_FREERTOS_LWIP not defined:
-|       All functions are error stubs — the caller must provide the implementation.
+|     OPTION_FREERTOS_PLUS_TCP defined:
+|       Native Socket_t handles, IPv4 unicast UDP, copying send/receive API.
+|       Implemented alongside lwIP in sockets.c; see docs/FREERTOS_PLUS_TCP.md.
+|     Neither or both network stacks selected:
+|       Rejected at compile time. The POSIX simulator always uses host sockets.
 |
 |   POSIX: _LINUX / _MACOS / _QNX  (and FREE_RTOS_POSIX_SIM):
 |     Base:
@@ -112,6 +115,23 @@ int32_t socketGetLastError(void);
 #define socketIsClosed(err) (((err) == SOCKET_ERROR_BADF) || ((err) == SOCKET_ERROR_NOTCONN))
 #define socketWouldBlock(err) ((err) == SOCKET_ERROR_TIMEDOUT)
 #define socketTimeout(err) ((err) == SOCKET_ERROR_TIMEDOUT)
+
+#elif defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) && defined(OPTION_FREERTOS_PLUS_TCP)
+
+#include "FreeRTOS_Sockets.h"
+typedef Socket_t SOCKET_HANDLE;
+#define INVALID_SOCKET_HANDLE FREERTOS_INVALID_SOCKET
+#define SOCKET_ERROR_BADF pdFREERTOS_ERRNO_EBADF
+#define SOCKET_ERROR_NOTCONN pdFREERTOS_ERRNO_ENOTCONN
+#define SOCKET_ERROR_TIMEDOUT pdFREERTOS_ERRNO_ETIMEDOUT
+#define SOCKET_ERROR_WBLOCK pdFREERTOS_ERRNO_EWOULDBLOCK
+#define SOCKET_ERROR_INTR pdFREERTOS_ERRNO_EINTR
+// No corresponding pdFREERTOS_ERRNO value; outside its range, but fits int16_t.
+#define SOCKET_ERROR_MSGSIZE 0x1000
+// UDP failures return the negative error code directly; no last-error storage.
+#define socketIsClosed(err) ((err) == SOCKET_ERROR_BADF || (err) == SOCKET_ERROR_NOTCONN)
+#define socketWouldBlock(err) ((err) == SOCKET_ERROR_WBLOCK)
+#define socketTimeout(err) ((err) == SOCKET_ERROR_TIMEDOUT || (err) == SOCKET_ERROR_WBLOCK || (err) == SOCKET_ERROR_INTR)
 
 #elif !defined(_WIN) // Non-Windows platform sockets
 
@@ -223,13 +243,14 @@ bool socketStartup(void);
 void socketCleanup(void);
 
 // Return a static human-readable string for a SOCKET_ERROR_* error code
-// Returns "unknown socket error" for unrecognized codes
+// Fallback text for unrecognized codes depends on the backend
 const char *socketGetErrorString(int32_t err);
 
 // Create a TCP or UDP socket with the given SOCKET_MODE_xxx flags
 // Sockets are always created in blocking mode, a timeout may be set with socketSetTimeout()
 // SOCKET_MODE_TCP: TCP stream socket (default: UDP datagram)
-// SOCKET_MODE_REUSEADDR: set SO_REUSEADDR to allow rapid port reuse after restart
+// SOCKET_MODE_REUSEADDR: enable SO_REUSEADDR where supported;
+// accepted but ignored by native FreeRTOS-Plus-TCP.
 // SOCKET_MODE_HW_TIMESTAMPING / SOCKET_MODE_SW_TIMESTAMPING: enable timestamps (Linux with hardware timestamps only)
 // SOCKET_MODE_GET_IF_INFO: enable IP_PKTINFO to identify the receiving interface (Linux with hardware timestamps only)
 // Returns true on success
@@ -288,8 +309,10 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, b
 // srcAddr / srcPort: filled with sender's address/port if non-NULL
 // time: optional receive timestamp (NULL to skip); hardware or software depending on socket flags
 // Return values:  > 0  bytes received
-//                == 0  timeout (set with socketSetRecvTimeout) — no data yet, do background work and loop
-//                 < 0  socket closed or error — check with socketIsClosed(socketGetLastError()) and exit the receive loop
+//                == 0  timeout or empty UDP datagram — do background work and loop
+//                 < 0  socket closed or error
+// Native FreeRTOS-Plus-TCP: negative error code; classify -result with socketIsClosed() etc.
+// Other backends: retrieve the error with socketGetLastError().
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
 
 // Send a UDP datagram to addr:port
@@ -298,7 +321,11 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
 // time: optional send timestamp (NULL to skip)
 //       on Linux with HW timestamps: *time is set to 0; call socketGetSendTime() afterwards to retrieve it
 //       on other platforms: *time is set to the system clock at send time
-// Returns: bytes sent, 0 on closed socket, -1 on error
+// Returns: > 0 bytes accepted, < 0 on error; zero may indicate a closed
+// socket or a successful empty datagram, depending on the backend.
+// Native FreeRTOS-Plus-TCP returns negative error codes directly; classify -result.
+// Native FreeRTOS-Plus-TCP waits internally for TX resources, as lwIP does.
+// Other backends generally return -1 and use socketGetLastError().
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time);
 
 #if !defined(OPTION_ENABLE_UDP_RAW) // not provided by the raw Ethernet transport
@@ -350,20 +377,24 @@ int16_t socketSendToReserved(SOCKET_HANDLE socket, const uint8_t *buffer, uint16
 #endif
 #endif
 
-// Set receive timeout on a blocking socket
-// timeoutMs: timeout in milliseconds; 0 = restore infinite blocking
-// With a timeout set, socketRecv/socketRecvFrom return 0 on expiry instead of blocking indefinitely,
-// allowing the receive thread to perform background work before looping back
-// Works for both TCP and UDP; use socketShutdown() to signal a receive thread to exit
-// Returns true on success
+// Set receive timeout on a blocking socket.
+// timeoutMs: milliseconds; 0 = infinite blocking.
+// A finite timeout lets the receive thread check its stop condition
+// and perform background work.
+// Returns true on success.
 bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs);
 
-// Shut down both directions of the socket (SHUT_RDWR / SD_BOTH)
-// Unblocks a thread currently blocked in socketRecv or socketRecvFrom, causing it to return -1
+// Request socket shutdown.
+// A no-op for lwIP netconn and native FreeRTOS-Plus-TCP UDP.
+// For these backends, use a finite receive timeout to check the stop condition.
+// Stop all socket users before closing.
+// Returns true on success.
 bool socketShutdown(SOCKET_HANDLE socket);
 
-// Close the OS socket, free the SOCKET_HANDLE, and set *socketp to NULL
-// Returns true on success
+// Close the socket and set *socketp to INVALID_SOCKET_HANDLE on success.
+// Cleanup may be asynchronous.
+// Native FreeRTOS-Plus-TCP preserves the handle on failure so close can be retried.
+// Returns true on success.
 bool socketClose(SOCKET_HANDLE *socketp);
 
 #if !defined(OPTION_ENABLE_UDP_RAW) // the raw transport reads the MAC from its Ethernet HAL

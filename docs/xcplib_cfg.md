@@ -173,7 +173,7 @@ See [SOCKET_RAW.md](SOCKET_RAW.md) for details.
 | `OPTION_FREERTOS_LWIP` | Use lwIP as IP stack (raw API by default) |
 | `OPTION_FREERTOS_LWIP_SOCKET_API` | Use the lwIP socket API instead of the raw API |
 | `OPTION_QUEUE_32_SIZE` | Fixed transmit queue buffer size, must be a multiple of `sizeof(tXcpSegmentBuffer)`, the queue size parameter of `XcpEthServerInit` must be 0 (default: 16 segments) |
-| `OPTION_QUEUE32_CRITICAL_SECTION`, `OPTION_QUEUE32_MUTEX` | Synchronization of `queue32m.c`, critical section (default) or mutex |
+| `OPTION_QUEUE32_MUTEX` | Use a mutex in `queue32m.c`; otherwise use FreeRTOS critical sections |
 | `OPTION_QUEUE_32_ATTRIBUTE`, `OPTION_QUEUE_32_BUFFER_ATTRIBUTE` | Optional attributes for the memory placement of the queue state and the segment buffers, e.g. a section attribute for DTCM or non-cacheable memory, see `queue32m.c` |
 
 ## 3 · xcptl_cfg.h

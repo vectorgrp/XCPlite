@@ -52,7 +52,11 @@
 #define OPTION_FREERTOS_PRIORITY (tskIDLE_PRIORITY + 2U)
 
 // FreeRTOS IP stack configuration
+// Native targets select Plus-TCP explicitly; otherwise retain lwIP.
+// FREE_RTOS_POSIX_SIM always uses host sockets.
+#if !defined(OPTION_FREERTOS_PLUS_TCP)
 #define OPTION_FREERTOS_LWIP // Use lwIP for FreeRTOS
+#endif
 
 // lwIP API used by the XCP server, default is the netconn API
 // netconn API: each transmitted datagram is copied into a pbuf owned by lwIP. Works with any lwIP build options
@@ -89,7 +93,7 @@
 //-------------------------------------------------------------------------------
 // XCP server
 #undef OPTION_ENABLE_TCP // TCP support stubs not implemented yet for FreeRTOS
-// OPTION_ENABLE_UDP stays enabled: FreeRTOS targets use lwIP (OPTION_FREERTOS_LWIP above),
+// OPTION_ENABLE_UDP stays enabled: FreeRTOS targets use lwIP or FreeRTOS-Plus-TCP,
 // the POSIX simulator uses host sockets. For targets without any IP stack, use XCPLITE_CONFIGURATION=raw
 // (OPTION_ENABLE_UDP_RAW, hand-crafted UDP/IP over a raw Ethernet HAL) - see docs/SOCKET_RAW.md
 
@@ -123,25 +127,25 @@
 //-------------------------------------------------------------------------------
 // Data acquisition
 
-// No dynamic event list management, use section registered events
-// #define OPTION_DAQ_EVENT_LIST
+// Keep the default dynamic event list.
+// Section-registered events are added during XcpInit.
 
 // Adjust OPTION_DAQ_MEM_SIZE and OPTION_DAQ_EVENT_COUNT to your application
 // In maximum fragmentation, each measurement value needs 6 bytes DAQ list memory
 #undef OPTION_DAQ_MEM_SIZE
-#define OPTION_DAQ_MEM_SIZE (512 * 6) // 4 KB for XCP DAQ tables
+#define OPTION_DAQ_MEM_SIZE (512 * 6) // 3 KiB for XCP DAQ tables
 #undef OPTION_DAQ_EVENT_COUNT
 #define OPTION_DAQ_EVENT_COUNT 16
 
-// OPTION_QUEUE_32 is MANDATORY on 32-bit Cortex-M4:
-// The 64-bit lockless queue variants use 64-bit atomics
+// OPTION_QUEUE_32 is recommended for 32-bit Cortex-M targets.
+// The 64-bit lock-free queue variants require 64-bit atomic operations.
 #undef OPTION_QUEUE_64_VAR_SIZE
 #undef OPTION_QUEUE_64_FIX_SIZE
 #define OPTION_QUEUE_32
-// Fixed size of the queue buffer (16 segments, about 23 KB with OPTION_MTU 1500), must be a multiple of sizeof(tXcpSegmentBuffer), the queue size parameter of XcpEthServerInit must be 0
+// Fixed size of the queue buffer (16 segments, about 23 KB with OPTION_MTU 1500), must be a multiple of sizeof(tXcpSegmentBuffer), the queue size parameter of XcpEthServerInit
+// must be 0
 #define OPTION_QUEUE_32_SIZE (16 * sizeof(tXcpSegmentBuffer))
-// Use a crtical section instead of a mutex, locked sequences are only a few instructions
-#define OPTION_QUEUE32_CRITICAL_SECTION
+// Use FreeRTOS critical sections instead of a mutex.
 #undef OPTION_QUEUE32_MUTEX
 
 //-------------------------------------------------------------------------------
