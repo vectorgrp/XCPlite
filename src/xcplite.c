@@ -2453,6 +2453,9 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #ifdef XCP_ENABLE_CHECKSUM
         case CC_BUILD_CHECKSUM: {
             check_len(CRO_BUILD_CHECKSUM_LEN);
+            if (CRO_BUILD_CHECKSUM_SIZE == 0) {
+                error(CRC_OUT_OF_RANGE);
+            }
 #ifdef XCP_ENABLE_DYN_ADDRESSING
             if (XcpAddrIsDyn(local.mta_ext)) {
                 XcpPushCommand(CRO, CRO_LEN);
