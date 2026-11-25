@@ -80,6 +80,11 @@ track for each of its signals:
 The main loop and the two task threads run independently, so the spans of different contexts overlap in time.
 Each `poll` of `Mainloop` which returned a sample has an arrow from the `task` span of the signal generator which calculated it, see "Span links and Perfetto arrows". Details are in the [xcpclient README](../../tools/xcpclient/README.md).
 
+Perfetto draws the arrows of the selected slice only. To see the arrows of several slices at once, select an area (tick the checkbox
+of the `spans` track of `Mainloop` and drag in the timeline), then open the tab "Flow events" below the timeline and tick "Show" for
+the category `span_link` (or "All"). The categories are not shown by default. The area contains each arrow which begins or ends in a
+slice of the selected tracks within the selected time range.
+
 ### Screenshots
 
 #### Signals
@@ -107,7 +112,7 @@ xcpclient --udp --mea 'Mainloop.channel1' 'SigGen1.queue_level' 'SigGen1.overflo
 #### Producer consumer links
 
 The screenshot below zoomed into a 5us time range, shows a span link in more detail.   
-The arrow connects the producer span calc in the thread of signal generator instance 1, to the consumer span 'poll' in the mainloop thread, when it got a new value. 
+The arrows connects the producer span calc in the thread of signal generator instance 1, to the consumer span 'poll' in the mainloop thread, when it got a new value. 
 It was created with:
 
 ```bash
@@ -310,6 +315,22 @@ An event stores the id of its context and its XCP event, a context id > 0 means 
 - Optional connection to a real OTel backend, on target through opentelemetry-cpp or off target by exporting span records from xcpclient.
 
 
+## Find overlaping spans in trace files
+
+[find_overlap.py](find_overlap.py) finds the moments in a trace file where a span of one context overlaps the same span of another
+context, to locate them in Perfetto. Times are in us since the measurement start, as in Perfetto. Without an overlap, it prints the
+smallest gap:
+
+```bash
+python3 examples/thread_context_demo/find_overlap.py trace.json --span calc --ctx SigGen1 SigGen2 --max 20
+```
+
+With `--also`, it lists only the overlaps during which a span of a third context runs, with the arrows that end in this span. The
+best moments come first: arrows from both signal generators, whose sources are close to the overlap:
+
+```bash
+python3 examples/thread_context_demo/find_overlap.py trace.json --also Mainloop poll_loop --max 5
+```
 
 
 

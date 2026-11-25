@@ -49,6 +49,10 @@ double SignalGenerator::Clip(double input) {
     // Trigger a context aware measurement event 'clip'
     DaqEventCtxVar(clip, // context='SigGen1' or 'SigGen2', span='clip'
                    A2L_MEAS(clipped, "Clip function clipped input"));
+
+    // Trigger a normal measurement event 'clip' will mix the values of all instances
+    // DaqEventVar(clip, A2L_MEAS(output, "Clip function clipped input"));
+
     return output;
 }
 
