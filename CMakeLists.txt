@@ -467,6 +467,9 @@ if(XCPLITE_BUILD_TESTS)
         add_executable(cal_test test/cal_test/src/main.cpp)
         target_link_libraries(cal_test PRIVATE xcplite)
 
+        add_executable(cal_page_test test/cal_page_test/src/main.c)
+        target_link_libraries(cal_page_test PRIVATE xcplite)
+
         add_executable(daq_test test/daq_test/src/main.c)
         target_link_libraries(daq_test PRIVATE xcplite)
 
@@ -515,6 +518,7 @@ if(XCPLITE_BUILD_TESTS)
                 eth_transport_test
                 socket_recv_test
                 cal_test
+                cal_page_test
                 passive_test_c
                 passive_test_cpp
                 persistence_test)

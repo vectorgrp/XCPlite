@@ -2388,6 +2388,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 
 #ifdef XCP_ENABLE_COPY_CAL_PAGE
         case CC_COPY_CAL_PAGE: {
+            check_len(CRO_COPY_CAL_PAGE_LEN);
             CRM_LEN = CRM_COPY_CAL_PAGE_LEN;
             uint8_t src_segment = CRO_COPY_CAL_PAGE_SRC_SEGMENT;
             uint8_t src_page = CRO_COPY_CAL_PAGE_SRC_PAGE;
