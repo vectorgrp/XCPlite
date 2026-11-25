@@ -255,7 +255,7 @@
 
 #if !defined(NDEBUG)
 
-// #define TEST_CLOCK_GET_STATISTIC // Count number of calls to clockGet and clockGetLast, print results with clockPrintStatistic()
+// #define TEST_CLOCK_GET_STATISTIC // Count number of calls to clockGet, print results with clockGetPrintStatistic()
 // #define TEST_ACQUIRE_SPIN_COUNT // Get max spin count of the queue acquire operations
 // #define TEST_ACQUIRE_LOCK_TIMING // Create a queue acquire time histogram, prints results on queue deinit, significant performance impact, for testing only !!!!!!!!!!
 // #define TEST_ENABLE_TL_METRICS  // Enable debug metrics for XCP transport layer packets

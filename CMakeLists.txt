@@ -125,7 +125,7 @@ endif()
 #     shm      -> hello_xcp (SHM mode), hello_xcp_cpp (SHM mode)
 #     rtos     -> freertos_demo (downloads FreeRTOS-Kernel via FetchContent)
 #   XCPLITE_BUILD_TESTS
-#     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp, persistence_test, context_test, namelist_test
+#     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, clock_race_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp, persistence_test, context_test, namelist_test
 #     ptp      -> clock_test
 #     others   -> (none)
 #   XCPLITE_BUILD_TOOLS
@@ -488,6 +488,9 @@ if(XCPLITE_BUILD_TESTS)
         add_executable(clock_test test/clock_test/src/main.cpp)
         target_link_libraries(clock_test PRIVATE xcplite)
 
+        add_executable(clock_race_test test/clock_race_test/src/main.c)
+        target_link_libraries(clock_race_test PRIVATE xcplite)
+
         add_executable(queue_test test/queue_test/src/main.c)
         target_link_libraries(queue_test PRIVATE xcplite)
 
@@ -533,6 +536,7 @@ if(XCPLITE_BUILD_TESTS)
                 socket_recv_test
                 cal_test
                 cal_page_test
+                clock_race_test
                 passive_test_c
                 passive_test_cpp
                 persistence_test

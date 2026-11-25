@@ -444,11 +444,9 @@ void mutexDestroy(MUTEX *m) { pthread_mutex_destroy(m); }
 
 #ifdef TEST_CLOCK_GET_STATISTIC
 static atomic_uint_fast32_t gClockGetCtr = 0;
-static atomic_uint_fast32_t gClockGetLastCtr = 0;
 void clockGetPrintStatistic(void) {
     uint32_t getCtr = atomic_load_explicit(&gClockGetCtr, memory_order_relaxed);
-    uint32_t getLastCtr = atomic_load_explicit(&gClockGetLastCtr, memory_order_relaxed);
-    DBG_PRINTF3("clockGet calls: %" PRIu32 ", clockGetLast calls: %" PRIu32 "\n", getCtr, getLastCtr);
+    DBG_PRINTF3("clockGet calls: %" PRIu32 "\n", getCtr);
 }
 #endif
 
@@ -460,14 +458,11 @@ void clockGetPrintStatistic(void) {
 
 #if defined(_FREE_RTOS) // FreeRTOS clock
 
-static volatile uint64_t gClockLast_ = 0;
-
 // Convert a FreeRTOS tick count to the configured clock resolution CLOCK_TICKS_PER_S
 static inline uint64_t tickToClockUnit_(TickType_t ticks) { return (uint64_t)ticks * (CLOCK_TICKS_PER_S / configTICK_RATE_HZ); }
 
 bool clockInit(void) {
     DBG_PRINT3("Init FreeRtos clock\n");
-    clockGet(); // Initialize gClockLast_
     return true;
 }
 
@@ -477,18 +472,7 @@ uint64_t clockGet(void) {
     atomic_fetch_add_explicit(&gClockGetCtr, 1, memory_order_relaxed);
 #endif
 
-    uint64_t t = tickToClockUnit_(xTaskGetTickCount());
-    gClockLast_ = t;
-    return t;
-}
-
-uint64_t clockGetLast(void) {
-
-#ifdef TEST_CLOCK_GET_STATISTIC
-    atomic_fetch_add_explicit(&gClockGetLastCtr, 1, memory_order_relaxed);
-#endif
-
-    return gClockLast_;
+    return tickToClockUnit_(xTaskGetTickCount());
 }
 
 char *clockGetString(char *s, uint32_t l, uint64_t c) {
@@ -497,7 +481,6 @@ char *clockGetString(char *s, uint32_t l, uint64_t c) {
 }
 
 uint64_t clockGetMonotonicNs(void) { return clockGet() * (1000000000ULL / CLOCK_TICKS_PER_S); }
-uint64_t clockGetMonotonicNsLast(void) { return clockGetLast() * (1000000000ULL / CLOCK_TICKS_PER_S); }
 
 // ---------------------------------------------------------------------------
 // POSIX clock
@@ -548,10 +531,10 @@ Clock types
 #endif
 #define CLOCK_REALTIME_TYPE CLOCK_REALTIME
 
-// Global clock variable, updated by all clockGet calls, used by clockGetLast() to save syscall overhead when the last known clock value is sufficient
-static struct timespec __gClock;
-static struct timespec __gClockMonotonic;
-static struct timespec __gClockRealtime;
+// The clock functions are called concurrently from all instrumented threads (DAQ events, spans, ...)
+// They must not keep any shared state, the clock is read into a local timespec
+static inline uint64_t timespecToNs(const struct timespec *ts) { return ((uint64_t)(ts->tv_sec) * 1000000000ULL) + (uint64_t)(ts->tv_nsec); }
+static inline uint64_t timespecToUs(const struct timespec *ts) { return ((uint64_t)(ts->tv_sec) * 1000000ULL) + (uint64_t)(ts->tv_nsec / 1000); }
 
 char *clockGetString(char *s, uint32_t l, uint64_t c) {
 
@@ -580,12 +563,9 @@ bool clockInit(void) {
 #endif
     DBG_PRINTF3("  CLOCK_TICKS_PER_S = %" PRIu32 "\n", (uint32_t)(CLOCK_TICKS_PER_S));
 
-    clockGetRealtimeNs();        // Initialize __gClockRealtime
-    clockGetMonotonicNs();       // Initialize __gClockMonotonic
-    uint64_t clock = clockGet(); // Initialize gClock and ClockGetLast()
-    (void)clock;
 #ifdef DBG_LEVEL
     if (DBG_LEVEL >= 3) { // Test
+        uint64_t clock = clockGet();
         struct timespec gtr;
         clock_getres(CLOCK_TYPE, &gtr);
         DBG_PRINTF3("  resolution = %ldns!\n", gtr.tv_nsec);
@@ -603,65 +583,45 @@ uint64_t clockGet(void) {
 #ifdef TEST_CLOCK_GET_STATISTIC
     atomic_fetch_add_explicit(&gClockGetCtr, 1, memory_order_relaxed);
 #endif
-    clock_gettime(CLOCK_TYPE, &__gClock);
+    struct timespec ts;
+    clock_gettime(CLOCK_TYPE, &ts);
 #if CLOCK_TICKS_PER_S == 1000000000UL // ns
-    return (((uint64_t)(__gClock.tv_sec) * 1000000000ULL) + (uint64_t)(__gClock.tv_nsec));
+    return timespecToNs(&ts);
 #elif CLOCK_TICKS_PER_S == 1000000UL  // us
-    return (((uint64_t)(__gClock.tv_sec) * 1000000ULL) + (uint64_t)(__gClock.tv_nsec / 1000)); // us
-#else
-#error "Please define clock resolution CLOCK_TICKS_PER_S to 1ns or 1us"
-#endif
-}
-
-// Get the last known clock value
-uint64_t clockGetLast(void) {
-#if CLOCK_TICKS_PER_S == 1000000000UL // ns
-    return (((uint64_t)(__gClock.tv_sec) * 1000000000ULL) + (uint64_t)(__gClock.tv_nsec));
-#elif CLOCK_TICKS_PER_S == 1000000UL  // us
-    return (((uint64_t)(__gClock.tv_sec) * 1000000ULL) + (uint64_t)(__gClock.tv_nsec / 1000)); // us
+    return timespecToUs(&ts);
 #else
 #error "Please define clock resolution CLOCK_TICKS_PER_S to 1ns or 1us"
 #endif
 }
 
 uint64_t clockGetMonotonicNs(void) {
-    clock_gettime(CLOCK_MONOTONIC_TYPE, &__gClockMonotonic);
-    return (((uint64_t)(__gClockMonotonic.tv_sec) * 1000000000ULL) + (uint64_t)(__gClockMonotonic.tv_nsec));
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_TYPE, &ts);
+    return timespecToNs(&ts);
 }
 
 uint64_t clockGetMonotonicUs(void) {
-    clock_gettime(CLOCK_MONOTONIC_TYPE, &__gClockMonotonic);
-    return (((uint64_t)(__gClockMonotonic.tv_sec) * 1000000ULL) + (uint64_t)(__gClockMonotonic.tv_nsec / 1000));
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_TYPE, &ts);
+    return timespecToUs(&ts);
 }
 
 uint64_t clockGetRealtimeNs(void) {
-    clock_gettime(CLOCK_REALTIME_TYPE, &__gClockRealtime);
-    return (((uint64_t)(__gClockRealtime.tv_sec) * 1000000000ULL) + (uint64_t)(__gClockRealtime.tv_nsec));
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME_TYPE, &ts);
+    return timespecToNs(&ts);
 }
 
 uint64_t clockGetRealtimeUs(void) {
-    clock_gettime(CLOCK_REALTIME_TYPE, &__gClockRealtime);
-    return (((uint64_t)(__gClockRealtime.tv_sec) * 1000000ULL) + (uint64_t)(__gClockRealtime.tv_nsec / 1000));
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME_TYPE, &ts);
+    return timespecToUs(&ts);
 }
-
-// Get the last known clock value
-// Save CPU load, clockGet may take reasonable run time, depending on platform
-// For slow timeouts and timers, it is sufficient to rely on the relatively high call frequency of clockGet() by other
-// parts of the application
-uint64_t clockGetMonotonicNsLast(void) { return (((uint64_t)(__gClockMonotonic.tv_sec) * 1000000000ULL) + (uint64_t)(__gClockMonotonic.tv_nsec)); }
-uint64_t clockGetMonotonicUsLast(void) { return (((uint64_t)(__gClockMonotonic.tv_sec) * 1000000ULL) + (uint64_t)(__gClockMonotonic.tv_nsec / 1000)); }
-uint64_t clockGetRealtimeNsLast(void) { return (((uint64_t)(__gClockRealtime.tv_sec) * 1000000000ULL) + (uint64_t)(__gClockRealtime.tv_nsec)); }
-uint64_t clockGetRealtimeUsLast(void) { return (((uint64_t)(__gClockRealtime.tv_sec) * 1000000ULL) + (uint64_t)(__gClockRealtime.tv_nsec / 1000)); }
 
 // ---------------------------------------------------------------------------
 // Windows clock
 
 #else // Windows platform clock
-
-static uint64_t __gClock = 0;
-
-// Get the last known clock value
-uint64_t clockGetLast(void) { return __gClock; }
 
 // Performance counter to clock conversion
 static uint64_t sFactor = 0; // ticks per us
@@ -700,8 +660,6 @@ bool clockInit(void) {
     DBG_PRINT4("OPTION_CLOCK_EPOCH_ARB,");
 #endif
     DBG_PRINTF4("  CLOCK_TICKS_PER_S = %" PRIu32 "\n\n", (uint32_t)(CLOCK_TICKS_PER_S));
-
-    __gClock = 0;
 
     // Get current performance counter frequency
     // Determine conversion to CLOCK_TICKS_PER_S -> sDivide/sFactor
@@ -795,7 +753,6 @@ uint64_t clockGet(void) {
     } else {
         t = t * sFactor + sOffset;
     }
-    __gClock = t;
 #ifdef TEST_CLOCK_GET_STATISTIC
     atomic_fetch_add_explicit(&gClockGetCtr, 1, memory_order_relaxed);
 #endif
@@ -804,15 +761,11 @@ uint64_t clockGet(void) {
 
 #if (CLOCK_TICKS_PER_S == 1000000000UL)
 uint64_t clockGetMonotonicNs() { return clockGet(); }
-uint64_t clockGetMonotonicNsLast() { return clockGetLast(); }
 uint64_t clockGetMonotonicUs() { return clockGet() / 1000; }
-uint64_t clockGetMonotonicUsLast() { return clockGetLast() / 1000; }
 #endif
 #if (CLOCK_TICKS_PER_S == 1000000UL)
 uint64_t clockGetMonotonicNs() { return clockGet() * 1000; }
-uint64_t clockGetMonotonicNsLast() { return clockGetLast() * 1000; }
 uint64_t clockGetMonotonicUs() { return clockGet(); }
-uint64_t clockGetMonotonicUsLast() { return clockGetLast(); }
 #endif
 
 #endif // Windows

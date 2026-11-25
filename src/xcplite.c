@@ -2953,7 +2953,7 @@ void XcpBackgroundTasks(void) {
 
     // Publish all modified calibration segments
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
-    uint64_t now = clockGetMonotonicNsLast();
+    uint64_t now = clockGetMonotonicNs();
     bool res = XcpCalSegPublishAll(false);
     if (res != CRC_CMD_OK && res != CRC_CMD_PENDING) {
         DBG_PRINT_WARNING("XcpBackgroundTasks: Calibration segment publish failed!\n");

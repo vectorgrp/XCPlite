@@ -78,6 +78,7 @@ Legend for **Type**:
 | `namelist_test` | C | default | unit | yes (`unit`), not on Windows | POSIX threads | Lock-free name list `src/namelist.c` ([docs/NAMELIST.md](../docs/NAMELIST.md)): parameter checks, and 8 threads which register the same names concurrently while 2 readers check count, completeness and uniqueness. `namelist_test [rounds]`, CTest runs 200 rounds ([namelist_test/](namelist_test/)) |
 | `cal_test` | C++ | default | unit (+opt. server) | yes (`unit;calibration`) | — hermetic by default; `--server` adds CANape/`xcpclient` | Calibration-segment RCU correctness + multi-thread stress; **self-terminates** ([cal_test/](cal_test/)) |
 | `cal_page_test` | C | default | unit | yes (`unit`) | — | Rejects truncated COPY_CAL_PAGE commands without modifying calibration data; verifies valid copies still work |
+| `clock_race_test` | C | default | unit | yes (`unit`) | runs about 2 s | Concurrent `clockGet()`/`clockGetMonotonicNs()` calls from 8 threads never go backwards within a thread ([clock_race_test/](clock_race_test/)) |
 | `a2l_test` | C | default | unit+tool | yes if [`a2ltool`](https://crates.io/crates/a2ltool) on `PATH` | `a2ltool` | Generates an A2L and validates it with an external checker ([a2l_test/](a2l_test/)) |
 | `queue_test` | C | default | benchmark | no | — | Lock-free transmit-queue correctness & throughput (multi-thread/process) ([queue_test/](queue_test/)) |
 | `daq_test` | C | default | interactive | no | CANape or `xcpclient` | Multi-thread DAQ measurement server; loops until Ctrl+C ([daq_test/](daq_test/)) |

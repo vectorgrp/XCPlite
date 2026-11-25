@@ -5,16 +5,15 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V2.4.3]
 
-- Breaking change (impact only on use cases with run-time A2L generation using event instances):
+- Breaking change:
+    * Functions in platform.h `clockGetLast`, `clockGetMonotonicNsLast`, `clockGetMonotonicUsLast`, `clockGetRealtimeNsLast` and `clockGetRealtimeUsLast` have been removed. 
+    * Fixed a data race in the POSIX clock functions (Linux, macOS, QNX), so the timestamps of one thread could go backwards by several µs.
+    * New unit test `clock_race_test`: several threads call the clock concurrently for 2 s and check that the values of each thread never go backwards.
+
+- Breaking change: (impact only on use cases with run-time A2L generation using event instances)
     * Support for anonymous multi-threaded event instances (`<name>_<index>`) has been removed. 
     * The API functions `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex` do not exist anymore. Create an event with dynamic name (`DaqCreateEvent_s`) instead and manage your event instances by name or use the new named event instances (event context).
     * Binary persistence file version 0x0206: the context list (name and owning application, in context id order) follows the header, an event references its context by context id. On load, the contexts are restored with their saved ids before the events, so context ids stay stable across restarts (they are visible in the A2L file, `conv.contexts`, and in the span link measurements), also for contexts without events and when events are created in a different order than their contexts. Files of version 0x0205 are still loaded, a file which contains the old anonymous event instances is rejected. `tools/bintool` shows an event of a context as `<context>.<event>`.
-
-Changed files:
-a2l_writer.c: handle event context, create name with getEventBaseName() 
-persistence.c: write and load the context list, an event references its context by id instead of the event instance index
-xcplite.c: added context list, tXcpContext, tXcpContextList, XcpCreateEventWithIndex; removed `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex`
-
 
 Additions for contexts, spans and span links:
 
@@ -36,6 +35,12 @@ Supporting changes in `xcpclient` (xcpclient V4.1.0):
 - Measurement (`--mea`) is no longer limited to 123 signals or one packet (MAX_DTO - 8 bytes) per event. An event with more ODT entries gets as many DAQ lists as needed, the XCP server samples them with the same timestamp. Multiple ODTs per DAQ list are not used, as before. In the console output and the CSV file, such an event appears once per DAQ list, with the same event name and timestamp and a different `daq`. The limit of 64 measured events is removed.
 - Measurement setup merges signals of an event which are adjacent in memory (struct members, array elements) to one ODT entry of up to the maximum ODT entry size of the XCP server. 
 - Measurement reports a signal which is too large for the XCP server (maximum ODT entry size from `GET_DAQ_RESOLUTION_INFO`, payload of a DAQ packet) and more than 1024 DAQ lists as an error. These cases paniced before.
+
+Changed core files:
+* a2l_writer.c: handle event context, create name with getEventBaseName() 
+* persistence.c: write and load the context list, an event references its context by id instead of the event instance index
+* xcplite.c: added context list, tXcpContext, tXcpContextList, XcpCreateEventWithIndex; removed `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex`
+
 
 
 ## [V2.3.5]
