@@ -351,12 +351,7 @@ mod tests {
         d.stop();
         assert_eq!(
             *log.lock().unwrap(),
-            [
-                "start 8 10 42949672960",
-                "write 0 0 42949673010 12 42",
-                "write 0 3 42949673030 12 43",
-                "stop 42949673030"
-            ]
+            ["start 8 10 42949672960", "write 0 0 42949673010 12 42", "write 0 3 42949673030 12 43", "stop 42949673030"]
         );
         assert_eq!(d.get_event_count(), 2);
         assert_eq!(d.get_byte_count(), 8);

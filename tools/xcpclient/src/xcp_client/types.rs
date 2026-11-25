@@ -192,6 +192,16 @@ impl A2lConversion {
         if pairs.is_empty() { None } else { Some(pairs) }
     }
 
+    /// Factor of a linear conversion, None if there is none (1.0) or for an enum
+    pub fn factor(&self) -> Option<f64> {
+        self.factor
+    }
+
+    /// Offset of a linear conversion, None if there is none (0.0) or for an enum
+    pub fn offset(&self) -> Option<f64> {
+        self.offset
+    }
+
     /// Physical unit, empty if there is none or for an enum
     pub fn unit(&self) -> &str {
         &self.unit

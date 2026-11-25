@@ -43,6 +43,9 @@ use csv_writer::CsvWriter;
 mod perfetto_writer;
 use perfetto_writer::{PerfettoWriter, TraceAuto};
 
+mod mdf_writer;
+use mdf_writer::MdfWriter;
+
 use xcp_registry::McA2mlMode;
 use xcp_registry::McEvent;
 use xcp_test_executor::test_executor;
@@ -324,6 +327,13 @@ struct Args {
     #[arg(long, default_value = "")]
     csv: String,
 
+    // --mdf
+    /// Save measurement data to an ASAM MDF 4.1 file. One channel group per DAQ list, the payload of the DAQ packets is stored as received.
+    /// Values are raw values, the MDF file contains the conversions (factor and offset, enum labels) and units.
+    /// May be combined with --csv and --perfetto.
+    #[arg(long, default_value = "", value_name = "FILE")]
+    mdf: String,
+
     // --perfetto
     /// Save measurement data to a trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev).
     /// Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks,
@@ -395,6 +405,7 @@ impl ToLogLevelFilter for u8 {
 // contexts are the known contexts and trace_signals the signals added to the measurement for --perfetto (see add_trace_signals)
 fn create_daq_writers(
     csv_filename: &str,
+    mdf_filename: &str,
     perfetto_filename: &str,
     ecu_name: &str,
     contexts: &[String],
@@ -406,6 +417,11 @@ fn create_daq_writers(
         info!("CSV output to file: {}", csv_filename);
         // The trace signals are not written to the CSV file
         writers.push(Box::new(writer.with_skip(trace_signals)));
+    }
+    if !mdf_filename.is_empty() {
+        let writer = MdfWriter::create(mdf_filename).map_err(|e| format!("Failed to create MDF file '{}': {}", mdf_filename, e))?;
+        info!("MDF output to file: {}", mdf_filename);
+        writers.push(Box::new(writer.with_ecu_name(ecu_name)));
     }
     if !perfetto_filename.is_empty() {
         let mut writer = PerfettoWriter::create(perfetto_filename).map_err(|e| format!("Failed to create Perfetto trace file '{}': {}", perfetto_filename, e))?;
@@ -513,6 +529,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
         time,
         cal: cal_args,
         csv: csv_filename,
+        mdf: mdf_filename,
         perfetto: perfetto_filename,
         trace_auto,
         yes,
@@ -1168,7 +1185,7 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 }
 
                 // Measurement data output
-                let writers = create_daq_writers(&csv_filename, &perfetto_filename, &ecu_name, &contexts, &trace_signals)?;
+                let writers = create_daq_writers(&csv_filename, &mdf_filename, &perfetto_filename, &ecu_name, &contexts, &trace_signals)?;
                 if let Some(daq_decoder) = &daq_decoder_handle {
                     daq_decoder.lock().set_writers(writers);
                 }
@@ -1321,6 +1338,7 @@ struct ConfigFile {
     default_event: Option<DefaultEvent>,
     time: Option<u64>,
     csv: Option<String>,
+    mdf: Option<String>,
     perfetto: Option<String>,
     trace_auto: Option<String>,
     list_cal: Option<String>,
@@ -1380,6 +1398,7 @@ fn merge_config(matches: &clap::ArgMatches, config: ConfigFile, args: &mut Args)
     }
     apply!(time);
     apply!(csv);
+    apply!(mdf);
     apply!(perfetto);
     apply!(trace_auto);
     apply!(list_cal);

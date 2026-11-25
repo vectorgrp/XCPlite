@@ -172,6 +172,11 @@ Options:
           
           [default: ""]
 
+      --mdf <FILE>
+          Save measurement data to an ASAM MDF 4.1 file. One channel group per DAQ list, the payload of the DAQ packets is stored as received. Values are raw values, the MDF file contains the conversions (factor and offset, enum labels) and units. May be combined with --csv and --perfetto
+          
+          [default: ""]
+
       --perfetto <FILE>
           Save measurement data to a trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev). Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks, span links (xcp::LinkSpan) are flows (arrows) from the producer span to the consumer span. The span and link signals of the contexts needed for the trace are added to the measurement, see --trace-auto. May be combined with --csv, the added signals are not written to the CSV file
           
@@ -335,6 +340,18 @@ Structs and arrays are not affected, they are measured as their basic type eleme
 The number of signals which can be measured at the same time is limited by the DAQ memory of the XCP server. XCPlite needs 6 bytes per ODT entry and 20 bytes per DAQ list of `OPTION_DAQ_MEM_SIZE` (default 12288 bytes, about 2000 signals when no signals can be merged). The server rejects a larger measurement with a memory overflow error. xcpclient uses at most 1024 DAQ lists.
 
 
+
+## Save measurement data to MDF4
+
+`--mdf <file>` writes the measurement to an ASAM MDF 4.1 file, which can be opened with CANape, asammdf and other MDF tools.
+
+```bash
+xcpclient --udp --mea '.*' --time 5 --mdf measurement.mf4
+```
+
+The payload of the DAQ packets is stored as received, without decoding, the MDF metadata describes its binary layout. Each DAQ list is a channel group with the event name as acquisition name and the ECU name as source. A record is the DAQ list number (2 byte record id), the timestamp (64 bit, ticks since the measurement start, the master channel `time` in s) and the payload of the DAQ packet. The signals are raw values with their conversion: factor and offset as linear conversion, enums as value to text conversion, and the unit.
+
+The file is unsorted (all channel groups in one data group), MDF tools sort it when they open it. It is finalized when the measurement stops. If xcpclient is terminated without stopping the measurement, the file stays unfinalized (`UnFinMF`), MDF tools can repair it.
 
 ## Export spans and signals to Perfetto
 

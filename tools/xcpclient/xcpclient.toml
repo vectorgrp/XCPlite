@@ -131,6 +131,9 @@ time = 0
 # Format per row: time_ns,daq,name,value,unit
 csv = ""
 
+# Write measurement data to this ASAM MDF 4.1 file
+mdf = ""
+
 # Write measurement data to this trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev)
 perfetto = ""
 
