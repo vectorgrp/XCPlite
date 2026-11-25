@@ -42,10 +42,15 @@ constexpr const char OPTION_PROJECT_VERSION[] = "V103";
 constexpr bool OPTION_USE_TCP = false;
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
-constexpr size_t OPTION_QUEUE_SIZE = (1024 * 64);
+constexpr size_t OPTION_QUEUE_SIZE = (1024 * 4024);
 constexpr int OPTION_LOG_LEVEL = 4;
 constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL);
 constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS);
+
+// Notes on performance:
+// With the default parameters the demo needs only a few % CPU time
+// But it needs an much larger queue - depending on sampling rates, it may produce more that 1 million events per second
+// The MTU of the default configuration is #define OPTION_MTU 1500, using jumbo frame will result in a significant performace boost
 
 void init_xcp() {
 

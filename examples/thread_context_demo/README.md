@@ -34,10 +34,17 @@ cmake --build build --target thread_context_demo
 ./build/thread_context_demo
 ```
 
-Measure all signals with xcpclient for 5 seconds into a CSV file:
+Test
 
 ```bash
-xcpclient --udp --mea '.*' --time 5 --csv mea.csv
+Measure all signals with xcpclient for 5 seconds into a CSV file:
+xcpclient --udp --mea '.*' --time 5 --csv trace.csv
+xcpclient --udp --mea '.*' --time 5 --mdf trace.mdf
+
+Calibrate 
+xcpclient --udp --cal SigGen2.sample_time_us 25 
+xcpclient --udp --cal Mainloop.idle_sleep_us 25
+
 ```
 
 ---
@@ -305,6 +312,65 @@ An event stores the id of its context and its XCP event, a context id > 0 means 
 - **Library implementation.** The context names are kept in a context list in the C core
   ([src/ctx.c](../../src/ctx.c)), an event stores the id of its context. The binary  persistence file stores the context name with each event, so event ids are stable across restarts.
 - **C++ only.** There is no C instrumentation API for contexts.
+
+
+## Performance and tuning parameters
+
+The demo produces a lot of DAQ packets: each span sends one packet at its begin and one at its end, and spans are about 75% of all packets. In the tests below, the application threads were mostly idle. The limit is the XCP transmit path: the transmit queue, the transmit thread and one `sendmsg` system call per UDP datagram.
+
+### Parameters
+
+| Parameter | Where | Default | Effect |
+|---|---|---|---|
+| Transmit queue size | `OPTION_QUEUE_SIZE` in [src/main.cpp](src/main.cpp), parameter of `XcpEthServerInit` | about 4 MB, `1024 * 4024` (was 64 KB) | Must hold at least 10 ms of traffic. When less than one UDP datagram is ready and the queue is less than 50% full, the transmit thread sleeps 1 ms (`MAX_SLEEP_TIME_MS` in [src/xcpethtl.c](../../src/xcpethtl.c)). On macOS this sleep lasts longer under load. If the queue fills up in the meantime, packets are lost and the server prints `Transmit queue overflow`. 64 KB is about 4 ms at 15 MB/s and about 1 ms at 60 MB/s. |
+| MTU | `OPTION_MTU` in [src/xcplib_cfg.h](../../src/xcplib_cfg.h) | 1500 | One UDP datagram carries up to `OPTION_MTU - 28` bytes (1472 or 7968 bytes). Jumbo frames (8000) need about 5 times fewer `sendmsg` calls, which halves the CPU load of the transmit thread and of xcpclient. The path MTU must allow it: localhost works (macOS `lo0` 16384), on Ethernet all network interfaces and switches need jumbo frames enabled. xcpclient receives datagrams of up to 8000 bytes, so do not set `OPTION_MTU` above 8000 for xcpclient. |
+| Task delays | Calibration parameters `SigGen1.sample_time_us`, `SigGen2.sample_time_us`, `Mainloop.idle_sleep_us` | 25, 1000, 100 µs | Set the packet rate. Short sleeps are inaccurate: on macOS `sleepUs(20)` sleeps about 28 µs. 0 turns the threads into busy loops, which produce more packets than the transmit path can send. |
+| Simulated work | `OPTION_SIMULATE_WORK` in [src/sig_gen.hpp](src/sig_gen.hpp) | off | When defined, the spans sleep to give nicer Gantt charts. Keep it off for performance tests. |
+| Measured signals | xcpclient `--mea` | | The span signals (`<context>.span`, `.level`, `.span_dt`) produce most of the packets. Measuring fewer of them reduces the load. |
+| Build type | `-DCMAKE_BUILD_TYPE` | Debug with `build.sh` | The figures are from Release builds. |
+
+Set the delays with xcpclient, for example:
+
+```bash
+xcpclient --udp --cal SigGen1.sample_time_us 5
+xcpclient --udp --cal SigGen2.sample_time_us 5
+xcpclient --udp --cal Mainloop.idle_sleep_us 5
+xcpclient --udp --mea '.*' --time 5 --mdf trace.mf4
+```
+
+### Measured figures
+
+Test setup:
+
+- MacBook Pro M3 Pro (macOS), Release build, demo and xcpclient on the same machine (localhost UDP).
+- Transmit queue about 4 MB. All signals measured with `xcpclient --mea '.*' --time 5 --mdf`.
+- Packets/s is the number of DAQ packets stored in the MDF file per second. MB/s is the MDF file size per second, about the size of the XCP data on the wire.
+- CPU is `top` %CPU, where 100% is one core. Lost packets are summed from the `Transmit queue overflow` messages of the demo.
+- The delays are set to the same value for all three tasks, except the default row. Where two runs differed, both values are given.
+
+| Delays | MTU | Packets/s | MB/s | Lost in 5 s | Demo CPU | xcpclient CPU | Transmit thread in `sendmsg` |
+|---|---|---|---|---|---|---|---|
+| default (25/1000/100 µs) | 1500 | 0.66 M | 12.5 | 0 | 17% | 12% | 9% |
+| default (25/1000/100 µs) | 8000 | 0.66 M | 12.6 | 0 | 10% | 3% | 3% |
+| 20 µs | 1500 | 1.44 to 1.48 M | 28 | 0 | 44% | 27% | 16 to 21% |
+| 20 µs | 8000 | 1.42 to 1.48 M | 27 to 28 | 0 | 28 to 29% | 8% | 5 to 9% |
+| 10 µs | 1500 | 2.4 M | 46 | 0 | 80% | 30% | 37% |
+| 10 µs | 8000 | 2.6 M | 50 | 0 | 49% | 15% | 12% |
+| 5 µs | 1500 | 2.7 to 3.7 M | 51 to 71 | 0 | 114 to 127% | 35 to 42% | 40 to 61% |
+| 5 µs | 8000 | 3.9 to 4.1 M | 75 to 78 | 0 | 83 to 86% | 22 to 23% | 19 to 22% |
+| 0 (busy loop) | 1500 | 2.8 to 3.1 M | 54 to 60 | 73 to 81 M | 250 to 270% | 22% | 48 to 54% |
+| 0 (busy loop) | 8000 | 6.6 to 6.8 M | 127 to 130 | 42 to 43 M | 265 to 270% | 22 to 23% | 39 to 43% |
+
+The 0 µs rows show the limit of the transmit path. The producers make more packets than it can send, so most are lost: with MTU 1500 the limit is about 3 M packets/s (about 60 MB/s), with MTU 8000 about 6.7 M packets/s (about 130 MB/s). The rate at 5 µs varies between runs, because the actual sleep time of `sleepUs(5)` varies.
+
+With the old 64 KB queue and MTU 1500, 20 µs (28 MB/s) still worked without loss. 5 µs (68 MB/s) gave 7088 `Transmit queue overflow` messages in 5 s. With the 4 MB queue, the 5 µs rate ran without loss.
+
+Without a measurement running, the demo needs about 7% CPU with the default delays.
+
+Known weak points of the transmit thread, not changed yet:
+
+- The thread sleeps 1 ms even when the queue is full but the oldest entry is not committed yet. At 0 µs it is asleep about 35% of the time while packets are lost.
+- The `Transmit queue overflow` messages are printed by the transmit thread itself. This takes up to 5% of its time when the queue overflows, which makes the overflow worse.
 
 
 ## Possible follow-ups
