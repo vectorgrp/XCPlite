@@ -1225,26 +1225,37 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 let mut last_report = tokio::time::Instant::now();
                 let mut last_events = 0usize;
                 let mut last_bytes = 0usize;
+                let mut last_lost = 0usize;
                 loop {
                     tokio::select! {
                         _ = ticker.tick() => {
                             if let Some(ref d) = stats_decoder {
-                                let (events, bytes) = {
+                                let (events, bytes, lost) = {
                                     let g = d.lock();
-                                    (g.get_event_count(), g.get_byte_count())
+                                    (g.get_event_count(), g.get_byte_count(), g.get_lost_count())
                                 };
                                 let now = tokio::time::Instant::now();
                                 let dt = now.duration_since(last_report).as_secs_f64();
                                 if dt > 0.0 {
-                                    info!(
-                                        "Measurement: {:.0} event/s, {:.3} Mbyte/s",
-                                        (events - last_events) as f64 / dt,
-                                        (bytes - last_bytes) as f64 / dt / 1_000_000.0
-                                    );
+                                    if lost > last_lost {
+                                        warn!(
+                                            "Measurement: {:.0} event/s, {:.3} Mbyte/s, {} packets lost",
+                                            (events - last_events) as f64 / dt,
+                                            (bytes - last_bytes) as f64 / dt / 1_000_000.0,
+                                            lost - last_lost
+                                        );
+                                    } else {
+                                        info!(
+                                            "Measurement: {:.0} event/s, {:.3} Mbyte/s",
+                                            (events - last_events) as f64 / dt,
+                                            (bytes - last_bytes) as f64 / dt / 1_000_000.0
+                                        );
+                                    }
                                 }
                                 last_report = now;
                                 last_events = events;
                                 last_bytes = bytes;
+                                last_lost = lost;
                             }
                         }
                         _ = async {
@@ -1272,12 +1283,22 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                         let daq_decoder = daq_decoder.lock();
                         let event_count = daq_decoder.get_event_count();
                         let byte_count = daq_decoder.get_byte_count();
+                        let lost_count = daq_decoder.get_lost_count();
                         info!(
-                            "Measurement done, {} events, {:.0} event/s, {:.3} Mbytes/s",
+                            "Measurement done, {} events, {:.0} event/s, {:.3} Mbytes/s, {} packets lost",
                             event_count,
                             event_count as f64 * 1_000_000.0 / elapsed_time as f64,
-                            byte_count as f64 / elapsed_time as f64
+                            byte_count as f64 / elapsed_time as f64,
+                            lost_count
                         );
+                        if lost_count > 0 {
+                            warn!(
+                                "{} of {} DAQ packets lost ({:.3}%), in the transmit queue of the XCP server or in the UDP receive buffer",
+                                lost_count,
+                                event_count + lost_count,
+                                lost_count as f64 * 100.0 / (event_count + lost_count) as f64
+                            );
+                        }
                     }
                 }
             }

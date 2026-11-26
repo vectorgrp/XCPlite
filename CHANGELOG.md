@@ -23,18 +23,21 @@ Additions for contexts, spans and span links:
 - New option `OPTION_DAQ_SPAN_THREAD` (not defined by default): records the thread index with each span, for several threads in one context. Experimental, might be removed again.
 
 
-Supporting changes in `xcpclient` (xcpclient V4.1.0):
+Changes in `xcpclient` (xcpclient V4.2.0):
 
-- New option `--perfetto <file>`: writes spans, span links and signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`. The span and link signals needed for the trace are added to the measurement (option `--trace-auto`).
+- New option `--perfetto <file>`: writes spans, span links and signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`. 
+- The span and link signals needed for the trace are added to the measurement (option `--trace-auto`).
 - Print values in physical unit or as enum strings in console and csv. Enum conversion is used to display span names. 
 - The CSV file has a new column `unit`.
-- `--upload-bin` with a `.bin` file writes the context list from `conv.contexts` of the A2L file and the events of a context with their context id, and the memory segment number of each calibration segment (was 0 for all segments, which failed the consistency check of the target). The file is identical to the persistence file of the target and can be loaded by it.
+- `--upload-bin` with a `.bin` file writes the new context list and the events of a context with their context id.
 - `tools/bintool` and the BIN reader of xcpclient show the context list and the memory segment numbers.
 - Improved timestamp wraparound detection for very sporadic events.
-- The console output of `--mea` shows events by name, `EVENT: <event> (id=<id>, daq=<daq>), ...` instead of the DAQ list number only.
-- Measurement (`--mea`) is no longer limited to 123 signals or one packet (MAX_DTO - 8 bytes) per event. An event with more ODT entries gets as many DAQ lists as needed, the XCP server samples them with the same timestamp. Multiple ODTs per DAQ list are not used, as before. In the console output and the CSV file, such an event appears once per DAQ list, with the same event name and timestamp and a different `daq`. The limit of 64 measured events is removed.
-- Measurement setup merges signals of an event which are adjacent in memory (struct members, array elements) to one ODT entry of up to the maximum ODT entry size of the XCP server. 
-- Measurement reports a signal which is too large for the XCP server (maximum ODT entry size from `GET_DAQ_RESOLUTION_INFO`, payload of a DAQ packet) and more than 1024 DAQ lists as an error. These cases paniced before.
+- The console output of `--mea` shows events by name, `EVENT: <event> (id=<id>, daq=<daq>), ...`.
+- Measurement (`--mea`) is no longer limited to 123 signals or one packet per event.
+- Measurement setup merges signals of an event which are adjacent in memory. 
+- Measurement reports a signal which is too large for the XCP server and more than 1024 DAQ lists as an error. These cases paniced before.
+- Fixed reporting of lost DAQ packets.
+- The UDP socket requests an 8 MB receive buffer to reduce UDP packet loss on high data rate.
 
 Changed core files:
 * a2l_writer.c: handle event context, create name with getEventBaseName() 

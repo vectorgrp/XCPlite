@@ -1215,7 +1215,7 @@ dependencies = [
 
 [[package]]
 name = "xcpclient"
-version = "4.1.0"
+version = "4.2.0"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -1237,6 +1237,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "socket2",
  "thiserror",
  "tokio",
  "xcp_registry",

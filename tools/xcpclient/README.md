@@ -342,6 +342,22 @@ A signal can not be split over several ODT entries, ODTs or DAQ lists. xcpclient
 
 Structs and arrays are not affected, they are measured as their basic type elements (`points_._0.x`, `parameters.counter_max`).
 
+### Lost packets and UDP receive buffer
+
+The XCP server numbers its messages with a 16 bit transport layer counter. xcpclient detects lost DAQ packets from the gaps of this counter and reports them every second and at the end of the measurement. A packet is lost when the transmit queue of the XCP server overflows (XCPlite counts these packets in the counter, it prints `Transmit queue overflow`) or when the UDP receive buffer of xcpclient is full and the system drops a whole datagram (up to about 75 packets with MTU 1500, about 400 with MTU 8000). A gap of 65536 or more packets can not be detected.
+
+xcpclient requests an 8 MB UDP receive buffer and logs the size it got. The system default is too small for high data rates (Linux 208 KB, macOS 768 KB). On Linux the size is limited by `net.core.rmem_max` (default 208 KB, xcpclient then gets 416 KB, Linux reports twice the set size) and xcpclient warns. To allow 8 MB:
+
+```bash
+sudo sysctl -w net.core.rmem_max=8388608
+```
+
+Add `net.core.rmem_max=8388608` to `/etc/sysctl.conf` to keep it after a reboot.
+
+
+
+### DAQ memory
+
 The number of signals which can be measured at the same time is limited by the DAQ memory of the XCP server. XCPlite needs 6 bytes per ODT entry and 20 bytes per DAQ list of `OPTION_DAQ_MEM_SIZE` (default 12288 bytes, about 2000 signals when no signals can be merged). The server rejects a larger measurement with a memory overflow error. xcpclient uses at most 1024 DAQ lists.
 
 

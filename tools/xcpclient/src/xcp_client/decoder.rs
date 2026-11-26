@@ -180,4 +180,9 @@ pub trait XcpDaqDecoder {
     fn get_byte_count(&self) -> usize {
         0
     }
+
+    /// Get the number of lost DAQ packets, from the gaps of the transport layer counter
+    fn get_lost_count(&self) -> usize {
+        0
+    }
 }

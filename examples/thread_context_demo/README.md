@@ -337,15 +337,17 @@ An event stores the id of its context and its XCP event, a context id > 0 means 
 
 ## Performance and tuning parameters
 
-The demo produces a lot of DAQ packets: each span sends one packet at its begin and one at its end, and spans are about 75% of all packets. In the tests below, the application threads were mostly idle. The limit is the XCP transmit path: the transmit queue, the transmit thread and one `sendmsg` system call per UDP datagram.
+The demo produces a lot of DAQ packets: each span sends one packet at its begin and one at its end, and spans are about 75% of all packets. In the tests below, the application threads were mostly idle. The limits are the XCP transmit path (the transmit queue, the transmit thread and one `sendmsg` system call per UDP datagram), the UDP receive buffer of xcpclient and, on Linux, the timer slack of the demo threads.
 
 ### Parameters
 
 | Parameter | Where | Default | Effect |
 |---|---|---|---|
 | Transmit queue size | `OPTION_QUEUE_SIZE` in [src/main.cpp](src/main.cpp), parameter of `XcpEthServerInit` | about 4 MB, `1024 * 4024` (was 64 KB) | Must hold at least 10 ms of traffic. When less than one UDP datagram is ready and the queue is less than 50% full, the transmit thread sleeps 1 ms (`MAX_SLEEP_TIME_MS` in [src/xcpethtl.c](../../src/xcpethtl.c)). On macOS this sleep lasts longer under load. If the queue fills up in the meantime, packets are lost and the server prints `Transmit queue overflow`. 64 KB is about 4 ms at 15 MB/s and about 1 ms at 60 MB/s. |
-| MTU | `OPTION_MTU` in [src/xcplib_cfg.h](../../src/xcplib_cfg.h) | 1500 | One UDP datagram carries up to `OPTION_MTU - 28` bytes (1472 or 7968 bytes). Jumbo frames (8000) need about 5 times fewer `sendmsg` calls, which halves the CPU load of the transmit thread and of xcpclient. The path MTU must allow it: localhost works (macOS `lo0` 16384), on Ethernet all network interfaces and switches need jumbo frames enabled. xcpclient receives datagrams of up to 8000 bytes, so do not set `OPTION_MTU` above 8000 for xcpclient. |
-| Task delays | Calibration parameters `SigGen1.sample_time_us`, `SigGen2.sample_time_us`, `Mainloop.idle_sleep_us` | 25, 1000, 100 µs | Set the packet rate. Short sleeps are inaccurate: on macOS `sleepUs(20)` sleeps about 28 µs. 0 turns the threads into busy loops, which produce more packets than the transmit path can send. |
+| MTU | `OPTION_MTU` in [src/xcplib_cfg.h](../../src/xcplib_cfg.h) | 1500 | One UDP datagram carries up to `OPTION_MTU - 28` bytes (1472 or 7968 bytes). Jumbo frames (8000) need about 5 times fewer `sendmsg` calls. On macOS this halves the CPU load of the transmit thread and of xcpclient. On Linux (Raspberry Pi 5) it saves only about 15% of the xcpclient CPU load at the same rate, but it raises the maximum rate by about 15% and reduces the losses. The path MTU must allow it: localhost works (macOS `lo0` 16384, Linux `lo` 65536), on Ethernet all network interfaces and switches need jumbo frames enabled, and a WLAN connection does not support them. xcpclient receives datagrams of up to 8000 bytes, so do not set `OPTION_MTU` above 8000 for xcpclient. |
+| Task delays | Calibration parameters `SigGen1.sample_time_us`, `SigGen2.sample_time_us`, `Mainloop.idle_sleep_us` | 25, 1000, 100 µs | Set the packet rate. Short sleeps are inaccurate: on macOS `sleepUs(20)` sleeps about 28 µs. 0 turns the threads into busy loops on macOS, which produce more packets than the transmit path can send. On Linux see timer slack. |
+| Timer slack (Linux) | `prctl(PR_SET_TIMERSLACK, ...)` or `/proc/self/timerslack_ns` before the threads are created; new threads inherit it, and it is kept across `exec` | 50 µs | Linux may delay the end of each `nanosleep` by up to the timer slack. With the default 50 µs, every sleep of the demo lasts at least about 50 µs, even `sleepUs(0)`, and the rate stays below 0.8 M packets/s for every delay setting. With 1 ns the delays work as on macOS. For the tests the demo was started with `bash -c "echo 1 > /proc/self/timerslack_ns; exec ./thread_context_demo"`. Threads with a real-time policy (`SCHED_FIFO`, `SCHED_RR`) have no timer slack. |
+| UDP receive buffer | xcpclient requests 8 MB (`SO_RCVBUF`). Limit on the receiving host: Linux `net.core.rmem_max`, macOS `kern.ipc.maxsockbuf` | 8 MB on macOS, 416 KB on Linux with the default `rmem_max` | When xcpclient is late and the buffer is full, the system drops whole datagrams (up to about 75 packets with MTU 1500, about 400 with MTU 8000). The demo does not notice it. xcpclient reports these packets as lost, together with the packets lost in the transmit queue of the demo, from the gaps of the transport layer counter. On Linux allow 8 MB with `sudo sysctl -w net.core.rmem_max=8388608`, xcpclient warns when it gets less. Older xcpclient versions used the system default (Linux 208 KB, macOS 768 KB) and did not report lost packets. |
 | Simulated work | `OPTION_SIMULATE_WORK` in [src/sig_gen.hpp](src/sig_gen.hpp) | off | When defined, the spans sleep to give nicer Gantt charts. Keep it off for performance tests. |
 | Measured signals | xcpclient `--mea` | | The span signals (`<context>.span`, `.level`, `.span_dt`) produce most of the packets. Measuring fewer of them reduces the load. |
 | Build type | `-DCMAKE_BUILD_TYPE` | Debug with `build.sh` | The figures are from Release builds. |
@@ -361,15 +363,19 @@ xcpclient --udp --mea '.*' --time 5 --mdf trace.mf4
 
 ### Measured figures
 
-Test setup:
+Test setup for both machines:
 
-- MacBook Pro M3 Pro (macOS), Release build, demo and xcpclient on the same machine (localhost UDP).
+- Release build of the demo and of xcpclient, both on the same machine (localhost UDP).
 - Transmit queue about 4 MB. All signals measured with `xcpclient --mea '.*' --time 5 --mdf`.
-- Packets/s is the number of DAQ packets stored in the MDF file per second. MB/s is the MDF file size per second, about the size of the XCP data on the wire.
-- CPU is `top` %CPU, where 100% is one core. Lost packets are summed from the `Transmit queue overflow` messages of the demo.
-- The delays are set to the same value for all three tasks, except the default row. Where two runs differed, both values are given.
+- Packets/s is the number of DAQ packets stored in the MDF file per second. MB/s is the MDF file size per second.
+- CPU: 100% is one core. Lost in the demo is summed from the `Transmit queue overflow` messages of the demo. Receive drops are the datagrams dropped by full UDP receive buffers, from the system counters (Linux `/proc/net/snmp` `Udp: RcvbufErrors`, macOS `netstat -s -p udp` `dropped due to full socket buffers`). These counters count all sockets of the system.
+- The delays are set to the same value for all three tasks, except the default rows. Where two runs differed, both values are given.
 
-| Delays | MTU | Packets/s | MB/s | Lost in 5 s | Demo CPU | xcpclient CPU | Transmit thread in `sendmsg` |
+#### MacBook Pro M3 Pro (macOS)
+
+CPU is `top` %CPU. The transmit thread time in `sendmsg` is from `sample`.
+
+| Delays | MTU | Packets/s | MB/s | Lost in the demo | Demo CPU | xcpclient CPU | Transmit thread in `sendmsg` |
 |---|---|---|---|---|---|---|---|
 | default (25/1000/100 µs) | 1500 | 0.66 M | 12.5 | 0 | 17% | 12% | 9% |
 | default (25/1000/100 µs) | 8000 | 0.66 M | 12.6 | 0 | 10% | 3% | 3% |
@@ -384,9 +390,53 @@ Test setup:
 
 The 0 µs rows show the limit of the transmit path. The producers make more packets than it can send, so most are lost: with MTU 1500 the limit is about 3 M packets/s (about 60 MB/s), with MTU 8000 about 6.7 M packets/s (about 130 MB/s). The rate at 5 µs varies between runs, because the actual sleep time of `sleepUs(5)` varies.
 
-With the old 64 KB queue and MTU 1500, 20 µs (28 MB/s) still worked without loss. 5 µs (68 MB/s) gave 7088 `Transmit queue overflow` messages in 5 s. With the 4 MB queue, the 5 µs rate ran without loss.
+With the old 64 KB queue and MTU 1500, 20 µs (28 MB/s) still worked without loss in the demo. 5 µs (68 MB/s) gave 7088 `Transmit queue overflow` messages in 5 s. With the 4 MB queue, the 5 µs rate ran without loss in the demo.
+
+The receive drops were not checked in the table above. A later check with an xcpclient which reports lost packets, using the old 768 KB receive buffer, lost these packets in the UDP receive buffer in 5 s:
+
+- MTU 1500: 0 at 20 µs, 1859 at 10 µs (0.015%), 0.10 to 0.12 M at 5 µs (about 0.6%).
+- MTU 8000: 0 at 20, 10 and 5 µs.
+
+With the 8 MB receive buffer of the current xcpclient, no packets were lost in the receive buffer at 20, 10 and 5 µs, with both MTUs. The lost packets reported by xcpclient were exactly the packets lost in the transmit queue of the demo (for example 1,425,547 at MTU 1500, 5 µs, in a run where the demo overflowed). The macOS system counter showed 6 to 117 dropped datagrams during these runs, they came from other sockets.
 
 Without a measurement running, the demo needs about 7% CPU with the default delays.
+
+#### Raspberry Pi 5 (Linux)
+
+Raspberry Pi 5 Model B, 4 × Cortex-A76, 8 GB, Raspberry Pi OS (Debian 12, kernel 6.12). Demo started with a timer slack of 1 ns. CPU is the `utime + stime` difference from `/proc` over 2 s. The busiest demo thread is the transmit thread.
+
+| Delays | MTU | Packets/s | MB/s | Lost in the demo | Receive drops (datagrams) | Demo CPU | xcpclient CPU | Busiest demo thread |
+|---|---|---|---|---|---|---|---|---|
+| default (25/1000/100 µs) | 1500 | 0.73 M | 14.0 | 0 | 0 | 32% | 10% | 12% |
+| default (25/1000/100 µs) | 8000 | 0.75 M | 14.3 | 0 | 0 | 29% | 9% | 12% |
+| 20 µs | 1500 | 1.64 to 1.67 M | 31 to 32 | 0 | 0 to 28 | 62% | 18 to 19% | 20 to 21% |
+| 20 µs | 8000 | 1.67 to 1.71 M | 32 to 33 | 0 | 0 to 2 | 57 to 58% | 16% | 21% |
+| 10 µs | 1500 | 2.8 M | 54 | 0 | 24 to 68 | 108 to 110% | 32% | 35 to 37% |
+| 10 µs | 8000 | 2.8 M | 54 | 0 | 41 to 121 | 99 to 101% | 27 to 28% | 34 to 35% |
+| 5 µs | 1500 | 3.9 M | 74 | 0 | 3791 to 5664 | 155 to 161% | 44 to 45% | 45 to 49% |
+| 5 µs | 8000 | 4.1 M | 79 | 0 | 837 to 1282 | 155% | 38 to 39% | 49 to 51% |
+| 0 (busy loop) | 1500 | 4.4 to 4.7 M | 83 to 90 | 3.2 to 7.3 M | 36 k to 41 k | 256 to 258% | 51 to 56% | 75 to 78% |
+| 0 (busy loop) | 8000 | 5.1 to 5.3 M | 98 to 102 | 1.4 to 1.6 M | 5.9 k to 11 k | 230 to 251% | 46 to 48% | 67 to 75% |
+
+On Linux, timer slack is the amount of time the kernel may add to a timer before it fires. It is set per thread. A thread that asks to sleep 10 µs may sleep anywhere from 10 µs to 10 µs plus the slack. For normal threads the default slack is 50 µs.
+
+With the default timer slack of 50 µs, the same delay settings gave only 0.33 M (default delays), 0.56 to 0.57 M (20 µs), 0.65 M (10 µs), 0.71 M (5 µs) and 0.78 M packets/s (0 µs), at 6 to 15 MB/s, with both MTUs, without any loss, and with at most 31% demo CPU and 9% xcpclient CPU. The threads sleep at least about 50 µs per cycle, so the demo is limited by its sleeps, not by XCP.
+
+Compared with the Mac:
+
+- Up to 5 µs the Pi reaches the same rates as the Mac, at a higher CPU load: demo 1.3 to 1.9 times, xcpclient up to 1.8 times.
+- With busy loops the Pi sends more packets than the Mac with MTU 1500 (4.4 to 4.7 M against about 3 M packets/s): `sendmsg` on the Linux loopback interface is cheaper than on macOS. With MTU 8000 the Mac is faster (6.7 M against 5.3 M packets/s).
+- The receive drops on the Pi are about 1.5 to 2.5% of the packets at 5 µs, because of the small default UDP receive buffer of 208 KB.
+
+The current xcpclient gets 416 KB on the Pi (limited by the default `net.core.rmem_max`) and reports the lost packets. Lost in xcpclient (receive buffer and transmit queue of the demo) in 5 s:
+
+| Delays | MTU 1500 | MTU 8000 |
+|---|---|---|
+| 10 µs | 2270 (0.016%) | 0 |
+| 5 µs | 14 k to 67 k (0.07 to 0.34%) | 4.9 k to 11 k (0.02 to 0.05%) |
+| 0 (busy loop) | 3.4 M, of these 1.6 M in the demo | 1.1 M, of these 0.48 M in the demo |
+
+The 8 MB buffer (`sudo sysctl -w net.core.rmem_max=8388608`) was not tested on the Pi.
 
 Known weak points of the transmit thread, not changed yet:
 

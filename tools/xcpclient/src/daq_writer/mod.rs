@@ -127,6 +127,7 @@ pub struct DaqDecoder {
     header_size: u8,
     event_count: usize,
     byte_count: usize,
+    lost_count: usize,                        // DAQ packets lost, from the gaps of the transport layer counter
     daq_timestamp: Vec<u64>,                  // Last timestamp of each DAQ list, to check for monotonic timestamps
     timestamp_extender: DaqTimestampExtender, // 32 to 64 bit timestamp extension, shared by all DAQ lists
     last_timestamp_ns: u64,                   // Newest timestamp of all DAQ lists
@@ -141,6 +142,7 @@ impl DaqDecoder {
             header_size: 4,
             event_count: 0,
             byte_count: 0,
+            lost_count: 0,
             daq_timestamp: Vec::new(),
             timestamp_extender: DaqTimestampExtender::new(0),
             last_timestamp_ns: 0,
@@ -193,6 +195,7 @@ impl XcpDaqDecoder for DaqDecoder {
         self.daq_timestamp = vec![timestamp; layout.daq_lists.len()];
         self.event_count = 0;
         self.byte_count = 0;
+        self.lost_count = 0;
         self.timestamp_extender = DaqTimestampExtender::new(timestamp);
         let start_ns = self.last_timestamp_ns;
         for_each_writer(&mut self.writers, |w| w.start(&layout, start_ns));
@@ -210,6 +213,7 @@ impl XcpDaqDecoder for DaqDecoder {
         let Some(layout) = &self.layout else {
             return;
         };
+        self.lost_count += lost as usize;
 
         // Only DAQ lists of the measurement setup with a single ODT are expected, ignore anything else
         let (daq, timestamp_raw) = match self.parse_header(buf) {
@@ -262,6 +266,10 @@ impl XcpDaqDecoder for DaqDecoder {
 
     fn get_event_count(&self) -> usize {
         self.event_count
+    }
+
+    fn get_lost_count(&self) -> usize {
+        self.lost_count
     }
 }
 
@@ -355,6 +363,11 @@ mod tests {
         );
         assert_eq!(d.get_event_count(), 2);
         assert_eq!(d.get_byte_count(), 8);
+        assert_eq!(d.get_lost_count(), 3);
+
+        // A new measurement resets the lost count
+        d.start(vec![daq_list()], 0);
+        assert_eq!(d.get_lost_count(), 0);
     }
 
     #[test]
