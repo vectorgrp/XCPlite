@@ -514,41 +514,49 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
 #endif
 
     // Standard memory access by pointer local.mta_ptr
-    if (local.mta_ext == XCP_ADDR_EXT_PTR) {
-
-        if (local.mta_ptr == NULL)
-            return CRC_ACCESS_DENIED;
-
-        // TEST
-        // Test data consistency: slow bytewise write to increase probability for multithreading data consistency problems
-        // while (size-->0) {
-        //     *local_mut.mta_ptr++ = *data++;
-        //     sleepUs(1);
-        // }
-
-        // Fast write with "atomic" copies of basic types, assuming correctly aligned target memory locations
-        switch (size) {
-        case 1:
-            *local_mut.mta_ptr = *data;
-            break;
-        case 2:
-            *(uint16_t *)local_mut.mta_ptr = *(uint16_t *)data;
-            break;
-        case 4:
-            *(uint32_t *)local_mut.mta_ptr = *(uint32_t *)data;
-            break;
-        case 8:
-            *(uint64_t *)local_mut.mta_ptr = *(uint64_t *)data;
-            break;
-        default:
-            memcpy(local_mut.mta_ptr, data, size);
-            break;
-        }
-        local_mut.mta_ptr += size;
-        return 0; // Ok
+    if ((local.mta_ext != XCP_ADDR_EXT_PTR) || (local.mta_ptr == NULL)) {
+        return CRC_ACCESS_DENIED; // Access violation, illegal address or extension
     }
 
-    return CRC_ACCESS_DENIED; // Access violation, illegal address or extension
+    // TEST
+    // Test data consistency: slow bytewise write to increase probability for multithreading data consistency problems
+    // while (size-->0) {
+    //     *local_mut.mta_ptr++ = *data++;
+    //     sleepUs(1);
+    // }
+
+    uint8_t *const dst = local_mut.mta_ptr;
+
+    // Preserve typed stores to aligned targets.
+    // Load potentially unaligned command payloads via memcpy.
+    switch (size) {
+    case 1:
+        *dst = *data;
+        break;
+    case 2: {
+        uint16_t value;
+        memcpy(&value, data, sizeof(value));
+        *(uint16_t *)dst = value;
+        break;
+    }
+    case 4: {
+        uint32_t value;
+        memcpy(&value, data, sizeof(value));
+        *(uint32_t *)dst = value;
+        break;
+    }
+    case 8: {
+        uint64_t value;
+        memcpy(&value, data, sizeof(value));
+        *(uint64_t *)dst = value;
+        break;
+    }
+    default:
+        memcpy(dst, data, size);
+        break;
+    }
+    local_mut.mta_ptr = dst + size;
+    return CRC_CMD_OK;
 }
 
 // Copying of size bytes from data to local.mta_ptr or local.mta_addr, depending on the addressing mode
