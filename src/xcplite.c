@@ -608,6 +608,12 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
     local_mut.mta_addr = addr_;
     local_mut.mta_ptr = NULL; // MtaPtr not defined
 
+#if defined(XCP_ENABLE_IDT_A2L_UPLOAD) || defined(XCP_ENABLE_IDT_ELF_UPLOAD)
+    if (local.mta_ext == XCP_ADDR_EXT_FILE) {
+        return CRC_CMD_OK; // Upload offsets are validated by ApplXcpReadFile.
+    }
+#endif
+
     // If not EPK calibration segment or addressing mode 0 is absolute
 #if !defined(XCP_ENABLE_EPK_CALSEG) || (defined(XCP_ENABLE_ABS_ADDRESSING) && (XCP_ADDR_EXT_ABS == 0))
     // Direct EPK access
@@ -2054,6 +2060,10 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
         if (!ApplXcpConnect(mode))
             return CRC_CMD_OK; // Application not ready, ignore
 
+#if defined(XCP_ENABLE_IDT_A2L_UPLOAD) || defined(XCP_ENABLE_IDT_ELF_UPLOAD)
+        ApplXcpCloseFile(); // An accepted CONNECT starts a new session, including reconnects.
+#endif
+
         // Initialize XCP Session Status on connect
         shared_mut.session_status = (SS_ACTIVATED | SS_STARTED | SS_CONNECTED | SS_LEGACY_MODE);
 
@@ -3466,6 +3476,10 @@ void XcpDeinit(void) {
 
 #ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
     XcpBindOwnerThread();
+#endif
+
+#if defined(XCP_ENABLE_IDT_A2L_UPLOAD) || defined(XCP_ENABLE_IDT_ELF_UPLOAD)
+    ApplXcpCloseFile();
 #endif
 
     // Deinit calibration list (destroy the local mutex)

@@ -86,7 +86,12 @@ bool ApplXcpConnect(uint8_t mode) {
     return true;
 }
 
-void ApplXcpDisconnect(void) { DBG_PRINT4("ApplXcpDisconnect\n"); }
+void ApplXcpDisconnect(void) {
+#if defined(XCP_ENABLE_IDT_A2L_UPLOAD) || defined(XCP_ENABLE_IDT_ELF_UPLOAD)
+    ApplXcpCloseFile();
+#endif
+    DBG_PRINT4("ApplXcpDisconnect\n");
+}
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 bool ApplXcpPrepareDaq(void) {
@@ -542,37 +547,32 @@ const char *XcpGetElfName(void) { return gXcpElfName; }
 static FILE *gXcpFile = NULL;       // file content
 static uint32_t gXcpFileLength = 0; // file length
 
-static void closeFile(void) {
-    assert(gXcpFile != NULL);
-    fclose(gXcpFile);
-    gXcpFile = NULL;
-    DBG_PRINT4("File closed\n");
-}
-
 static uint32_t openFile(const char *filename) {
-    if (filename == NULL || filename[0] == 0) {
+    // A new GET_ID request replaces any unfinished upload.
+    ApplXcpCloseFile();
+
+    if ((filename == NULL) || (filename[0] == 0)) {
         DBG_PRINT_WARNING("File name not set, cannot upload file!\n");
         return 0; // file is not valid
     }
 
-    assert(gXcpFile == NULL);
     gXcpFile = fopen(filename, "rb");
     if (gXcpFile == NULL) {
         DBG_PRINTF_ERROR("File %s not found!\n", filename);
         return 0;
     }
 
-    fseek(gXcpFile, 0, SEEK_END);
-    gXcpFileLength = (uint32_t)ftell(gXcpFile);
-    fseek(gXcpFile, 0, SEEK_SET);
-    // @@@@ TODO: This assert aborts the whole XCP server process when the file is empty, which a
-    // remote XCP client can trigger with GET_ID A2L upload (a previous crashed run leaves a 0 byte
-    // A2L behind, and it is then reproduced on every subsequent start). An empty or unreadable file
-    // is a normal runtime condition, not a programming error: return 0 here and let the caller
-    // report it. In a release build (NDEBUG) the assert disappears and exactly that already happens
-    // - the client then reports "A2L file not available, GET_ID 4 returned size 0" - so this is a
-    // debug-only abort and a silent Debug/Release behaviour difference.
-    assert(gXcpFileLength > 0);
+    if (fseek(gXcpFile, 0, SEEK_END) != 0) {
+        ApplXcpCloseFile();
+        return 0;
+    }
+
+    const long length = ftell(gXcpFile);
+    if ((length <= 0) || ((uint64_t)length > UINT32_MAX) || (fseek(gXcpFile, 0, SEEK_SET) != 0)) {
+        ApplXcpCloseFile();
+        return 0;
+    }
+    gXcpFileLength = (uint32_t)length;
     DBG_PRINTF4("File %s ready for upload, size=%u\n", filename, gXcpFileLength);
     return gXcpFileLength;
 }
@@ -583,22 +583,34 @@ bool ApplXcpReadFile(uint8_t size, uint32_t addr, uint8_t *data) {
         DBG_PRINT_ERROR("File not open for reading!\n");
         return false;
     }
-    // @@@@ TODO: Two robustness issues here, neither with a confirmed failure today - A2L upload
-    // itself is verified working (use: xcpclient --upload-a2l --a2l <name>):
-    //  1) the diagnostic lumps "offset out of range" and "short read" into one misleading text.
-    //     A short read is reported as "exceeds file length", which sends debugging the wrong way.
-    //  2) the read is purely sequential and ignores addr: it relies on the FILE* position and
-    //     closes the file at EOF, so any retry, re-set MTA or non sequential block transfer would
-    //     fail. Seeking to addr before reading would make this robust regardless of client behaviour.
-    if (addr + size > gXcpFileLength || size != fread(data, 1, (uint32_t)size, gXcpFile)) {
-        closeFile();
+    // Check bounds without overflowing addr + size. An invalid request need not end the upload.
+    if ((addr > gXcpFileLength) || ((uint32_t)size > gXcpFileLength - addr)) {
         DBG_PRINTF_ERROR("ApplXcpReadFile addr=%u size=%u exceeds file length=%u\n", addr, size, gXcpFileLength);
         return false;
     }
-    if (addr + size == gXcpFileLength) {
-        closeFile(); // Close file after complete sequential read
+    // The accepted file length fits in long (it came from ftell), so this bounded offset does too.
+    if (fseek(gXcpFile, (long)addr, SEEK_SET) != 0) {
+        DBG_PRINTF_ERROR("ApplXcpReadFile could not seek to offset=%u\n", addr);
+        ApplXcpCloseFile();
+        return false;
     }
+    size_t read = fread(data, 1, size, gXcpFile);
+    if (read != size) {
+        DBG_PRINTF_ERROR("ApplXcpReadFile short read at offset=%u: expected %u bytes, got %zu\n", addr, size, read);
+        ApplXcpCloseFile();
+        return false;
+    }
+    // Keep the file open for retries, including the final block. Session cleanup closes it.
     return true;
+}
+
+void ApplXcpCloseFile(void) {
+    if (gXcpFile != NULL) {
+        fclose(gXcpFile);
+        gXcpFile = NULL;
+        DBG_PRINT4("File closed\n");
+    }
+    gXcpFileLength = 0U;
 }
 
 #endif

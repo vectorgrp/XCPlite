@@ -326,6 +326,14 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 
 ```
 
+### File upload addressing (XCP_ADDR_EXT_FILE)
+
+`GET_ID` for A2L or ELF upload opens the requested file and selects address extension `0xFD` at offset zero. A zero length means the file is unavailable, including an empty file; the client should report this without sending `UPLOAD`.
+
+`SET_MTA` with extension `0xFD` selects a byte offset in the current file. Each `UPLOAD` reads from that offset and advances the MTA, allowing out-of-order reads and retries, including the final chunk. Out-of-range reads fail without ending the upload. The file remains open after the final chunk and closes on the next file-upload `GET_ID`, an accepted `CONNECT`, disconnect, deinitialization or an I/O error.
+
+
+
 ### CASDD vs ACSDD
 
 Depending on `#define OPTION_CAL_SEGMENTS_ABS` in `xcplib_cfg.h`, address extension 0 is either the absolute addressing mode or the segment relative addressing mode.  

@@ -616,10 +616,12 @@ uint8_t ApplXcpDaqResumeClear(void);
 /* Returns 0 if not available or buffer size exceeded */
 uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen);
 
-/* Read a chunk (offset,size) of a file for upload */
-/* Return false if out of bounds */
 #if defined(XCP_ENABLE_IDT_A2L_UPLOAD) || defined(XCP_ENABLE_IDT_ELF_UPLOAD) // Enable A2L or ELF content upload to host
+/* Read a chunk (offset,size) of the current upload, seeking to the supplied offset. */
+/* Return false on invalid bounds or I/O errors; successful reads keep the file open for retries. */
 bool ApplXcpReadFile(uint8_t size, uint32_t offset, uint8_t *data);
+// Close the current upload and reset its state; safe to call when no file is open.
+void ApplXcpCloseFile(void);
 #endif
 
 #ifdef OPTION_ENABLE_A2L_GENERATOR

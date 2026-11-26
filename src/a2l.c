@@ -351,6 +351,17 @@ static const char *A2lGetFilenameHelper_(const char *project_name, const char *e
 
 static const char *A2lGetFilename_(uint8_t file_type) { return A2lGetFilenameHelper_(XcpGetProjectName(), XcpGetLocalEpk(), file_type); }
 
+// Check whether the cached A2L file is readable and non-empty.
+static bool A2lFileHasContent_(const char *filename) {
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL) {
+        return false;
+    }
+    bool has_content = (fgetc(file) != EOF);
+    fclose(file);
+    return has_content;
+}
+
 const char *A2lGetFilename(void) { return A2lGetFilenameHelper_(XcpGetProjectName(), XcpGetLocalEpk(), A2L_MAIN_FILE); }
 #ifdef OPTION_SHM_MODE // get application partial A2L file name
 // A2L file name for application partial files in SHM mode, which are included into the main file and deleted afterwards
@@ -1552,8 +1563,8 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 
     // In A2L_WRITE_ONCE mode:
     const char *a2l_main_filename = A2lGetFilename_(A2L_MAIN_FILE);
-    if ((gA2lMode & A2L_MODE_WRITE_ALWAYS) == 0 && fexists(a2l_main_filename)) {
-        // Check if the A2L file (with epk version or hash from all epk versions in the name) already exists, if yes, skip A2L generation
+    if (((gA2lMode & A2L_MODE_WRITE_ALWAYS) == 0) && A2lFileHasContent_(a2l_main_filename)) {
+        // If a readable, non-empty A2L file with the EPK version or combined EPK hash in its name exists, skip A2L generation.
         DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists with matching version, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_main_filename);
         XcpSetA2lName(a2l_main_filename); // Notify XCP that there is an existing A2L file available on disk, ready for upload
         return true;                      // Skip A2L generation
