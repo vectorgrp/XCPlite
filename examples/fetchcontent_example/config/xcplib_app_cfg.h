@@ -73,7 +73,7 @@
 // Events
 
 // No runtime DAQ event management (dynamic event creation at runtime)
-// Disables tXcpEvent, XcpCreateIndexedEvent, XcpCreateEvent, XcpCreateEventInstance, XcpGetEventCount, XcpFindEvent, XcpGetEventName, XcpGetEventIndex, XcpGetEvent
+// Disables tXcpEvent, XcpCreateIndexedEvent, XcpCreateEvent, XcpGetEventCount, XcpFindEvent, XcpGetEventName, XcpGetEventContext, XcpGetEvent
 #undef OPTION_DAQ_EVENT_LIST
 
 //-------------------------------------------------------------------------------

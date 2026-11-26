@@ -193,9 +193,6 @@ THREAD_FUNC_RETURN ShmThread_(void *par) {
     gXcpServer.shm_thread_running = true;
     while (gXcpServer.shm_thread_running) {
 
-        uint64_t now = clockGetMonotonicNs(); // Drive the current last time with 50ms cycle in this loop
-        (void)now;
-
         sleepUs(50000); // 50 ms
 
         // Handle background tasks, e.g. pending calibration updates
@@ -481,8 +478,6 @@ THREAD_FUNC_RETURN XcpServerReceiveThread(void *par) {
         ctr++;
         (void)ctr;
 
-        uint64_t now = clockGetMonotonicNs(); // Drive the current last time with XCPTL_RECV_TIMEOUT_MS cycle in this loop
-
         // Blocking, with timeout to allow handling background tasks in this thread as well
         // Malformed frames are handled by the transport; false indicates a fatal socket error.
         if (!XcpEthTlHandleCommands()) {
@@ -511,6 +506,7 @@ THREAD_FUNC_RETURN XcpServerReceiveThread(void *par) {
 #endif
 
         // Every 1s
+        uint64_t now = clockGetMonotonicNs();
         static uint64_t last_time = 0;
         if (now - last_time >= 1000000000ULL) {
             last_time = now;
@@ -560,7 +556,7 @@ THREAD_FUNC_RETURN XcpServerTransmitThread(void *par) {
         }
 
 #ifdef TEST_ENABLE_DBG_CHECKS
-        uint64_t now = clockGetMonotonicNsLast();
+        uint64_t now = clockGetMonotonicNs();
         static uint64_t ctr = 0;
         ctr++;
         static uint64_t last_time = 0;

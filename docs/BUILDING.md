@@ -65,7 +65,7 @@ Within a chosen configuration, the following options control what gets built:
 
 | Configuration | Examples (`BUILD_EXAMPLES`) | Tests (`BUILD_TESTS`) | Tools (`BUILD_TOOLS`) |
 |---------------|-----------------------------|-----------------------|-----------------------|
-| `default` | hello_xcp, hello_xcp_cpp, c_demo, cpp_demo, point_cloud_demo, struct_demo, multi_thread_demo, ptp4l_demo¹, bpf_demo¹² | a2l_test, cal_test, daq_test, clock_test, queue_test, xcp_test, type_detection_test_* | *(none)* |
+| `default` | hello_xcp, hello_xcp_cpp, c_demo, cpp_demo, point_cloud_demo, struct_demo, multi_thread_demo, thread_context_demo, ptp4l_demo¹, bpf_demo¹² | a2l_test, cal_test, daq_test, clock_test, queue_test, xcp_test, type_detection_test_* | *(none)* |
 | `no_a2l` | no_a2l_demo, no_a2l_demo_cpp | *(none)* | *(none)* |
 | `ptp` | ptp4l_demo¹ | clock_test | ptptool¹ |
 | `shm` | hello_xcp (SHM), hello_xcp_cpp (SHM) | *(none)* | shmtool, xcpdaemon³ |

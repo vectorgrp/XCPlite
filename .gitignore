@@ -21,11 +21,15 @@ RecycleBin.ini
 !/tools/xcpclient/fixtures/*.elf
 *.bin
 
+# multi_thread_demo output image
+/mandelbrot.png
+
 # Temporary files
 test_bintool
 *.bak
 *.log
 *.pcap
+*.mcap
 
 # Other
 TODO.md
@@ -35,10 +39,5 @@ TODO.md
 /ptptool.obs
 /shm_*.sh
 wlan.h
-/examples/freertos_demo/freertos_stm32_demo/CANape/CmpConfig.json
 /test.txt
-/docs/info/SUBMODULE_GUIDE.md
-/docs/info/CPP_TYPE_TRAITS_GUIDE.md
-/docs/rcu_improvements/CAL_RCU_IMPROVEMENT.md
-/docs/rcu_improvements/rcu.h
-/docs/rcu_improvements/review.md
+/trace.json

@@ -494,4 +494,9 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
 
 } // namespace xcp
 
+// Contexts and spans: xcp::Context, xcp::Scope, DaqSpan, DaqEventCtxVar
+#if defined(OPTION_DAQ_CONTEXT_LIST)
+#include <xcplib_context.hpp>
+#endif
+
 #endif // OPTION_SECTION_REGISTRATION

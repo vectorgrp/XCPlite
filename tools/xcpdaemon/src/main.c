@@ -18,16 +18,14 @@
 #include "a2l.h"        // for A2l generation
 #include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT, ...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_)
-#include "shm.h"        // for A2L generation
+#include "shm.h"        // for shared memory management
 #include "xcp.h"        // for XCP protocol definitions
 #include "xcplib.h"     // for application programming interface
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcplite.h"    // for XCP protocol layer interface functions
 
-#ifdef OPTION_SHM_MODE
 extern tXcpData *gXcpData;
 extern tXcpLocalData gXcpLocalData;
-#endif
 
 //-----------------------------------------------------------------------------------------------------
 

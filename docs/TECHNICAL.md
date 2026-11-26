@@ -111,6 +111,7 @@ change of the tool.
 | `xcp_cals` | one `tXcpCalSegDescriptor` (32 bytes: name, default page address, index variable, size, type) per calibration segment or block | `CalSegDecl`, `CalSegDeclRef`, `CalSegCreate` and the calibration block macros |
 | `xcp_epk` | the EPK software version string, without `OPTION_SECTION_REGISTRATION` the constant `xcp_epk__` instead (see below) | `XcpCreateEpk` |
 | `xcp_meta` | the metadata constants `xcp_meta__<kind>__<name>` | `XCP_UNIT`, `XCP_LIMITS`, `XCP_COMMENT`, `XCP_READ_WRITE` |
+| `xcp_spans` | one `tXcpSpanDescriptor` (32 bytes: the span name, 0 terminated, no pointers) per `DaqSpan` code location in link order, the position + 1 is the span id | `DaqSpan` with `OPTION_DAQ_SPAN_SECTION_REGISTRATION` (default configuration, independent of `OPTION_SECTION_REGISTRATION`) |
 
 The sections `xcp_evts` and `xcp_cals` exist only with the configuration option `OPTION_SECTION_REGISTRATION` (configurations `no_a2l`
 and `rtos`). Without it the event ids and segment numbers are the runtime creation order and an offline A2L tool can not know them, see
@@ -131,7 +132,6 @@ static tXcpCalSegIndex calseg_id_name;
 // Event descriptor and id, from DaqCreateEvent(name), DaqCreateEventExt(name, cycle, prio), DaqCreateAndTriggerEvent(name)
 static const tXcpEventDescriptor evt__name;     // in section xcp_evts
 static tXcpEventId evt_id_name;
-static THREAD_LOCAL tXcpEventId evt__dynname;   // DaqCreateEventInstance(name), one event instance per thread
 
 // Event trigger anchor, from DaqTriggerEvent(name), DaqTriggerEventExt(name, base), DaqEventVar(name, ...), DaqTriggerEventCapture(name, ...), see below
 static tXcpEventId trg__<modes>__name;          // in the function which triggers the event
@@ -284,7 +284,7 @@ An event is triggered by a function (`XcpEvent`, `XcpEventExt`, ...) or a macro 
 
 Triggering the same event at multiple code locations is possible, but it is the user's responsibility to make sure that all measurement variables associated with the event are valid at each location. This is not recommended, it also makes the measurement data hard to interpret.
 
-To filter events depending on their execution context, events can be enabled and disabled at runtime (`XcpEventEnable`, `DaqEventEnable`/`DaqEventDisable`). Context dependent events, for example one event instance per thread (`DaqCreateEventInstance`, `XcpCreateEventInstance`) or per class instance, are supported but need more complex instrumentation, see `multi_thread_demo` and `cpp_demo`.
+To filter events depending on their execution context, events can be enabled and disabled at runtime (`XcpEventEnable`, `DaqEventEnable`/`DaqEventDisable`). Context dependent events, for example one event per thread or per class instance, are supported with explicit instrumentation (an event per instance created by name, see `cpp_demo`) or with contexts (`OPTION_DAQ_CONTEXT_LIST`, C++ API `xcp::Context`, `xcp::Scope`, `DaqEventCtxVar`, see `thread_context_demo`): an event which belongs to a context is identified by context and event name and is named `<context>.<event>` in the A2L file. The context names are kept in a context list next to the event list (`src/ctx.c`), the binary persistence file stores the context list, so context ids are stable across restarts. The experimental example `thread_context_demo` explores a thread context, which gives the instrumented code its instance implicitly.
 
 The event id is the creation order (default configuration, made stable across restarts by the binary persistence file) or the position of the event descriptor in the `xcp_evts` section (section registration). The XCP tool must respect the fixed event definitions, see Tool Compatibility in the README.
 
@@ -325,6 +325,12 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 0x80 + app_id - Absolute addressing mode for application with id app_id (XCP_ADDR_EXT_ABS + app_id)
 
 ```
+
+### File upload addressing (XCP_ADDR_EXT_FILE)
+
+`GET_ID` for A2L or ELF upload opens the requested file and selects address extension `0xFD` at offset zero. A zero length means the file is unavailable, including an empty file; the client should report this without sending `UPLOAD`.
+
+`SET_MTA` with extension `0xFD` selects a byte offset in the current file. Each `UPLOAD` reads from that offset and advances the MTA, allowing out-of-order reads and retries, including the final chunk. Out-of-range reads fail without ending the upload. The file remains open after the final chunk and closes on the next file-upload `GET_ID`, an accepted `CONNECT`, disconnect, deinitialization or an I/O error.
 
 ### CASDD vs ACSDD
 

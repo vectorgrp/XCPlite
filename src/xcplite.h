@@ -21,16 +21,15 @@
 #include "xcplib_cfg.h" // for OPTION_xxx
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINTF, DBG_PRINT, ...
+#include "namelist.h"  // for NAMELIST_STORAGE, tNameList
 #include "platform.h"  // for atomics
 #include "queue.h"     // for tQueueHandle
 #include "xcp.h"       // for XCP protocol definitions
 #include "xcp_cfg.h"   // for XCP_PROTOCOL_LAYER_VERSION, XCP_ENABLE_...
 #include "xcptl_cfg.h" // for XCPTL_MAX_CTO_SIZE
-
 #ifdef OPTION_CAL_SEGMENTS
 #include "cal.h" // for tXcpCalSegList
 #endif
-
 #ifdef OPTION_SHM_MODE
 #include "shm.h" // for tShmHeader
 #endif
@@ -219,7 +218,7 @@ bool XcpCheckDaqLists(uint8_t daq_state, tXcpEventId event_id);
 
 typedef struct {
     uint32_t cycle_time_ns; // Cycle time in nanoseconds, 0 means sporadic event
-    uint16_t index;         // Event instance index, 0 = single instance, 1.. = multiple instances
+    uint16_t context;       // Context id of the event, 0 = no context, 1.. = event belongs to this context (see ctx.h)
     uint16_t daq_first;     // First associated DAQ list, linked list
     uint8_t flags;          // Control flags for the event
 #ifdef OPTION_SHM_MODE      // app_id in tXcpEvent
@@ -234,20 +233,45 @@ typedef struct {
 
 typedef struct {
     atomic_uint_fast16_t count;           // number of events
-    tXcpEvent event[XCP_MAX_EVENT_COUNT]; // event list
+    tXcpEvent event[XCP_MAX_EVENT_COUNT]; // event list, event id is the index
 } tXcpEventList;
 
-// Create an XCP event (internal use only, not thread safe)
-tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycle_time_ns, uint8_t priority);
+// Optional context list and span name list, see ctx.h
+#ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
+
+// Both lists are lock-free and wait-free name lists (namelist.h): position independent, usable by several processes in SHM mode
+// Additional entry cells of a name list, the number of threads which may register new names at the same time without restriction
+#define XCP_NAMELIST_SPARE 8
+
+// A context is a named identity ("who is executing"), events may belong to a context
+// The context id is the id in the name list + 1, 0 means no context
+// In SHM mode, the scope of a context name is the application id, each application has its own namespace for context names
+typedef NAMELIST_STORAGE(XCP_MAX_CONTEXT_COUNT, XCP_NAMELIST_SPARE, XCP_MAX_CONTEXT_NAME + 1, 0) tXcpContextList;
+
+// Span names, the span id is the id in the name list, id 0 is reserved for "no span"
+// With OPTION_DAQ_SPAN_SECTION_REGISTRATION, the span names are in the linker section xcp_spans, there is no span name list
+#ifndef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+#define XCP_MAX_SPAN_NAME 31
+typedef NAMELIST_STORAGE(XCP_MAX_SPAN_COUNT, XCP_NAMELIST_SPARE, XCP_MAX_SPAN_NAME + 1, 0) tXcpSpanList;
+#endif
+
+#endif // XCP_ENABLE_DAQ_CONTEXT_LIST
+
+// Create an XCP event (internal use only, not thread safe, no check for an existing event)
+// context is the context id of the event, 0 for an event without context
+tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t context, uint32_t cycle_time_ns, uint8_t priority);
 
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1)
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing*/);
 
-// Add a measurement event to event list, return event number (0..MAX_EVENT-1), thread safe, if name exists, an instance id is appended to the name
-tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
+// Get the context id of an event (1..), return 0 if the event has no context or is not found
+uint16_t XcpGetEventContext(tXcpEventId event);
 
-// Get the event index (1..), return 0 if not found
-uint16_t XcpGetEventIndex(tXcpEventId event);
+// Find an event by name and context id (0 = event without context), returns XCP_UNDEFINED_EVENT_ID if not found
+tXcpEventId XcpFindContextEvent(uint16_t context, const char *name);
+
+// Get the event name without the context name, returns NULL if not found
+const char *XcpGetEventBaseName(tXcpEventId event);
 
 // Get the event descriptor struct by id, returns NULL if not found
 const tXcpEvent *XcpGetEvent(tXcpEventId event);
@@ -275,6 +299,7 @@ const tXcpEventDescriptor *XcpGetEvent(tXcpEventId event);
 #endif // !XCP_ENABLE_DAQ_EVENT_LIST
 
 // Get event name by id, returns NULL if not found
+// For an event which belongs to a context, this is <context name>.<event name>, valid until the next call
 const char *XcpGetEventName(tXcpEventId event);
 // Get event cycle time by id, returns 0 if not found
 uint32_t XcpGetEventCycleTime(tXcpEventId event);
@@ -411,6 +436,14 @@ typedef struct XcpData {
     tXcpEventList event_list;
 #endif
 
+    /* Optional context list and span name list */
+#ifdef XCP_ENABLE_DAQ_CONTEXT_LIST
+    tXcpContextList context_list;
+#ifndef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+    tXcpSpanList span_list;
+#endif
+#endif
+
     /* Optional calibration segment list */
 #ifdef XCP_ENABLE_CALSEG_LIST
     tXcpCalSegList cal_seg_list;
@@ -464,7 +497,7 @@ typedef struct XcpLocalData {
 
     // Static lifetime buffer for event names
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
-    char event_name_buf[XCP_MAX_EVENT_NAME + 8];
+    char event_name_buf[XCP_MAX_CONTEXT_NAME + 1 + XCP_MAX_EVENT_NAME + 1]; // <context name>.<event name>
 #endif
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
@@ -583,10 +616,12 @@ uint8_t ApplXcpDaqResumeClear(void);
 /* Returns 0 if not available or buffer size exceeded */
 uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen);
 
-/* Read a chunk (offset,size) of a file for upload */
-/* Return false if out of bounds */
 #if defined(XCP_ENABLE_IDT_A2L_UPLOAD) || defined(XCP_ENABLE_IDT_ELF_UPLOAD) // Enable A2L or ELF content upload to host
+/* Read a chunk (offset,size) of the current upload, seeking to the supplied offset. */
+/* Return false on invalid bounds or I/O errors; successful reads keep the file open for retries. */
 bool ApplXcpReadFile(uint8_t size, uint32_t offset, uint8_t *data);
+// Close the current upload and reset its state; safe to call when no file is open.
+void ApplXcpCloseFile(void);
 #endif
 
 #ifdef OPTION_ENABLE_A2L_GENERATOR

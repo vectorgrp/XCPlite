@@ -32,6 +32,10 @@
 #include "xcplite.h"   // for tXcpCalSeg, tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcptl_cfg.h" // for XCPTL_xxx
 
+#ifdef OPTION_DAQ_CONTEXT_LIST
+#include "ctx.h" // for XcpGetContextCount, XcpGetSpanName to create the enum conversions for context and span
+#endif
+
 //----------------------------------------------------------------------------------
 // Static
 
@@ -316,7 +320,8 @@ static void A2lCreate_IF_DATA_DAQ(const char *project_name) {
         }
 
         // Long name and short name (max 8 chars)
-        const char *name = XcpGetEventName(id);                 // Short name is not build with prefix
+        // The short name is built without the project prefix and without the context name
+        const char *name = XcpGetEventBaseName(id);
         const char *pname = A2lGetEventName_(project_name, id); // Long name with prefix
         fprintf(gA2lFile, "/begin EVENT \"%s\" \"%.8s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", pname, name, id, timeCycle, timeUnit, XcpGetEventPriority(id));
         fprintf(gA2lFile, " /end EVENT\n");
@@ -397,6 +402,32 @@ static void createEventGroupsAndConversions(const char *project_name, bool event
             fprintf(gA2lFile, " /end SUB_GROUP /end GROUP\n");
         }
     }
+
+    // Create the enum conversion conv.spans with all registered span names
+    // It is referenced by the measurement <context name>.span of each context
+    // Create the enum conversion conv.contexts with all context names, the value is the context id, 0 is no context
+    // It is referenced by the measurement <context name>.link_context of the span links of a context
+#ifdef OPTION_DAQ_CONTEXT_LIST
+    if (XcpGetContextCount() > 0) {
+        uint16_t contextCount = XcpGetContextCount();
+        fprintf(gA2lFile, "\n/begin COMPU_METHOD conv.contexts \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.contexts.table /end COMPU_METHOD\n");
+        fprintf(gA2lFile, "/begin COMPU_VTAB conv.contexts.table \"\" TAB_VERB %u\n", contextCount + 1);
+        fprintf(gA2lFile, " 0 \"none\"");
+        for (uint16_t id = 1; id <= contextCount; id++) {
+            const char *name = XcpGetContextName(id);
+            fprintf(gA2lFile, " %u \"%s\"", id, name != NULL ? name : "");
+        }
+        fprintf(gA2lFile, "\n/end COMPU_VTAB\n");
+
+        uint16_t spanCount = XcpGetSpanCount();
+        fprintf(gA2lFile, "\n/begin COMPU_METHOD conv.spans \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.spans.table /end COMPU_METHOD\n");
+        fprintf(gA2lFile, "/begin COMPU_VTAB conv.spans.table \"\" TAB_VERB %u\n", spanCount);
+        for (uint16_t id = 0; id < spanCount; id++) {
+            fprintf(gA2lFile, " %u \"%s\"", id, XcpGetSpanName(id));
+        }
+        fprintf(gA2lFile, "\n/end COMPU_VTAB\n");
+    }
+#endif
 }
 #endif // XCP_ENABLE_DAQ_EVENT_LIST
 

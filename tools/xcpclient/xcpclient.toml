@@ -128,8 +128,17 @@ mea = []
 time = 0
 
 # Write measurement data to this CSV file instead of the console
-# Format per row: time_ns,daq,name,value
+# Format per row: time_ns,daq,name,value,unit
 csv = ""
+
+# Write measurement data to this ASAM MDF 4.1 file
+mdf = ""
+
+# Write measurement data to this MCAP file (raw values as ros1 messages, one channel per DAQ list)
+mcap = ""
+
+# Write measurement data to this trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev)
+perfetto = ""
 
 #-----------------------------------------------------------------------------
 # Test

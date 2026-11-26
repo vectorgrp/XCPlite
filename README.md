@@ -18,6 +18,7 @@ Designed exclusively for the **XCP on Ethernet Transport Layer** (using TCP or U
 - **Complex type support** - Handles basic types, structs, arrays, and nested structures
 - **Calibration segments** - Calibration parameter page switching, consistent atomic modification, and persistence
 - **PTP timestamps** - Prepared for high-precision PTP synchronized timestamps
+- **Event context** - Handle event instances in multi-threaded execution context
 
 Note: An **A2L file** is a tool- and human-readable standardized description of the ECU measurements, parameters, data types, meta data (comments, physical units, limits, ...) and XCP protocol settings, - comparable to a manifest that tells measurement and calibration tools what exists and how to access it.
 
@@ -190,6 +191,7 @@ Multiple examples demonstrating different features are available in the [example
 - [c_demo](examples/c_demo/README.md) - More detailed complex data objects, calibration objects, and calibration page switching
 - [cpp_demo](examples/cpp_demo/README.md) - More detailed C++ class instrumentation and RAII wrappers
 - [multi_thread_demo](examples/multi_thread_demo/README.md) - More demanding multi-threaded measurement and parameter sharing among many threads
+- [thread_context_demo](examples/thread_context_demo/README.md) - Separate the measurement data of multiple class instances and threads with context and spans, inspired by OpenTelemetry
 - [struct_demo](examples/struct_demo/README.md) - More detailed nested structs and multidimensional arrays
 
 For detailed information about each example and how to set up CANape projects, see the [examples overview](examples/README.md).
@@ -218,6 +220,7 @@ For microcontroller builds, refer to the READMEs in the RTOS example folders.
 - **[Offline A2L Generation](docs/OFFLINE_A2L.md)** - A2L generation from the ELF file with xcpclient
 - **[Building](docs/BUILDING.md)** - Detailed build instructions
 - **[XCP Introduction](docs/XCP_INTRODUCTION.md)** - What is XCP?
+- **[Time, Order and Causality](docs/TIME_AND_CAUSALITY.md)** - XCP and OpenTelemetry compared: time series and traces, clocks, concurrency
 
 
 ## Other XCP Implementations

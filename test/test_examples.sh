@@ -136,6 +136,7 @@ ALL_EXAMPLES=(
     "cpp_demo"
     "struct_demo"
     "multi_thread_demo"
+    "thread_context_demo"
     "point_cloud_demo"
 )
 
@@ -160,7 +161,7 @@ fi
 
 # Function to get protocol for an example
 # TCP examples: hello_xcp, hello_xcp_cpp, struct_demo
-# UDP examples: c_demo, cpp_demo, multi_thread_demo
+# UDP examples: c_demo, cpp_demo, multi_thread_demo, thread_context_demo
 # Keep in sync with OPTION_USE_TCP in the main source file of each example
 get_example_protocol() {
     local example_name="$1"
@@ -168,7 +169,7 @@ get_example_protocol() {
         point_cloud_demo|struct_demo)
             echo "tcp"
             ;;
-        hello_xcp|hello_xcp_cpp|c_demo|cpp_demo|multi_thread_demo)
+        hello_xcp|hello_xcp_cpp|c_demo|cpp_demo|multi_thread_demo|thread_context_demo)
             echo "udp"
             ;;
         *)
@@ -203,6 +204,21 @@ A2L_MISMATCHED=0
 UPDATED_HEX_FIXTURES=()
 UPDATED_A2L_FIXTURES=()
 
+# Print the most recently modified of the files given on stdin, one path per line
+# Old generated files of an example (other version or time stamp) may still be in the workspace, the newest is the one just created
+newest_file() {
+    local newest=""
+    local file
+    while IFS= read -r file; do
+        if [ -z "$newest" ] || [ "$file" -nt "$newest" ]; then
+            newest="$file"
+        fi
+    done
+    if [ -n "$newest" ]; then
+        echo "$newest"
+    fi
+}
+
 # Function to run an example
 run_example() {
     local example=$1
@@ -235,7 +251,12 @@ run_example() {
     fi
     
     # Kill any existing XCP processes to free up ports
-    pkill -f "$example" || true
+    # Match the executable, not just the example name: the command line of this script contains the name when it is given as an
+    # argument, and pkill on Linux (unlike macOS) does not exclude its ancestors, so a plain name would kill this script
+    # The name must be the program itself (at the start of the command line or after a /) and end there, so './build/<example>'
+    # and '<path>/build/<example>' match, 'test_examples.sh <example>' and '<example>_cpp' do not
+    # pkill -x (process name) does not work, Linux truncates the process name to 15 characters (thread_context_demo)
+    pkill -f "(^|/)${example}( |$)" || true
     sleep 0.2  # Give processes time to terminate
     
     # Create temporary file for capturing output
@@ -371,7 +392,7 @@ run_example() {
     local example_basename="${example}"
     # Find BIN files matching the pattern and filter to exact matches (not substrings)
     # Use grep to ensure the filename ends with _HH_MM_SS.bin pattern
-    local bin_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 -name "${example_basename}_*.bin" -type f 2>/dev/null | grep -E "/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.bin$" | head -1)
+    local bin_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 -name "${example_basename}_*.bin" -type f 2>/dev/null | grep -E "/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.bin$" | newest_file)
     
     if [ -n "$bin_files" ]; then
         log_plain "${BLUE}  Found .bin file(s):${NC}"
@@ -453,11 +474,12 @@ run_example() {
     fi
     
     # Check for .a2l files created by this example
-    # Format: example_name_HH_MM_SS.a2l (where HH_MM_SS is from __TIME__)
+    # Format: example_name_HH_MM_SS.a2l (where HH_MM_SS is from __TIME__), example_name_V<version>.a2l (fixed version, for example V2.3) or example_name.a2l
+    # Note: examples with a fixed version and A2L_MODE_WRITE_ONCE do not regenerate an existing A2L file, use 'clean' to compare a fresh one
     # Check both BUILD_DIR and WORKSPACE_ROOT (examples write to current directory)
-    # Each example creates exactly one A2L file
-    # Use grep to ensure the filename ends with _HH_MM_SS.a2l pattern or exact match
-    local a2l_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 \( -name "${example_basename}_*.a2l" -o -name "${example_basename}.a2l" \) -type f 2>/dev/null | grep -E "(/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.a2l$|/${example_basename}\.a2l$)" | head -1)
+    # Each example creates exactly one A2L file, if older ones exist, the newest is used
+    # Use grep to ensure the filename ends with one of these patterns (not a substring match of another example)
+    local a2l_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 \( -name "${example_basename}_*.a2l" -o -name "${example_basename}.a2l" \) -type f 2>/dev/null | grep -E "(/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.a2l$|/${example_basename}_V[0-9]+(\.[0-9]+)*\.a2l$|/${example_basename}\.a2l$)" | newest_file)
     
     if [ -n "$a2l_files" ]; then
         log_plain "${BLUE}  Found .a2l file(s):${NC}"

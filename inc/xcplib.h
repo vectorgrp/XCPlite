@@ -306,27 +306,123 @@ typedef uint16_t tXcpEventId;
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if out of event list memory.
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 
-/// Add a measurement event to event list, return event id (0..XCP_MAX_EVENT_COUNT-1)
-/// If the event name exists, a new event instance index is generated (will be the postfix of the event name in the A2L file)
-/// Function is thread safe by using a mutex for event list access.
-/// @param name Name of the event.
-/// @param cycle_time_ns Cycle time in nanoseconds. 0 means sporadic event.
-/// @param priority Priority of the event. 0 means normal, >=1 means realtime.
-/// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
-tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
-
 #endif // OPTION_DAQ_EVENT_LIST
 
 /// Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
 /// @param name Name of the event.
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if not found.
-/// If multiple events instances with the same name exist, the first one is returned.
+/// Events which belong to a context (<context name>.<event name>) are not found.
 tXcpEventId XcpFindEvent(const char *name);
 
-/// Get the event instance index (1..)
+#ifdef OPTION_DAQ_EVENT_LIST
+
+/// Get the context id of an event
 /// @param event Event id.
-/// @return The event index (1..), or 0 if no indexed event instance found.
-uint16_t XcpGetEventIndex(tXcpEventId event);
+/// @return The context id (1..), or 0 if the event does not belong to a context.
+uint16_t XcpGetEventContext(tXcpEventId event);
+
+#endif // OPTION_DAQ_EVENT_LIST
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Contexts and spans
+// A context is a named identity ("who is executing"), for example a class instance or a worker thread.
+// An event may belong to a context, it is then named <context name>.<event name>.
+// These functions are the C core of the C++ API in xcplib_context.hpp (xcp::Context, xcp::Scope, DaqSpan, DaqEventCtxVar),
+// there is no C instrumentation API for contexts.
+
+#ifdef OPTION_DAQ_CONTEXT_LIST
+
+/// Create a context, returns the context id (1..OPTION_DAQ_CONTEXT_COUNT)
+/// If a context with this name already exists, returns the existing context id
+/// Function is thread safe, lock-free and wait-free.
+/// @param name Name of the context, at most 15 characters.
+/// @return The context id or 0 if the name is too long or the context list is full.
+uint16_t XcpCreateContext(const char *name);
+
+/// Get the name of a context
+/// @param context Context id.
+/// @return The context name or NULL if not found.
+const char *XcpGetContextName(uint16_t context);
+
+/// Get the number of contexts
+uint16_t XcpGetContextCount(void);
+
+/// Add a measurement event which belongs to a context to the event list, returns the event id (0..XCP_MAX_EVENT_COUNT-1)
+/// The event is named <context name>.<name> in the A2L file.
+/// If an event with this name already exists in this context, returns the existing event id
+/// Function is thread safe by using a mutex for event list access.
+/// @param context Context id, 0 creates an event without context like XcpCreateEvent.
+/// @param name Name of the event.
+/// @param cycle_time_ns Cycle time in nanoseconds. 0 means sporadic event.
+/// @param priority Priority of the event. 0 means normal, >=1 means realtime.
+/// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
+tXcpEventId XcpCreateContextEvent(uint16_t context, const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+
+/// Get the number of span ids, including the reserved span id 0 (no span)
+uint16_t XcpGetSpanCount(void);
+
+#ifdef OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
+// Link time registration of span names
+// DaqSpan emits a constant tXcpSpanDescriptor with the span name into the linker section xcp_spans.
+// The span id is the position of the descriptor in the section + 1, span id 0 is "no span".
+// The section is an array of fixed size records without pointers, the ids are deterministic for a given binary.
+// A span name used at several code locations may have several descriptors and so several span ids.
+// The A2L generator creates the enum conversion conv.spans from the section.
+
+#ifndef __CTX_H__ // Also defined in ctx.h, this guard prevents redefinition when both headers are included
+
+#define XCP_MAX_SPAN_NAME 31
+typedef struct {
+    char name[XCP_MAX_SPAN_NAME + 1]; // Span name, 0 terminated
+} tXcpSpanDescriptor;
+
+// Linker-synthesized section boundary symbols, resolved at link time
+// Only used where a descriptor is emitted, so the section exists
+#if defined(__ELF__)
+extern const tXcpSpanDescriptor __start_xcp_spans[] __attribute__((weak));
+#define XCP_SPAN_SECTION_NAME "xcp_spans"
+#elif defined(__APPLE__)
+extern const tXcpSpanDescriptor __start_xcp_spans[] __asm("section$start$__DATA$xcp_spans");
+#define XCP_SPAN_SECTION_NAME "__DATA,xcp_spans"
+#else
+#error "Unsupported platform for section based span name registration"
+#endif
+
+// Section attribute for the span descriptors
+// The alignment is explicit and the descriptor size is a multiple of it, so the section has no gaps
+// The AddressSanitizer of clang must not add red zones between the descriptors
+#if defined(__clang__)
+#define XCP_SPAN_SECTION_ATTR __attribute__((section(XCP_SPAN_SECTION_NAME), used, aligned(8), no_sanitize("address")))
+#else
+#define XCP_SPAN_SECTION_ATTR __attribute__((section(XCP_SPAN_SECTION_NAME), used, aligned(8)))
+#endif
+
+#endif // __CTX_H__
+
+/// Declare a span descriptor for a span name given as identifier, inside a function
+/// A name with more than 31 characters is a compile time error.
+#define XCP_SPAN_SECTION_DECL(span_name)                                                                                                                                           \
+    static const tXcpSpanDescriptor span_descr__##span_name XCP_SPAN_SECTION_ATTR = {#span_name};                                                                                  \
+    static_assert(sizeof(#span_name) <= sizeof(tXcpSpanDescriptor), "span name too long, at most 31 characters")
+
+/// Get the span id of a span descriptor declared with XCP_SPAN_SECTION_DECL (1..)
+/// This is a link time constant, there is no registration at runtime.
+#define XCP_SPAN_SECTION_ID(span_name) ((uint16_t)(&span_descr__##span_name - __start_xcp_spans + 1))
+
+#else // OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
+/// Register a span name, returns the span id (1..OPTION_DAQ_SPAN_COUNT-1)
+/// If the span name is already registered, returns the existing span id
+/// The A2L generator creates the enum conversion conv.spans from the registered span names.
+/// Function is thread safe, lock-free and wait-free.
+/// @param name Name of the span, longer names are truncated to 31 characters.
+/// @return The span id or 0 (no span) if the span name list is full.
+uint16_t XcpRegisterSpanName(const char *name);
+
+#endif // !OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
+#endif // OPTION_DAQ_CONTEXT_LIST
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Dynamic or linktime named DAQ event creation
@@ -505,20 +601,6 @@ extern const tXcpEventDescriptor __stop_xcp_evts[] __asm("section$end$__DATA$xcp
             }                                                                                                                                                                      \
         }                                                                                                                                                                          \
     }
-
-/// Create a multi instance event
-/// No once pattern, a new event instance is created for each call
-/// If the name exists, an incrementing instance index is generated and appended to the event name (<name>_<instance_index>)
-/// @param name Name given as identifier
-#define DaqCreateEventInstance(event_name)                                                                                                                                         \
-    static tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                                 \
-    if (XcpIsActivated()) {                                                                                                                                                        \
-        evt__##event_name = XcpCreateEventInstance(#event_name, 0, 0);                                                                                                             \
-    }
-
-/// Get event instance id
-/// @param name Name given as identifier
-#define DaqGetEventInstanceId(event_name) evt__##event_name
 
 #endif // OPTION_DAQ_EVENT_LIST
 

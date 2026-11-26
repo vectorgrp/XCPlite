@@ -6,6 +6,7 @@ This directory contains detailed documentation for XCPlite.
 
 ### Getting Started
 - **[XCP Introduction](XCP_INTRODUCTION.md)** - Detailed introduction to the XCP protocol
+- **[Time, Order and Causality](TIME_AND_CAUSALITY.md)** - XCP and OpenTelemetry compared: time series and traces, clocks, concurrency, common misconceptions
 - **[Examples](../examples/README.md)** - Example applications and tutorials
 
 ### API Reference

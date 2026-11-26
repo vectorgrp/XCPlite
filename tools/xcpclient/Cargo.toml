@@ -1,6 +1,6 @@
 [package]
 name = "xcpclient"
-version = "4.0.1"
+version = "4.2.0"
 edition = "2024"
 resolver = "2"
 authors = ["RainerZ"]
@@ -26,9 +26,13 @@ regex = "1.12.3"
 chrono = "0.4.45"
 parking_lot = "0.12.5"
 tokio = { version = "1.52", features = ["full"] }
+socket2 = "0.6"
 serde = { version = "1", features = ["derive"] }
 figment = { version = "0.10", features = ["toml"] }
 ihex = "3.0"
+
+# MCAP measurement data output (--mcap), zstd chunk compression
+mcap = { version = "0.26", default-features = false, features = ["zstd"] }
 
 # ELF/DWARF Debug info parsing dependencies
 object = { version = "0.39", default-features = false, features = ["read"] }

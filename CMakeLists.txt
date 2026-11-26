@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-project(xcplite VERSION 2.3.2 LANGUAGES C CXX)
+project(xcplite VERSION 2.4.3 LANGUAGES C CXX)
 # keep in sync with src/xcplib_cfg.h version defines (OPTION_VERSION_MAJOR, OPTION_VERSION_MINOR, OPTION_VERSION_PATCH)
 
 
@@ -119,13 +119,13 @@ endif()
 # Available targets depend on the active XCPLITE_CONFIGURATION:
 #   XCPLITE_BUILD_EXAMPLES
 #     default  -> hello_xcp, hello_xcp_cpp, c_demo, cpp_demo, point_cloud_demo,
-#                 struct_demo, multi_thread_demo, ptp4l_demo (Linux)
+#                 struct_demo, multi_thread_demo, thread_context_demo, ptp4l_demo (Linux)
 #     no_a2l   -> no_a2l_demo, no_a2l_demo_cpp
 #     ptp      -> ptp4l_demo (Linux)
 #     shm      -> hello_xcp (SHM mode), hello_xcp_cpp (SHM mode)
 #     rtos     -> freertos_demo (downloads FreeRTOS-Kernel via FetchContent)
 #   XCPLITE_BUILD_TESTS
-#     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp, persistence_test
+#     default  -> a2l_test, cal_test, daq_test, daq_config_test, clock_test, clock_race_test, queue_test, type_detection_test_*, passive_test_c, passive_test_cpp, persistence_test, context_test, namelist_test
 #     ptp      -> clock_test
 #     others   -> (none)
 #   XCPLITE_BUILD_TOOLS
@@ -246,7 +246,7 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
 endif()
 
 # xcplite sources
-set(xcplite_SOURCES src/xcpappl.c src/xcplite.c src/xcpethserver.c src/xcpethtl.c src/queue32m.c src/queue32.c src/queue64v.c src/queue64f.c src/shm.c src/cal.c src/a2l.c src/a2l_writer.c src/persistence.c src/platform.c src/sockets.c src/socket_raw.c src/socket_raw_hal_linux.c src/util.c )
+set(xcplite_SOURCES src/xcpappl.c src/xcplite.c src/xcpethserver.c src/xcpethtl.c src/queue32m.c src/queue32.c src/queue64v.c src/queue64f.c src/shm.c src/cal.c src/ctx.c src/namelist.c src/a2l.c src/a2l_writer.c src/persistence.c src/platform.c src/sockets.c src/socket_raw.c src/socket_raw_hal_linux.c src/util.c )
 
 # Create xcplite library
 add_library(xcplite ${xcplite_SOURCES})
@@ -354,10 +354,13 @@ if(XCPLITE_BUILD_EXAMPLES)
         add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
         target_link_libraries(cpp_demo PRIVATE xcplite)
 
+        add_executable(thread_context_demo examples/thread_context_demo/src/main.cpp examples/thread_context_demo/src/sig_gen.cpp)
+        target_link_libraries(thread_context_demo PRIVATE xcplite)
+
         add_executable(struct_demo examples/struct_demo/src/main.c)
         target_link_libraries(struct_demo PRIVATE xcplite)
 
-        add_executable(multi_thread_demo examples/multi_thread_demo/src/main.c)
+        add_executable(multi_thread_demo examples/multi_thread_demo/src/main.c examples/multi_thread_demo/src/work.c)
         target_link_libraries(multi_thread_demo PRIVATE xcplite)
 
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -485,6 +488,9 @@ if(XCPLITE_BUILD_TESTS)
         add_executable(clock_test test/clock_test/src/main.cpp)
         target_link_libraries(clock_test PRIVATE xcplite)
 
+        add_executable(clock_race_test test/clock_race_test/src/main.c)
+        target_link_libraries(clock_race_test PRIVATE xcplite)
+
         add_executable(queue_test test/queue_test/src/main.c)
         target_link_libraries(queue_test PRIVATE xcplite)
 
@@ -510,6 +516,27 @@ if(XCPLITE_BUILD_TESTS)
             set_tests_properties(checksum_${_checksum_case} PROPERTIES LABELS "unit" TIMEOUT 60)
         endforeach()
 
+        add_executable(context_test test/context_test/src/main.cpp)
+        target_link_libraries(context_test PRIVATE xcplite)
+
+        # Lock-free name list (src/namelist.c), concurrent test with POSIX threads
+        if(NOT WIN32)
+            add_executable(namelist_test test/namelist_test/src/main.c)
+            target_link_libraries(namelist_test PRIVATE xcplite)
+            add_test(NAME namelist_test COMMAND namelist_test 200)
+            set_tests_properties(namelist_test PROPERTIES LABELS "unit" TIMEOUT 120)
+        endif()
+
+        add_executable(file_upload_test test/file_upload_test/src/main.c)
+        target_link_libraries(file_upload_test PRIVATE xcplite)
+
+        add_executable(a2l_cache_test test/a2l_cache_test/src/main.c)
+        target_link_libraries(a2l_cache_test PRIVATE xcplite)
+        foreach(_cache_case empty nonempty)
+            add_test(NAME a2l_cache_${_cache_case} COMMAND a2l_cache_test ${_cache_case})
+            set_tests_properties(a2l_cache_${_cache_case} PROPERTIES LABELS "unit" TIMEOUT 60)
+        endforeach()
+
         # Test registration (default configuration)
         foreach(_xcp_unit_test
                 type_detection_test_c
@@ -519,9 +546,12 @@ if(XCPLITE_BUILD_TESTS)
                 socket_recv_test
                 cal_test
                 cal_page_test
+                clock_race_test
                 passive_test_c
                 passive_test_cpp
-                persistence_test)
+                persistence_test
+                context_test
+                file_upload_test)
             add_test(NAME ${_xcp_unit_test} COMMAND ${_xcp_unit_test})
             set_tests_properties(${_xcp_unit_test} PROPERTIES LABELS "unit" TIMEOUT 60)
         endforeach()

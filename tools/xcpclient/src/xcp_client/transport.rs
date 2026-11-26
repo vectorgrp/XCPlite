@@ -18,6 +18,40 @@ use tokio::time::timeout;
 
 use super::*;
 
+// Requested receive buffer size of the UDP socket
+// The system default is small (Linux net.core.rmem_default 208 KB, macOS net.inet.udp.recvspace 768 KB), a full buffer drops whole datagrams
+// With MTU 8000 a datagram carries up to about 400 DAQ packets, 8 MB buffer about 100 ms of data at 80 MB/s
+const UDP_RECV_BUFFER_SIZE: usize = 8 * 1024 * 1024;
+const UDP_RECV_BUFFER_SIZE_MIN: usize = 256 * 1024;
+
+// Set the largest possible receive buffer size of the UDP socket, up to UDP_RECV_BUFFER_SIZE
+// macOS rejects sizes above kern.ipc.maxsockbuf, so the size is halved until it is accepted
+// Linux silently limits it to net.core.rmem_max and reports twice the effective size
+fn set_udp_recv_buffer_size(socket: &UdpSocket) {
+    let sock = socket2::SockRef::from(socket);
+    let default_size = sock.recv_buffer_size().unwrap_or(0);
+    let mut size = UDP_RECV_BUFFER_SIZE;
+    while size >= UDP_RECV_BUFFER_SIZE_MIN {
+        if sock.set_recv_buffer_size(size).is_ok() {
+            break;
+        }
+        size /= 2;
+    }
+    let actual_size = sock.recv_buffer_size().unwrap_or(0);
+    if actual_size < UDP_RECV_BUFFER_SIZE {
+        let limit = if cfg!(target_os = "linux") { " (limited by net.core.rmem_max)" } else { "" };
+        warn!(
+            "UDP receive buffer size set to {} KB{} (default {} KB, requested {} KB), DAQ packets may be lost at high data rates",
+            actual_size / 1024,
+            limit,
+            default_size / 1024,
+            UDP_RECV_BUFFER_SIZE / 1024
+        );
+    } else {
+        info!("UDP receive buffer size set to {} KB (default {} KB)", actual_size / 1024, default_size / 1024);
+    }
+}
+
 impl XcpClient {
     //------------------------------------------------------------------------
     // Helper function for socket receive
@@ -142,12 +176,14 @@ impl XcpClient {
                                     error!("receive_task: stop, corrupt packet received, invalid length {} in header, size={}", len, size   );
                                     return Err(Box::new(XcpError::new(ERROR_TL_HEADER,0)) as Box<dyn Error>);
                                 }
+                                // Transport layer counter, incremented by the server for each message, including the messages it lost in its transmit queue
+                                // A gap is the number of messages lost in the server transmit queue or on the way (for example dropped by a full UDP receive buffer)
+                                // The 16 bit counter can not detect a gap of 65536 or more messages
                                 let ctr = buf[i + 2] as u16 + ((buf[i + 3] as u16) << 8);
                                 if ctr_first {
                                     ctr_first = false;
                                 } else if ctr != ctr_last.wrapping_add(1) {
-                                    ctr_lost += ctr.wrapping_sub(ctr_last) as u32;
-
+                                    ctr_lost += ctr.wrapping_sub(ctr_last).wrapping_sub(1) as u32;
                                 }
                                 ctr_last = ctr;
                                 let pid = buf[i + 4];
@@ -285,6 +321,7 @@ impl XcpClient {
         } else {
             // Create UDP socket
             let udp_socket = UdpSocket::bind(self.bind_addr).await?;
+            set_udp_recv_buffer_size(&udp_socket);
             XcpSocket::Udp(Arc::new(udp_socket))
         };
         self.socket = Some(socket);
@@ -431,7 +468,9 @@ impl XcpClient {
 
     //------------------------------------------------------------------------
     // Get server identification
-    // Returns (size, name) where name is only set if the server returned the name in the response, otherwise the caller must do an upload to get the data
+    // Returns (0, Some(text)) for text received inline or uploaded immediately.
+    // Returns (size, None) when a separate upload is needed.
+    // Returns (0, None) when the requested data is unavailable.
     pub async fn get_id(&mut self, id_type: u8) -> Result<(u32, Option<String>), Box<dyn Error>> {
         assert!(id_type == IDT_VECTOR_ELF_UPLOAD || id_type == IDT_ASAM_UPLOAD || id_type == IDT_ASAM_NAME || id_type == IDT_ASCII || id_type == IDT_ASAM_EPK); // others not supported yet
 
@@ -448,6 +487,10 @@ impl XcpClient {
 
         // Data ready for upload
         if mode == 0 {
+            // File uploads are handled separately; a size of 0 means unavailable.
+            if size == 0 || id_type == IDT_ASAM_UPLOAD || id_type == IDT_VECTOR_ELF_UPLOAD {
+                return Ok((size, None));
+            }
             // Upload the result immediately, if size fits in one upload command
             if size < self.max_cto_size as u32 {
                 let data = self.upload(size as u8).await?;

@@ -14,7 +14,8 @@ use thiserror::Error;
 
 pub mod bin_format;
 use bin_format::{BIN_SIGNATURE, BIN_VERSION};
-use bin_format::{BinHeader, CalSegDescriptor, EventDescriptor};
+use bin_format::{BinHeader, CalSegDescriptor, ContextDescriptor, EventDescriptor};
+use bin_format::read_context_list;
 
 #[derive(Error, Debug)]
 pub enum Bin2HexError {
@@ -34,8 +35,53 @@ pub enum Bin2HexError {
     SegmentMismatch(String),
 }
 
-pub fn write_bin_file(_path: &PathBuf, epk: &str, events: &[EventDescriptor], calseg_data: &[(CalSegDescriptor, Vec<u8>)]) -> Result<(), Bin2HexError> {
-    let mut file = File::create(_path)?;
+// Get the context list from the enum conversion table conv.contexts.table of an XCPlite A2L file
+// The table maps the context ids 1..n to the context names, 0 is "none"
+// Returns None, if the A2L file has no context table or the table is not in the expected format
+pub fn parse_a2l_context_table(a2l_text: &str) -> Option<Vec<ContextDescriptor>> {
+    const BEGIN: &str = "/begin COMPU_VTAB conv.contexts.table";
+    let start = a2l_text.find(BEGIN)? + BEGIN.len();
+    let end = start + a2l_text[start..].find("/end COMPU_VTAB")?;
+    let mut rest = a2l_text[start..end].trim_start();
+
+    // Skip the long identifier, the conversion type and the number of value pairs
+    rest = rest.strip_prefix('"')?;
+    rest = rest[rest.find('"')? + 1..].trim_start();
+    rest = rest.strip_prefix("TAB_VERB")?.trim_start();
+    let count: usize = rest.split_whitespace().next()?.parse().ok()?;
+    rest = rest[rest.find(char::is_whitespace)?..].trim_start();
+
+    // Value pairs <id> "<name>", the ids must be 0..n in order
+    let mut contexts = Vec::new();
+    for id in 0..count {
+        let sep = rest.find(char::is_whitespace)?;
+        if rest[..sep].parse::<usize>().ok()? != id {
+            return None;
+        }
+        rest = rest[sep..].trim_start().strip_prefix('"')?;
+        let quote = rest.find('"')?;
+        if id > 0 {
+            contexts.push(ContextDescriptor {
+                id: id as u16,
+                app_id: 0,
+                name: rest[..quote].to_string(),
+            });
+        }
+        rest = rest[quote + 1..].trim_start();
+    }
+    Some(contexts)
+}
+
+// Write a BIN file in local mode (no application list)
+// The context list follows the header, the events of a context reference it by context id (EventDescriptor::context)
+pub fn write_bin_file(
+    path: &PathBuf,
+    epk: &str,
+    events: &[EventDescriptor],
+    calseg_data: &[(CalSegDescriptor, Vec<u8>)],
+    contexts: &[ContextDescriptor],
+) -> Result<(), Bin2HexError> {
+    let mut file = File::create(path)?;
 
     // Create header
     let header = BinHeader {
@@ -44,11 +90,17 @@ pub fn write_bin_file(_path: &PathBuf, epk: &str, events: &[EventDescriptor], ca
         event_count: events.len() as u16,
         calseg_count: calseg_data.len() as u16,
         app_count: 0,
+        context_count: contexts.len() as u16,
         epk: epk.to_string(),
     };
 
     // Write header
     header.write_to(&mut file)?;
+
+    // Write contexts
+    for context in contexts {
+        context.write_to(&mut file)?;
+    }
 
     // Write events
     for event in events {
@@ -64,7 +116,7 @@ pub fn write_bin_file(_path: &PathBuf, epk: &str, events: &[EventDescriptor], ca
     Ok(())
 }
 
-pub fn read_bin_file(path: &PathBuf, verbose: bool) -> Result<(BinHeader, Vec<EventDescriptor>, Vec<(CalSegDescriptor, Vec<u8>)>), Bin2HexError> {
+pub fn read_bin_file(path: &PathBuf, verbose: bool) -> Result<(BinHeader, Vec<ContextDescriptor>, Vec<EventDescriptor>, Vec<(CalSegDescriptor, Vec<u8>)>), Bin2HexError> {
     let mut file = File::open(path)?;
 
     // Read header
@@ -77,15 +129,19 @@ pub fn read_bin_file(path: &PathBuf, verbose: bool) -> Result<(BinHeader, Vec<Ev
         println!("  EPK: {}", header.epk);
         println!("  Event Count: {}", header.event_count);
         println!("  CalSeg Count: {}", header.calseg_count);
+        println!("  Context Count: {}", header.context_count);
         println!();
     }
+
+    // Read contexts, they follow the header
+    let contexts = read_context_list(&mut file, &header)?;
 
     // Read events
     let mut events = Vec::new();
     for i in 0..header.event_count {
         let event = EventDescriptor::read_from(&mut file)?;
         if verbose {
-            println!("Read Event {}: {}", i, event.name);
+            println!("Read Event {}: {}", i, event.full_name(&contexts));
         }
         events.push(event);
     }
@@ -132,11 +188,11 @@ pub fn read_bin_file(path: &PathBuf, verbose: bool) -> Result<(BinHeader, Vec<Ev
         calseg_data.push((calseg_desc, data));
     }
 
-    Ok((header, events, calseg_data))
+    Ok((header, contexts, events, calseg_data))
 }
 
 fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
-    let (header, events, calseg_data) = read_bin_file(path, false)?;
+    let (header, contexts, events, calseg_data) = read_bin_file(path, false)?;
 
     // Print header information
     println!("========================================");
@@ -149,7 +205,20 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
     println!("  EPK:          {}", header.epk);
     println!("  Event Count:  {}", header.event_count);
     println!("  CalSeg Count: {}", header.calseg_count);
+    if header.context_count > 0 {
+        println!("  Context Count: {}", header.context_count);
+    }
     println!();
+
+    // Print the context list
+    if !contexts.is_empty() {
+        println!("CONTEXTS:");
+        println!();
+        for context in contexts.iter() {
+            println!("  {}: {}", context.id, context.name);
+        }
+        println!();
+    }
 
     // Print event information
     if !events.is_empty() {
@@ -158,9 +227,16 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
 
         for (idx, event) in events.iter().enumerate() {
             println!("Event {}:", idx);
-            println!("  Name:         {}", event.name);
+            println!("  Name:         {}", event.full_name(&contexts));
             println!("  ID:           {}", event.id);
-            println!("  Index:        {}", event.index);
+            if let Some(context_name) = event.context_name(&contexts) {
+                println!("  Context:      {} ({})", context_name, event.context);
+            } else if event.context != 0 && header.version < BIN_VERSION {
+                // Written by an older XCPlite version with anonymous event instances <name>_<index>
+                println!("  Index:        {}", event.context);
+            } else if event.context != 0 {
+                println!("  Context:      unknown ({})", event.context);
+            }
             println!("  Cycle Time:   {} ns", event.cycle_time_ns);
             println!("  Priority:     {}", event.priority);
             println!();
@@ -175,6 +251,7 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
         println!("Segment {}:", idx);
         println!("  Name:    {}", desc.name);
         println!("  Index:   {}", desc.index);
+        println!("  Number:  {}", desc.number);
         println!("  Size:    {} bytes", desc.size);
         println!("  Address: 0x{:08X}", desc.addr);
 
@@ -381,7 +458,8 @@ fn apply_hex_to_bin(bin_path: &PathBuf, hex_path: &PathBuf, verbose: bool) -> Re
         println!();
     }
 
-    // Skip events
+    // Skip contexts and events
+    read_context_list(&mut file, &header)?;
     for _ in 0..header.event_count {
         EventDescriptor::read_from(&mut file)?;
     }
@@ -480,4 +558,85 @@ fn apply_hex_to_bin(bin_path: &PathBuf, hex_path: &PathBuf, verbose: bool) -> Re
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_a2l_context_table() {
+        let a2l = "/begin COMPU_METHOD conv.contexts \"\" TAB_VERB \"%.0 \" \"\" COMPU_TAB_REF conv.contexts.table /end COMPU_METHOD\n\
+                   /begin COMPU_VTAB conv.contexts.table \"\" TAB_VERB 3\n 0 \"none\" 1 \"Main\" 2 \"SigGen1\"\n/end COMPU_VTAB\n";
+        let contexts = parse_a2l_context_table(a2l).unwrap();
+        assert_eq!(contexts.len(), 2);
+        assert_eq!((contexts[0].id, contexts[0].name.as_str()), (1, "Main"));
+        assert_eq!((contexts[1].id, contexts[1].name.as_str()), (2, "SigGen1"));
+
+        // No context table, wrong order of ids
+        assert!(parse_a2l_context_table("/begin COMPU_VTAB conv.spans.table \"\" TAB_VERB 1\n 0 \"none\"\n/end COMPU_VTAB").is_none());
+        assert!(parse_a2l_context_table("/begin COMPU_VTAB conv.contexts.table \"\" TAB_VERB 2\n 0 \"none\" 2 \"Main\"\n/end COMPU_VTAB").is_none());
+    }
+
+    #[test]
+    fn test_write_read_bin_file_with_contexts() {
+        let path = std::env::temp_dir().join(format!("xcpclient_bin_test_{}.bin", std::process::id()));
+        let contexts = vec![
+            ContextDescriptor {
+                id: 1,
+                app_id: 0,
+                name: "ctx_a".to_string(),
+            },
+            ContextDescriptor {
+                id: 2,
+                app_id: 0,
+                name: "ctx_b".to_string(),
+            },
+        ];
+        let events = vec![
+            EventDescriptor {
+                id: 0,
+                context: 0,
+                cycle_time_ns: 0,
+                priority: 0,
+                app_id: 0,
+                name: "mainloop".to_string(),
+            },
+            EventDescriptor {
+                id: 1,
+                context: 2,
+                cycle_time_ns: 0,
+                priority: 0,
+                app_id: 0,
+                name: "evt".to_string(),
+            },
+        ];
+        let calsegs = vec![(
+            CalSegDescriptor {
+                index: 0,
+                size: 4,
+                addr: 0x80000000,
+                app_id: 0,
+                number: 0,
+                name: "epk".to_string(),
+            },
+            vec![1, 2, 3, 4],
+        )];
+        write_bin_file(&path, "V1", &events, &calsegs, &contexts).unwrap();
+
+        let file_size = std::fs::metadata(&path).unwrap().len();
+        let (header, contexts_read, events_read, calsegs_read) = read_bin_file(&path, false).unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        // Header, 2 contexts, 2 events, 1 calibration segment with 4 bytes of data
+        assert_eq!(file_size, 256 + 2 * 256 + 2 * 256 + 256 + 4);
+        assert_eq!(header.version, BIN_VERSION);
+        assert_eq!(header.context_count, 2);
+        assert_eq!(contexts_read, contexts);
+        assert_eq!(events_read[0].full_name(&contexts_read), "mainloop");
+        assert_eq!(events_read[1].full_name(&contexts_read), "ctx_b.evt");
+        assert_eq!(events_read[1].context, 2);
+        assert_eq!(calsegs_read[0].0.number, 0);
+        assert_eq!(calsegs_read[0].1, vec![1, 2, 3, 4]);
+    }
 }

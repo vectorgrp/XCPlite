@@ -43,6 +43,7 @@ This is a one-page index of the whole public API of libxcplite: functions, macro
 | [cpp_demo](../examples/cpp_demo/) | C++ | default |
 | [struct_demo](../examples/struct_demo/) | C | default |
 | [multi_thread_demo](../examples/multi_thread_demo/) | C | default |
+| [thread_context_demo](../examples/thread_context_demo/) | C++ | default |
 | [point_cloud_demo](../examples/point_cloud_demo/) | C++ | default |
 | [cmp_demo](../examples/cmp_demo/) | C | default |
 | [bpf_demo](../examples/bpf_demo/) | C | default (Linux, libbpf) |
@@ -89,7 +90,7 @@ The C API can be used from C++ as well. Entries marked **C only** are hidden by 
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `XcpIsActivated()` | function | XCP was initialized in an active mode | — | multi_thread_demo |
+| `XcpIsActivated()` | function | XCP was initialized in an active mode | — | — |
 | `XcpIsStarted()` | function | Protocol layer is started | — | freertos_demo (esp32) |
 | `XcpIsConnected()` | function | A client is connected | — | freertos_demo (esp32) |
 | `XcpIsDaqRunning()` | function | DAQ measurement is running | — | freertos_demo (esp32) |
@@ -138,17 +139,26 @@ The macros take the default page variable as an identifier: `name` is the segmen
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `XcpCreateEvent(name, cycle_ns, prio)` | function | Create an event, or return the existing one with this name. Thread safe | `OPTION_DAQ_EVENT_LIST` | multi_thread_demo, bpf_demo, freertos_demo |
-| `XcpCreateEventInstance(name, cycle_ns, prio)` | function | Create a new indexed instance (`name_<n>`) of an event | `OPTION_DAQ_EVENT_LIST` | — |
-| `XcpFindEvent(name)` | function | Look up an event id by name | — | — (used by the trigger macros) |
-| `XcpGetEventIndex(event)` | function | Instance index (1..) of an indexed event | `OPTION_DAQ_EVENT_LIST` | multi_thread_demo |
+| `XcpCreateEvent(name, cycle_ns, prio)` | function | Create an event, or return the existing one with this name. Thread safe | `OPTION_DAQ_EVENT_LIST` | bpf_demo, freertos_demo |
+| `XcpFindEvent(name)` | function | Look up an event id by name. Events which belong to a context are not found | — | — (used by the trigger macros) |
+| `XcpGetEventContext(event)` | function | Context id (1..) of an event which belongs to a context, 0 otherwise | `OPTION_DAQ_EVENT_LIST` | — |
 | `DaqCreateEvent(name)` | macro | Create a sporadic event (inside a function). It is created at runtime, or registered at link time with section registration | `OPTION_DAQ_EVENT_LIST` or `OPTION_SECTION_REGISTRATION` | most C examples, cpp_demo, silkit_demo, no_a2l_demo, no_a2l_demo_cpp, freertos_demo |
 | `DaqCreateEventExt(name, cycle_us, prio)` | macro | Like `DaqCreateEvent`, with a cycle time and priority | as above | — |
 | `DaqDeclareEvent(name)` | macro | File scope event declaration, so callbacks can trigger it by name | `OPTION_SECTION_REGISTRATION` | — |
 | `DaqDeclareEventExt(name, cycle_us, prio)` | macro | As above, with a cycle time and priority | `OPTION_SECTION_REGISTRATION` | — |
 | `DaqCreateEvent_s(name_str)` | macro | Create an event with a runtime string name, once per thread | `OPTION_DAQ_EVENT_LIST` | cpp_demo |
-| `DaqCreateEventInstance(name)` | macro | Create a new event instance on every call | `OPTION_DAQ_EVENT_LIST` | multi_thread_demo |
-| `DaqGetEventInstanceId(name)` | macro | Id of the instance created by `DaqCreateEventInstance` | `OPTION_DAQ_EVENT_LIST` | multi_thread_demo |
+
+#### Contexts and spans (C core of the C++ API)
+
+A context is a named identity ("who is executing"), an event may belong to a context and is then named `<context>.<event>`. These functions are used by the C++ API in section 3.3, there are no C instrumentation macros for contexts.
+
+| Name | Kind | Description | Option | Examples |
+|---|---|---|---|---|
+| `XcpCreateContext(name)` | function | Create a context, or return the id (1..) of the existing one with this name. Thread safe, lock-free | `OPTION_DAQ_CONTEXT_LIST` | — (used by `xcp::Context`) |
+| `XcpGetContextName(context)` | function | Name of a context | `OPTION_DAQ_CONTEXT_LIST` | — |
+| `XcpGetContextCount()` | function | Number of contexts | `OPTION_DAQ_CONTEXT_LIST` | — |
+| `XcpCreateContextEvent(context, name, cycle_ns, prio)` | function | Create the event `<context>.<name>`, or return the existing one with this name in this context. Thread safe | `OPTION_DAQ_CONTEXT_LIST` | — (used by `DaqEventCtxVar`) |
+| `XcpRegisterSpanName(name)` | function | Register a span name at runtime, returns the span id. The A2L generator creates `conv.spans` from the registered names. Thread safe, lock-free | `OPTION_DAQ_CONTEXT_LIST`, `!OPTION_DAQ_SPAN_SECTION_REGISTRATION` | — (used by `DaqSpan`) |
 
 ### 1.7 DAQ events: trigger functions
 
@@ -162,7 +172,7 @@ All trigger functions are thread safe. They are lock free with the 64-bit queues
 | `XcpEventExtAt(event, base, clock)` | function | As above, with a timestamp | — | — |
 | `XcpEventExt_Var(event, count, ...)` | function | Trigger with a variadic list of base addresses (address extensions 2..) | — | — (used by the trigger macros) |
 | `XcpEventExtAt_Var(event, clock, count, ...)` | function | As above, with a timestamp | — | multi_thread_demo |
-| `XcpEventExtAt_(event, count, bases, clock)` | function | Base address array variant, used by the C++ templates | — | — |
+| `XcpEventExtAt_(event, count, bases, clock)` | function | Base address array variant, used by the C++ templates | — | thread_context_demo |
 | `XcpEventEnable(event, enable)` | function | Enable or disable an event | `OPTION_DAQ_EVENT_LIST` | — |
 
 ### 1.8 DAQ events: trigger macros
@@ -171,9 +181,9 @@ The `trg__<modes>__<event>` static variables emitted by these macros are the mar
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `DaqTriggerEvent(name)` | macro | Trigger by name, with absolute and stack addressing (AAS) | — (with section registration, the event descriptor must be visible) | hello_xcp, cpp_demo, struct_demo, cmp_demo, bpf_demo, udp_raw_demo, no_a2l_demo, freertos_demo, external_example, fetchcontent_example |
+| `DaqTriggerEvent(name)` | macro | Trigger by name, with absolute and stack addressing (AAS) | — (with section registration, the event descriptor must be visible) | hello_xcp, cpp_demo, struct_demo, cmp_demo, bpf_demo, udp_raw_demo, no_a2l_demo, freertos_demo, external_example, fetchcontent_example, multi_thread_demo |
 | `DaqTriggerEventAt(name, clock)` | macro | As above, with a timestamp | — | bpf_demo |
-| `DaqTriggerEvent_i(id)` / `DaqTriggerEventAt_i(id, clock)` | macro | Trigger by event id, no lookup | — | multi_thread_demo |
+| `DaqTriggerEvent_i(id)` / `DaqTriggerEventAt_i(id, clock)` | macro | Trigger by event id, no lookup | — | — |
 | `DaqTriggerEventExt(name, base)` | macro | Trigger by name with absolute, stack and relative addressing (AASD) | — | c_demo, struct_demo, no_a2l_demo, silkit_demo |
 | `DaqTriggerEventExt_s(name_str, base)` | macro | As above, with the name as a runtime string (lookup once per thread) | — | cpp_demo |
 | `DaqTriggerEventExt_i(id, base)` | macro | As above, by event id | — | — |
@@ -206,14 +216,14 @@ The capture macros copy register-allocated locals into a struct on the stack, wh
 | `XCP_LIMITS(name, min, max)` | macro | A2L limits | `OPTION_SECTION_REGISTRATION` | no_a2l_demo, no_a2l_demo_cpp, freertos_demo |
 | `XCP_READ_WRITE(name)` | macro | Mark a measurement as writable | `OPTION_SECTION_REGISTRATION` | no_a2l_demo, no_a2l_demo_cpp, freertos_demo |
 | `XcpCreateEpk(epk)` | macro | Emit the EPK string `xcp_epk__` for `xcpclient` (in the `xcp_epk` section with section registration) | — (meant for offline A2L) | no_a2l_demo, no_a2l_demo_cpp, freertos_demo |
-| `THREAD_LOCAL` | macro | Portable thread-local storage specifier | — | multi_thread_demo |
+| `THREAD_LOCAL` | macro | Portable thread-local storage specifier | — | — |
 | `XCP_MAYBE_UNUSED` | macro | Portable "maybe unused" attribute | — | — |
 
 ### 1.11 Addressing helpers
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `xcp_get_frame_addr()` | macro | Stack frame base address for stack-relative addressing (clang: frame pointer, GCC: CFA, MSVC: intrinsic) | — | multi_thread_demo, bpf_demo, freertos_demo |
+| `xcp_get_frame_addr()` | macro | Stack frame base address for stack-relative addressing (clang: frame pointer, GCC: CFA, MSVC: intrinsic) | — | bpf_demo, freertos_demo |
 | `XCP_FRAME_ADDR_OFFSET` | const | Offset subtracted from the frame address, which sets the maximum frame size (0x10000) | — | — |
 | `xcp_get_base_addr()` / `gXcpBaseAddr` | macro / variable | Base address of absolute addressing (fast path) | — | — |
 | `ApplXcpGetBaseAddr()` | function | Base address of absolute addressing | — | — |
@@ -226,7 +236,7 @@ The capture macros copy register-allocated locals into a struct on the stack, wh
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `ApplXcpGetClock64()` | function | Current DAQ clock in `CLOCK_TICKS_PER_S` ticks | `OPTION_CLOCK_TICKS_1NS`/`_1US`, `OPTION_CLOCK_EPOCH_ARB`/`_PTP` | multi_thread_demo, point_cloud_demo, freertos_demo (esp32) |
+| `ApplXcpGetClock64()` | function | Current DAQ clock in `CLOCK_TICKS_PER_S` ticks | `OPTION_CLOCK_TICKS_1NS`/`_1US`, `OPTION_CLOCK_EPOCH_ARB`/`_PTP` | point_cloud_demo, freertos_demo (esp32) |
 | `ApplXcpGetClockState()` | function | Clock synchronization state (`CLOCK_STATE_*`) | — | — |
 | `ApplXcpGetClockInfoGrandmaster(...)` | function | Client and grandmaster UUID, epoch, stratum | — | — |
 | `ApplXcpRegisterGetClockCallback(cb)` | function | Replace the clock source | — | ptp4l_demo, silkit_demo, freertos_demo |
@@ -264,7 +274,7 @@ If no callback is registered, XCPlite uses its own default behaviour from `src/x
 | `clockGetMonotonicNs()` / `clockGetMonotonicUs()` | function | Monotonic clock | — | cpp_demo, multi_thread_demo |
 | `sleepUs(us)` / `sleepMs(ms)` | function | Portable sleep | — | most examples |
 | `XcpEthServerDebugInfo(&rx, &tx)` | function | Stack usage of the server threads | values with `TEST_STACK_SIZE` | freertos_demo (esp32) |
-| `clockGetPrintStatistic()` | function | Print clock call statistics | values with `TEST_CLOCK_GET_STATISTIC` | multi_thread_demo |
+| `clockGetPrintStatistic()` | function | Print clock call statistics | values with `TEST_CLOCK_GET_STATISTIC` | — |
 
 ### 1.15 Types and constants
 
@@ -272,12 +282,12 @@ If no callback is registered, XCPlite uses its own default behaviour from `src/x
 |---|---|---|---|---|
 | `tXcpCalSegIndex` | type | Calibration segment handle (`uint16_t`) | — | hello_xcp, c_demo, cmp_demo, multi_thread_demo, udp_raw_demo, freertos_demo |
 | `tXcpCalSegNumber` | type | XCP/A2L segment number (`uint8_t`) | — | — |
-| `tXcpEventId` | type | DAQ event handle (`uint16_t`) | — | multi_thread_demo, bpf_demo |
+| `tXcpEventId` | type | DAQ event handle (`uint16_t`) | — | bpf_demo |
 | `tXcpCalSegDescriptor` | type | 32-byte calibration segment descriptor in the `xcp_cals` section | — | — |
 | `tXcpEventDescriptor` | type | 16-byte event descriptor in the `xcp_evts` section | — | — |
 | `XCP_UNDEFINED_CALSEG` | const | Invalid segment index (0xFFFF) | — | hello_xcp, c_demo, cmp_demo, multi_thread_demo, udp_raw_demo, freertos_demo |
 | `XCP_UNDEFINED_CALSEG_NUM` | const | Invalid segment number (0xFF) | — | — |
-| `XCP_UNDEFINED_EVENT_ID` | const | Invalid event id (0xFFFF) | — | multi_thread_demo |
+| `XCP_UNDEFINED_EVENT_ID` | const | Invalid event id (0xFFFF) | — | — |
 | `XCP_CALSEG_TYPE_SEGMENT`, `XCP_CALSEG_TYPE_BLOCK` | const | Descriptor type tags | — | — |
 | `CRC_CMD_OK`, `CRC_ACCESS_DENIED`, … (24 values) | const | XCP command return codes, for callback return values | — | c_demo, external_example |
 
@@ -303,7 +313,7 @@ Everything in this part requires **`OPTION_ENABLE_A2L_GENERATOR`** (configuratio
 | `A2L_MODE_WRITE_ONCE` | const | Generate once per EPK. Use with `XCP_MODE_PERSISTENCE` | `OPTION_ENABLE_PERSISTENCE` | hello_xcp, hello_xcp_cpp, c_demo, cpp_demo, struct_demo, point_cloud_demo, cmp_demo, udp_raw_demo, silkit_demo, … |
 | `A2L_MODE_FINALIZE_ON_CONNECT` | const | Finalize automatically when a client connects | — | almost all examples |
 | `A2L_MODE_AUTO_GROUPS` | const | Create groups per event and per segment automatically | — | almost all examples |
-| `A2L_MODE_EVENT_CONVERSION` | const | Create an enum conversion with all event ids | — | multi_thread_demo |
+| `A2L_MODE_EVENT_CONVERSION` | const | Create an enum conversion with all event ids | — | — |
 | `A2L_MODE_SYMBOL_PREFIX` | const | Prefix all symbols with the project name (always set in SHM mode) | — | — |
 | `A2L_MODE_WRITE_TEMPLATE` | const | Write only a template: settings, IF_DATA, events, segments | — | — |
 | `A2L_MODE_EMBED_AML_FILE` | const | Reference the AML file with `/include` instead of embedding it | — | — |
@@ -318,10 +328,10 @@ Set the addressing mode before the registrations it applies to. It stays active 
 |---|---|---|---|---|
 | `A2lSetSegmentAddrMode(index, instance)`, `_s` | macro | Parameters relative to a calibration segment | `OPTION_CAL_SEGMENTS` | hello_xcp, c_demo, cmp_demo, multi_thread_demo, udp_raw_demo |
 | `A2lSetAbsoluteAddrMode(event)`, `_s`, `_i` | macro | Globals and static variables at absolute addresses | — | hello_xcp, c_demo, cpp_demo, struct_demo, cmp_demo, bpf_demo, udp_raw_demo, fetchcontent_example |
-| `A2lSetStackAddrMode(event)` | macro | Locals relative to the stack frame of the event trigger | — | hello_xcp, c_demo, cpp_demo, struct_demo, cmp_demo, udp_raw_demo |
-| `A2lSetStackAddrMode_s` / `_i` | macro | As above, by name string or id | — | cpp_demo / multi_thread_demo |
+| `A2lSetStackAddrMode(event)` | macro | Locals relative to the stack frame of the event trigger | — | hello_xcp, c_demo, cpp_demo, struct_demo, cmp_demo, udp_raw_demo, multi_thread_demo |
+| `A2lSetStackAddrMode_s` / `_i` | macro | As above, by name string or id | — | cpp_demo / — |
 | `A2lSetRelativeAddrMode(event, base)` | macro | Heap or pointer-relative variables (address extension 3) | — | c_demo, struct_demo, silkit_demo |
-| `A2lSetRelativeAddrMode_s` / `_i` | macro | As above, by name string or id | — | cpp_demo / multi_thread_demo |
+| `A2lSetRelativeAddrMode_s` / `_i` | macro | As above, by name string or id | — | cpp_demo / — |
 | `A2lSetAutomaticAddrMode(event, base)`, `_s`, `_i` | macro | Choose stack or relative addressing for each variable | — | — (used by the C `DaqEventVar`) |
 | `A2lSetAutoAddrMode(id, frame, base)` | function | Function form of the automatic mode | — | — |
 | `A2lSetApplicationAddrMode()` | function | Variables accessed through the read/write callbacks | `!OPTION_CAL_SEGMENTS_ABS` | c_demo, external_example |
@@ -342,7 +352,7 @@ Set the addressing mode before the registrations it applies to. It stays active 
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `A2lCreateLinearConversion(name, comment, unit, factor, offset)` | macro | Linear conversion, referenced as `"conv.<name>"` | — | hello_xcp, cpp_demo |
+| `A2lCreateLinearConversion(name, comment, unit, factor, offset)` | macro | Linear conversion, referenced as `"conv.<name>"` | — | hello_xcp, cpp_demo, multi_thread_demo |
 | `A2lCreateEnumConversion(name, description)` | macro | Value table conversion, referenced as `"conv.<name>"` | — | hello_xcp_cpp, cpp_demo |
 
 ### 2.5 Measurements
@@ -350,25 +360,25 @@ Set the addressing mode before the registrations it applies to. It stays active 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
 | `A2lCreateMeasurement(name, comment)` | macro | Scalar | — | hello_xcp, c_demo, cpp_demo, struct_demo, multi_thread_demo, cmp_demo, bpf_demo, udp_raw_demo, silkit_demo, external_example, fetchcontent_example |
-| `A2lCreatePhysMeasurement(name, comment, unit_or_conv, min, max)` | macro | Scalar with unit or conversion and limits | — | hello_xcp, cpp_demo, cmp_demo, bpf_demo, udp_raw_demo |
+| `A2lCreatePhysMeasurement(name, comment, unit_or_conv, min, max)` | macro | Scalar with unit or conversion and limits | — | hello_xcp, cpp_demo, cmp_demo, bpf_demo, udp_raw_demo, multi_thread_demo |
 | `A2lCreateMeasurementArray(name, comment)` | macro | 1D array | — | c_demo, cpp_demo |
 | `A2lCreatePhysMeasurementArray(…)` | macro | 1D array with a unit or conversion and limits | — | — |
 | `A2lCreateMeasurementMatrix(name, comment)` | macro | 2D array | — | c_demo |
 | `A2lCreatePhysMeasurementMatrix(…)` | macro | 2D array with a unit | — | — |
-| `A2lCreateMeasurementInstance(inst, name, comment)` | macro | Scalar with an instance name prefix | — | multi_thread_demo |
-| `A2lCreatePhysMeasurementInstance(inst, name, …)` | macro | As above, with a unit | — | hello_xcp, cpp_demo, multi_thread_demo |
-| `A2lCreateMeasurementArrayInstance(inst, name, comment)` | macro | 1D array with an instance name prefix | — | multi_thread_demo |
+| `A2lCreateMeasurementInstance(inst, name, comment)` | macro | Scalar with an instance name prefix | — | — |
+| `A2lCreatePhysMeasurementInstance(inst, name, …)` | macro | As above, with a unit | — | hello_xcp, cpp_demo |
+| `A2lCreateMeasurementArrayInstance(inst, name, comment)` | macro | 1D array with an instance name prefix | — | — |
 | `A2lCreateMeasurementMatrixInstance(inst, name, comment)` | macro | 2D array with an instance name prefix | — | — |
 
 ### 2.6 Typedefs and instances
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `A2lTypedefBegin(type, instance_ptr, comment)` … `A2lTypedefEnd()` | macro | Bracket for a struct typedef definition | — | c_demo, cpp_demo, struct_demo, multi_thread_demo, point_cloud_demo, silkit_demo |
+| `A2lTypedefBegin(type, instance_ptr, comment)` … `A2lTypedefEnd()` | macro | Bracket for a struct typedef definition | — | c_demo, cpp_demo, struct_demo, point_cloud_demo, silkit_demo |
 | `A2lTypedefComponent(field, type_name, dim)` | macro | Field that is itself a typedef | — | cpp_demo, struct_demo |
-| `A2lTypedefMeasurementComponent(field, comment)` | macro | Scalar measurement field | — | c_demo, struct_demo, multi_thread_demo |
+| `A2lTypedefMeasurementComponent(field, comment)` | macro | Scalar measurement field | — | c_demo, struct_demo |
 | `A2lTypedefMeasurementArrayComponent(field, comment)` | macro | Array measurement field | — | struct_demo |
-| `A2lTypedefPhysMeasurementComponent(field, comment, unit, min, max)` | macro | Scalar measurement field with a unit | — | multi_thread_demo |
+| `A2lTypedefPhysMeasurementComponent(field, comment, unit, min, max)` | macro | Scalar measurement field with a unit | — | — |
 | `A2lTypedefPhysMeasurementArrayComponent(…)` | macro | Array measurement field with a unit | — | — |
 | `A2lTypedefParameterComponent(field, comment, unit, min, max)` | macro | Scalar parameter field | — | c_demo, cpp_demo, point_cloud_demo, silkit_demo |
 | `A2lTypedefCurveComponent(field, x_dim, …)` | macro | Curve field | — | c_demo, cpp_demo |
@@ -377,7 +387,7 @@ Set the addressing mode before the registrations it applies to. It stays active 
 | `A2lTypedefMapComponentWithSharedAxis(…, x_axis, y_axis)` | macro | Map field with shared axes | — | — |
 | `A2lTypedefAxisComponent(field, x_dim, …)` | macro | Axis field | — | c_demo, cpp_demo |
 | `A2lCreateTypedefInstance(name, type, comment)` | macro | Instance of a typedef | — | c_demo, struct_demo, silkit_demo |
-| `A2lCreateTypedefNamedInstance(name_str, var, type, comment)` | macro | Instance with an A2L name different from the variable name | — | multi_thread_demo |
+| `A2lCreateTypedefNamedInstance(name_str, var, type, comment)` | macro | Instance with an A2L name different from the variable name | — | — |
 | `A2lCreateTypedefArray` / `A2lCreateTypedefInstanceArray(name, type, dim, comment)` | macro | Array of typedef instances | — | struct_demo |
 | `A2lCreateTypedefReference` / `A2lCreateTypedefInstanceReference(ptr, type, comment)` | macro | Instance behind a pointer | — | struct_demo |
 | `A2lCreateInstance(name_str, type, dim, ptr, comment)` | macro | Generic instance | — | — |
@@ -432,11 +442,11 @@ Namespace `xcp`. In C++, the C calibration segment macros of section 1.5 are rep
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `xcp::CalSeg<T>` | class template | Owning RAII wrapper: the constructor `(name, &default)` creates the segment (construct after `XcpInit`), `lock()` returns a guard, `getIndex()` the index | `OPTION_CAL_SEGMENTS` | hello_xcp_cpp, cpp_demo, point_cloud_demo, silkit_demo |
+| `xcp::CalSeg<T>` | class template | Owning RAII wrapper: the constructor `(name, &default)` creates the segment (construct after `XcpInit`), `lock()` returns a guard, `getIndex()` the index | `OPTION_CAL_SEGMENTS` | hello_xcp_cpp, cpp_demo, point_cloud_demo, silkit_demo, thread_context_demo |
 | `xcp::CalBlk<T>` | class template | As above, for a calibration block | `OPTION_CAL_SEGMENTS` | — |
 | `xcp::CalSegRef<T>` | class template | Non-owning typed handle over an index variable, for section registered segments | `OPTION_CAL_SEGMENTS` | no_a2l_demo_cpp, freertos_demo |
 | `CalSeg<T>::CalSegGuard` (also in `CalBlk`, `CalSegRef`) | nested class | Lock guard with `->`, `*` and `get()`. Not copyable (the `CalSegRef` guard is movable). Unlocks in its destructor. In passive mode it reads the default page | — | via `lock()` in the examples above |
-| `CalSeg<T>::CreateA2lTypedefInstance(type, comment)` (also `CalBlk`, `CalSegRef`) | method | Register the A2L instance of the segment | `OPTION_ENABLE_A2L_GENERATOR` | hello_xcp_cpp, cpp_demo, point_cloud_demo, silkit_demo |
+| `CalSeg<T>::CreateA2lTypedefInstance(type, comment)` (also `CalBlk`, `CalSegRef`) | method | Register the A2L instance of the segment | `OPTION_ENABLE_A2L_GENERATOR` | hello_xcp_cpp, cpp_demo, point_cloud_demo, silkit_demo, thread_context_demo |
 | `CalSegCreate(value)` | macro | Expression: `auto seg = CalSegCreate(params);` returns `xcp::CalSeg<T>` and emits the `xcp_cals` descriptor. Must run after `XcpInit`, otherwise the object stays passive permanently (not as a namespace-scope global initializer) | `OPTION_CAL_SEGMENTS` | cpp_demo, freertos_demo |
 | `CalBlkCreate(value)` | macro | As above, returns `xcp::CalBlk<T>` | `OPTION_CAL_SEGMENTS` | — |
 | `CalSegDeclRef(value, handle)` | macro | File scope declaration plus a typed handle `xcp::CalSegRef<T> handle`. `XcpInit` creates the segment | `OPTION_SECTION_REGISTRATION` | no_a2l_demo_cpp, freertos_demo |
@@ -448,13 +458,13 @@ The whole section requires **`!OPTION_SECTION_REGISTRATION`**. Measurements use 
 
 | Name | Kind | Description | Option | Examples |
 |---|---|---|---|---|
-| `DaqEventVar(name, A2L_MEAS(...), ...)` | macro | Create the event, register the measurements once and trigger | registration needs `OPTION_ENABLE_A2L_GENERATOR` | hello_xcp_cpp, cpp_demo, ptp4l_demo, silkit_demo |
+| `DaqEventVar(name, A2L_MEAS(...), ...)` | macro | Create the event, register the measurements once and trigger | registration needs `OPTION_ENABLE_A2L_GENERATOR` | hello_xcp_cpp, cpp_demo, ptp4l_demo, silkit_demo, thread_context_demo |
 | `DaqEventAtVar(name, clock, ...)` | macro | As above, with a timestamp | as above | point_cloud_demo |
 | `DaqTriggerEventVar(name, bases...)` | macro | Create the event once and trigger with a variadic list of base addresses | `OPTION_DAQ_EVENT_LIST` | — |
 | `xcp::DaqEventVarTemplate(id, clock, measurements...)` | function template | Implementation of `DaqEventVar` | — | — |
 | `xcp::DaqTriggerVarTemplate(name, bases...)` | function template | Implementation of `DaqTriggerEventVar` | `OPTION_DAQ_EVENT_LIST` | — |
 | `A2L_MEAS(var, comment)` | macro | Measurement info for `DaqEventVar` | `OPTION_ENABLE_A2L_GENERATOR` | hello_xcp_cpp, cpp_demo, ptp4l_demo, point_cloud_demo, silkit_demo |
-| `A2L_MEAS_PHYS(var, comment, unit, min, max)` | macro | As above, with a unit and limits | `OPTION_ENABLE_A2L_GENERATOR` | hello_xcp_cpp, cpp_demo, silkit_demo |
+| `A2L_MEAS_PHYS(var, comment, unit, min, max)` | macro | As above, with a unit and limits | `OPTION_ENABLE_A2L_GENERATOR` | hello_xcp_cpp, cpp_demo, silkit_demo, thread_context_demo |
 | `A2L_MEAS_ARRAY(var, comment)` / `A2L_MEAS_ARRAY_PHYS(…)` | macro | Array measurement | `OPTION_ENABLE_A2L_GENERATOR` | cpp_demo / — |
 | `A2L_MEAS_INST(var, type, comment)` / `A2L_MEAS_INST_ARRAY(…)` | macro | Typedef instance (array) | `OPTION_ENABLE_A2L_GENERATOR` | hello_xcp_cpp, silkit_demo / point_cloud_demo |
 | `A2L_MEAS_INST_PTR(var, ptr, type, comment)` / `A2L_MEAS_INST_ARRAY_PTR(…)` | macro | Typedef instance behind a pointer | `OPTION_ENABLE_A2L_GENERATOR` | hello_xcp_cpp / — |
@@ -463,6 +473,21 @@ The whole section requires **`!OPTION_SECTION_REGISTRATION`**. Measurements use 
 | `XCPLIB_ALWAYS_INLINE` | macro | Force inlining, so that the templates capture the caller's stack frame | — | — |
 
 ---
+
+### 3.3 Contexts and spans ([xcplib_context.hpp](../inc/xcplib_context.hpp))
+
+Included by `xcplib.hpp`. Requires **`OPTION_DAQ_CONTEXT_LIST`** and `OPTION_ENABLE_A2L_GENERATOR` (default and shm configuration only). Separates the measurement data of the same code running for several class instances or threads, see [thread_context_demo](../examples/thread_context_demo/README.md).
+
+| Name | Kind | Description | Option | Examples |
+|---|---|---|---|---|
+| `xcp::Context(name)` | class | Named context, creates the event `<name>.spans` with the measurements `<name>.span`, `.level`, `.span_dt` and, with `OPTION_DAQ_SPAN_THREAD`, `.thread`. `id()`, `name()`, `event()`, static `GetCurrent()`. Creating a context searches by name: create the object once and keep it. A default constructed context is created by its first `Create(name)` call | `OPTION_DAQ_CONTEXT_LIST` | thread_context_demo |
+| `DaqContext(name)` | macro | Enter a context with a literal name until the end of the block: a static `xcp::Context` at the code location plus an `xcp::Scope`. The context is created when the code location is executed for the first time after `XcpInit`, later executions search nothing. No compiler generated guard, no thread waits for another one | as above | — (context_test) |
+| `xcp::Scope(context)` | class | Makes a context the current context of the calling thread, restores the previous one in the destructor | as above | thread_context_demo |
+| `DaqEventCtxVar(name, A2L_MEAS(...), ...)` | macro | Like `DaqEventVar`, in the current context: event `<context>.<name>`, measurements `<context>.<variable>`, created once per context and code location by the first thread which executes it. Threads which trigger it in the same context at that moment skip this one trigger, they do not wait. Without a current context like `DaqEventVar` | as above | thread_context_demo |
+| `DaqEventCtxVar_(context, name, ...)` | macro | As above, with an explicit context pointer | as above | — |
+| `DaqSpan(name)` | macro | Begin a span, it ends at the end of the block. Begin and end are recorded on the event `<context>.spans` | as above | thread_context_demo |
+| `xcp::Span(span_id)` | class | Implementation of `DaqSpan` | as above | — |
+| `xcp::DaqEventCtxVarTemplate(ids, context, name, measurements...)` | function template | Implementation of `DaqEventCtxVar` | as above | — |
 
 ## Part 4: C++ A2L generation API ([a2l.hpp](../inc/a2l.hpp))
 

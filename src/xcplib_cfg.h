@@ -15,12 +15,12 @@
   The values for XCP_xxx and XCPTL_xxx define constants (in xcp_cfg.h and xcptl_cfg.h) may depend on options
 */
 
-// XCPlite version, currently V2.3.x
+// XCPlite version, currently V2.4.x
 // Keep in sync with project(xcplite VERSION ...) in CMakeLists.txt, which is what
 // find_package(xcplite) reports to a consuming project.
 #define OPTION_VERSION_MAJOR 2
-#define OPTION_VERSION_MINOR 3
-#define OPTION_VERSION_PATCH 1
+#define OPTION_VERSION_MINOR 4
+#define OPTION_VERSION_PATCH 3
 
 // CANape version compatibility
 // Disable workarounds for CANape versions < 24SP2
@@ -136,18 +136,55 @@
 
 // Enable DAQ event management
 // Mandatory for some of the standard examples in XCPlite, rust xcp-lite has its own DAQ event management
-// Enables dynamic event creation and per thread event instances
-// Enables tXcpEvent, XcpCreateIndexedEvent, XcpCreateEvent, XcpCreateEventInstance, XcpGetEventCount, XcpFindEvent,XcpGetEventName,XcpGetEventIndex,XcpGetEvent
+// Enables dynamic event creation
+// Enables tXcpEvent, XcpCreateIndexedEvent, XcpCreateEvent, XcpGetEventCount, XcpFindEvent, XcpGetEventName, XcpGetEventContext, XcpGetEvent
 #define OPTION_DAQ_EVENT_LIST
 
 // Maximum number of DAQ events (integer value, must be even)
-// Needs OPTION_DAQ_EVENT_COUNT*2 bytes of memory
-// If OPTION_DAQ_EVENT_LIST is off, event number is bound which is used for optimization
-#define OPTION_DAQ_EVENT_COUNT (16)
+// If OPTION_DAQ_EVENT_LIST is off, event number is still bound and used for lookup optimization
+#define OPTION_DAQ_EVENT_COUNT (32)
+
+// Enable DAQ contexts and spans
+// A context is a named identity ("who is executing"), for example a class instance or a worker thread.
+// An event may belong to a context, it is then named <context name>.<event name>.
+// Enables XcpCreateContext, XcpCreateContextEvent, XcpRegisterSpanName and the C++ API in xcplib_context.hpp (xcp::Context, xcp::Scope, DaqSpan, DaqEventCtxVar)
+// (Needs OPTION_DAQ_EVENT_LIST and on-target A2L generation, enabled in the default and the shm configuration only)
+#define OPTION_DAQ_CONTEXT_LIST
+
+// Maximum number of contexts
+// Needs 16 bytes of memory per context
+#define OPTION_DAQ_CONTEXT_COUNT (8)
+
+// Register the span names at link time in the linker section xcp_spans, instead of at runtime in a span name list
+// DaqSpan emits a constant descriptor with the span name, the span id is the position of the descriptor in the section + 1
+// - The span ids depend on the link order only, they are the same in every run of a binary (required for A2L_MODE_WRITE_ONCE)
+// - The conversion conv.spans is complete, also for spans which have not been executed yet
+// - No registration at runtime, no memory, the number of span names is not limited (OPTION_DAQ_SPAN_COUNT is not used)
+// - A span name used at several code locations may get several span ids
+// - With GCC, DaqSpan must not be used in inline functions, templates and member functions defined in the class body ("section type conflict")
+// Requires ELF or Mach-O sections, not available on Windows and in SHM mode, the option is ignored when it is not available
+// See docs/NAMELIST.md chapter 13
+// (Needs OPTION_DAQ_CONTEXT_LIST)
+#define OPTION_DAQ_SPAN_SECTION_REGISTRATION
+
+// Maximum number of different span names, including the reserved span id 0 for "no span"
+// Needs about 45 bytes of memory per span name
+// (Not used with OPTION_DAQ_SPAN_SECTION_REGISTRATION)
+#define OPTION_DAQ_SPAN_COUNT (32)
+
+// Record the thread with each span begin and end
+// Adds the measurement <context name>.thread to the spans event of a context, a small index (1..255) of the thread which began or ended the span
+// A context may be attached to several threads at the same time, the thread index is needed to tell their spans apart,
+// for example to export the spans to a trace viewer (xcpclient --perfetto)
+// The size of the span record does not change, the span nesting level is reduced from 16 to 8 bit
+// (Needs OPTION_DAQ_CONTEXT_LIST)
+// #define OPTION_DAQ_SPAN_THREAD
 
 // Memory bytes used for XCP DAQ tables
-// 6 bytes per measurement signal (ODT entry) needed
-#define OPTION_DAQ_MEM_SIZE (512 * 6)
+// 6 bytes per measurement signal (ODT entry), 8 bytes per ODT and 12 bytes per DAQ list needed
+// The default is sufficient for about 2000 signals with a DAQ list for each 123 signals,
+// more when the tool merges adjacent signals to one ODT entry (xcpclient)
+#define OPTION_DAQ_MEM_SIZE (2048 * 6)
 
 // Create an cyclic default DAQ event with event id=0 for asynchronous data acquisition
 // May be used as default_event for xcpclient, since xcpclient V4.x explicitly specified as commandline option
@@ -203,9 +240,8 @@
 // #define OPTION_SECTION_REGISTRATION // Default is Off
 
 // With section registration off, the macros for event and calibration segment creation still work, but events and segments are created at runtime at the call site, not at compile
-// and link time and in XcpInit This may lead to unstable event and calibration segment numbering across application runs, when OPTION_ENABLE_PERSISTENCE is not enabled. The C macros
-// still create static marker variables to help offline A2L generators
-// DaqCreateEvent and its variants:
+// and link time and in XcpInit This may lead to unstable event and calibration segment numbering across application runs, when OPTION_ENABLE_PERSISTENCE is not enabled. The C
+// macros still create static marker variables to help offline A2L generators DaqCreateEvent and its variants:
 //   static const tXcpEventDescriptor evt__##event_name = <event_descriptor>; // at the call site of DaqCreateEvent
 // DaqTriggerEvent and its variants:
 //   static tXcpEventId trg__AAS__##event_name = <event_id>; // at the call site of DaqTriggerEvent
@@ -219,7 +255,7 @@
 
 #if !defined(NDEBUG)
 
-// #define TEST_CLOCK_GET_STATISTIC // Count number of calls to clockGet and clockGetLast, print results with clockPrintStatistic()
+// #define TEST_CLOCK_GET_STATISTIC // Count number of calls to clockGet, print results with clockGetPrintStatistic()
 // #define TEST_ACQUIRE_SPIN_COUNT // Get max spin count of the queue acquire operations
 // #define TEST_ACQUIRE_LOCK_TIMING // Create a queue acquire time histogram, prints results on queue deinit, significant performance impact, for testing only !!!!!!!!!!
 // #define TEST_ENABLE_TL_METRICS  // Enable debug metrics for XCP transport layer packets
@@ -250,4 +286,10 @@
 
 #if defined(OPTION_SECTION_REGISTRATION) && (defined(_MSC_VER) || defined(OPTION_SHM_MODE))
 #error "OPTION_SECTION_REGISTRATION (link time registration of events and calibration segments) is not supported"
+#endif
+
+// Link time registration of span names needs contexts and ELF or Mach-O sections, each process would have its own span ids in SHM mode
+// Where it is not available, the span names are registered at runtime
+#if defined(OPTION_DAQ_SPAN_SECTION_REGISTRATION) && (!defined(OPTION_DAQ_CONTEXT_LIST) || defined(OPTION_SHM_MODE) || !(defined(__ELF__) || defined(__APPLE__)))
+#undef OPTION_DAQ_SPAN_SECTION_REGISTRATION
 #endif

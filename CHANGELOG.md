@@ -3,6 +3,57 @@
 All notable changes to XCPlite are documented in this file.
 
 
+## [V2.4.3]
+
+- Breaking change:
+    * Functions in platform.h `clockGetLast`, `clockGetMonotonicNsLast`, `clockGetMonotonicUsLast`, `clockGetRealtimeNsLast` and `clockGetRealtimeUsLast` have been removed to fixed a data race in the POSIX clock functions (Linux, macOS, QNX), so the timestamps of one thread could go backwards by several µs.
+    * New unit test `clock_race_test`: several threads call the clock concurrently for 2 s and check that the values of each thread never go backwards.
+
+- Breaking change: (impact only on use cases with run-time A2L generation using event instances)
+    * Support for anonymous multi-threaded event instances (`<name>_<index>`) has been removed. 
+    * The API functions `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex` do not exist anymore. Create an event with dynamic name (`DaqCreateEvent_s`) instead and manage your event instances by name or use the new named event instances (event context).
+    * Binary persistence file version 0x0206: the context list (name and owning application, in context id order) follows the header, an event references its context by context id. On load, the contexts are restored with their saved ids before the events, so context ids stay stable across restarts (they are visible in the A2L file, `conv.contexts`, and in the span link measurements), also for contexts without events and when events are created in a different order than their contexts. Files of version 0x0205 are still loaded, a file which contains the old anonymous event instances is rejected. `tools/bintool` shows an event of a context as `<context>.<event>`.
+
+Additions for contexts, spans and span links:
+
+- New `thread_context_demo`: contexts, spans and span links inspired by OpenTelemetry, measured with XCP and shown in Perfetto. The old experimental event context in `multi_thread_demo` has been removed, the demo now only shows the same event triggered by several worker threads, like the Rust xcp-lite `rayon_demo`.
+- New C++ API in the new header `xcplib_context.hpp` (included by `xcplib.hpp`, option `OPTION_DAQ_CONTEXT_LIST`, default and shm configuration only): `xcp::Context`, `xcp::Scope`, `DaqContext`, `DaqSpan`, `DaqEventCtxVar` and span links (`xcp::CaptureSpanLink`, `xcp::LinkSpan`). The same code running for several class instances or threads gets separate measurements per context, an event of a context is named `<context>.<event>`. The context list is implemented in the C core (`src/ctx.c`).
+- Span names are registered at link time (`OPTION_DAQ_SPAN_SECTION_REGISTRATION`, default), or at runtime where linker sections are not available (Windows, SHM mode).
+- New option `OPTION_DAQ_SPAN_THREAD` (not defined by default): records the thread index with each span, for several threads in one context. Experimental, might be removed again.
+
+Changes in `xcpclient` (xcpclient V4.2.0):
+
+- New option `--perfetto <file>`: writes spans, span links and signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`. The span and link signals needed for the trace are automatically added to the measurement (option `--trace-auto`).
+- Print values in physical unit or as enum strings in console and csv. Enum conversion is used to display span names. 
+- The CSV file has a new column `unit`.
+- New option `--mdf <file>`: writes an MDF4 file.
+- `--upload-bin` writes the new context list and events with their context id, if there are any.
+- `tools/bintool` and the BIN reader of xcpclient show the context list and the memory segment numbers.
+- Improved timestamp wraparound detection for very sporadic events.
+- The console output of `--mea` shows events by name, `EVENT: <event> (id=<id>, daq=<daq>), ...`.
+- Measurement (`--mea`) is no longer limited to 123 signals or one packet per event.
+- Measurement setup merges signals of an event which are adjacent in memory. 
+- Measurement reports a signal which is too large for the XCP server and more than 1024 DAQ lists as an error. These cases paniced before.
+- Fixed reporting of lost DAQ packets.
+- The UDP socket requests an 8 MB receive buffer to reduce UDP packet loss on high data rate.
+- Fixed A2L and ELF upload of files smaller than the maximum command size, they were reported as not available. `GET_ID` size 0 is reported as file not available without sending `UPLOAD`.
+
+Bugfixes in A2L and ELF file upload (#151, contributed by pamirmundt):
+
+- An empty or unreadable A2L or ELF file no longer aborts the XCP server with an assertion in debug builds, `GET_ID` returns size 0 (file not available).
+- A new `GET_ID` upload request restarts an unfinished upload instead of asserting.
+- `UPLOAD` reads from the MTA offset instead of the current file position. `SET_MTA` with address extension `XCP_ADDR_EXT_FILE` (0xFD) is accepted, so retries and out of order reads work, see `docs/TECHNICAL.md`. An out of range read is refused without ending the upload, a short read has its own error message.
+- The upload file is closed by the new function `ApplXcpCloseFile()` on the next upload `GET_ID`, an accepted `CONNECT`, `DISCONNECT`, `XcpDeinit()` or an I/O error, instead of after the last block.
+- `A2L_MODE_WRITE_ONCE`: an empty cached A2L file (for example left by a crashed run) is generated again instead of being provided for upload.
+- New unit tests `file_upload_test` and `a2l_cache_test` (CTest `a2l_cache_empty`, `a2l_cache_nonempty`).
+
+Changed core files for events with named context:
+* a2l_writer.c: handle event context. 
+* persistence.c: write and load the context list, an event references its context by id instead of the former event instance index
+* xcplite.c: added context list, tXcpContext, tXcpContextList, XcpCreateEventWithIndex; removed `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex`
+
+
+
 ## [V2.3.5]
 
 - The registry crate `xcp_registry` is used from crates.io (version 0.1) instead of as a git dependency on xcp-lite. It has moved to its own repository, <https://github.com/RainerZ/xcp-registry>

@@ -11,7 +11,9 @@ Disclaimer: This is an AI generated tool. Don't use it for production. Improper 
 This tool provides comprehensive management of XCPlite binary persistence files:
 - **BIN to HEX**: Extract calibration segment data to Intel-Hex format
 - **HEX to BIN**: Update calibration segment data in a BIN file from Intel-Hex files
-- **Dump/Inspect**: View file structure, events, segments, and hex dumps
+- **Dump/Inspect**: View file structure, contexts, events, segments, and hex dumps
+
+Supported file versions are 0x0206 (current) and 0x0205, 0x0204 written by older XCPlite versions. Since 0x0206, the context list (contexts of `OPTION_DAQ_CONTEXT_LIST`, in context id order) follows the header, an event references its context by context id. `--apply-hex` updates the segment data in place.
 
 
 ## Usage
@@ -93,28 +95,24 @@ EVENTS:
 Event 0:
   Name:         async
   ID:           0
-  Index:        0
   Cycle Time:   1000000 ns
   Priority:     0
 
 Event 1:
   Name:         mainloop
   ID:           1
-  Index:        0
   Cycle Time:   0 ns
   Priority:     0
 
 Event 2:
   Name:         SigGen1
   ID:           2
-  Index:        0
   Cycle Time:   0 ns
   Priority:     0
 
 Event 3:
   Name:         SigGen2
   ID:           3
-  Index:        0
   Cycle Time:   0 ns
   Priority:     0
 
@@ -167,6 +165,18 @@ Segment 3:
     80030050:  00 00 00 00 00 00 00 00                           |........|
 
 
+```
+
+An event which belongs to a context (`OPTION_DAQ_CONTEXT_LIST`, see `examples/thread_context_demo`) is shown with its
+full name `<context>.<event>` and an additional line with the context name and the context id:
+
+```
+Event 2:
+  Name:         SigGen1.siggen
+  ID:           2
+  Context:      SigGen1 (1)
+  Cycle Time:   0 ns
+  Priority:     0
 ```
 
 

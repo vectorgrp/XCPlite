@@ -495,22 +495,17 @@ typedef pthread_t THREAD_HANDLE;
 // Clock (epoch and resolution as configured in CLOCK_TICKS_PER_S
 // Used as XCP DAQ clock
 bool clockInit(void);
-uint64_t clockGet(void);     // Clock value in ticks, epoch and resolution depend on configuration
-uint64_t clockGetLast(void); // Last known clock value, updated by all clockGet calls, used to save syscall overhead when the last known clock value is sufficient
+uint64_t clockGet(void); // Clock value in ticks, epoch and resolution depend on configuration
 char *clockGetString(char *s, uint32_t l, uint64_t c);
 
-// Monotonic system clock in ns or us resolution, with fast query functions for last seen value
+// Monotonic system clock in ns or us resolution
 // Used for socket timestamping and timeouts
 uint64_t clockGetMonotonicNs(void);
 uint64_t clockGetMonotonicUs(void);
-uint64_t clockGetMonotonicNsLast(void);
-uint64_t clockGetMonotonicUsLast(void);
 
-// Realtime system clock in ns or us resolution, with fast query functions for last seen value
+// Realtime system clock in ns or us resolution
 uint64_t clockGetRealtimeNs(void);
 uint64_t clockGetRealtimeUs(void);
-uint64_t clockGetRealtimeNsLast(void);
-uint64_t clockGetRealtimeUsLast(void);
 
 #ifdef TEST_CLOCK_GET_STATISTIC
 void clockGetPrintStatistic(void);

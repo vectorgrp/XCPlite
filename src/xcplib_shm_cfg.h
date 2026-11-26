@@ -36,3 +36,7 @@
 
 // Linker section based event and calibration segment registration not supported
 #undef OPTION_SECTION_REGISTRATION
+
+// Linker section based span name registration not supported, each process would have its own span ids
+// The span names of all applications are registered at runtime in the shared span name list
+#undef OPTION_DAQ_SPAN_SECTION_REGISTRATION

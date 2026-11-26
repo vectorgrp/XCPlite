@@ -18,7 +18,10 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 mod bin_format;
-use bin_format::{AppDescriptor, BinHeader, CalSegDescriptor, EventDescriptor};
+use bin_format::{
+    read_context_list, AppDescriptor, BinHeader, CalSegDescriptor, ContextDescriptor,
+    EventDescriptor, BIN_VERSION, CALSEG_NUMBER_UNDEFINED,
+};
 
 #[derive(Error, Debug)]
 pub enum Bin2HexError {
@@ -80,6 +83,7 @@ fn read_bin_file(
         Vec<EventDescriptor>,
         Vec<(CalSegDescriptor, Vec<u8>)>,
         Vec<AppDescriptor>,
+        Vec<ContextDescriptor>,
     ),
     Bin2HexError,
 > {
@@ -96,7 +100,22 @@ fn read_bin_file(
         println!("  Event Count: {}", header.event_count);
         println!("  CalSeg Count: {}", header.calseg_count);
         println!("  App Count: {}", header.app_count);
+        println!("  Context Count: {}", header.context_count);
         println!();
+    }
+
+    // Read the context list, it follows the header
+    let contexts = read_context_list(&mut file, &header)?;
+    if verbose {
+        for context in &contexts {
+            println!(
+                "Read Context {}: {} (app_id={})",
+                context.id, context.name, context.app_id
+            );
+        }
+        if !contexts.is_empty() {
+            println!();
+        }
     }
 
     // Read events
@@ -104,7 +123,7 @@ fn read_bin_file(
     for i in 0..header.event_count {
         let event = EventDescriptor::read_from(&mut file)?;
         if verbose {
-            println!("Read Event {}: {}", i, event.name);
+            println!("Read Event {}: {}", i, event.full_name(&contexts));
         }
         events.push(event);
     }
@@ -168,11 +187,11 @@ fn read_bin_file(
         println!();
     }
 
-    Ok((header, events, calseg_data, app_descriptors))
+    Ok((header, events, calseg_data, app_descriptors, contexts))
 }
 
 fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
-    let (header, events, calseg_data, app_descriptors) = read_bin_file(path, false)?;
+    let (header, events, calseg_data, app_descriptors, contexts) = read_bin_file(path, false)?;
 
     // Print header information
     println!("========================================");
@@ -188,7 +207,27 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
     if header.app_count > 0 {
         println!("  App Count:    {}", header.app_count);
     }
+    if header.context_count > 0 {
+        println!("  Context Count: {}", header.context_count);
+    }
     println!();
+
+    // Print the context list
+    if !contexts.is_empty() {
+        println!("CONTEXTS:");
+        println!();
+        for context in contexts.iter() {
+            if header.app_count > 0 {
+                println!(
+                    "  {}: {} (app_id={})",
+                    context.id, context.name, context.app_id
+                );
+            } else {
+                println!("  {}: {}", context.id, context.name);
+            }
+        }
+        println!();
+    }
 
     // Print event information
     if !events.is_empty() {
@@ -197,9 +236,16 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
 
         for (idx, event) in events.iter().enumerate() {
             println!("Event {}:", idx);
-            println!("  Name:         {}", event.name);
+            println!("  Name:         {}", event.full_name(&contexts));
             println!("  ID:           {}", event.id);
-            println!("  Index:        {}", event.index);
+            if let Some(context_name) = event.context_name(&contexts) {
+                println!("  Context:      {} ({})", context_name, event.context);
+            } else if event.context != 0 && header.version < BIN_VERSION {
+                // Written by an older XCPlite version with anonymous event instances <name>_<index>
+                println!("  Index:        {}", event.context);
+            } else if event.context != 0 {
+                println!("  Context:      unknown ({})", event.context);
+            }
             println!("  Cycle Time:   {} ns", event.cycle_time_ns);
             println!("  Priority:     {}", event.priority);
             if header.app_count > 0 {
@@ -217,6 +263,11 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
         println!("Segment {}:", idx);
         println!("  Name:    {}", desc.name);
         println!("  Index:   {}", desc.index);
+        if desc.number != CALSEG_NUMBER_UNDEFINED {
+            println!("  Number:  {}", desc.number);
+        } else {
+            println!("  Number:  - (not visible)");
+        }
         println!("  Size:    {} bytes", desc.size);
         println!("  Address: 0x{:08X}", desc.addr);
         if header.app_count > 0 {
@@ -491,7 +542,8 @@ fn apply_hex_to_bin(
         println!();
     }
 
-    // Skip events
+    // Skip contexts and events
+    read_context_list(&mut file, &header)?;
     for _ in 0..header.event_count {
         EventDescriptor::read_from(&mut file)?;
     }
@@ -660,7 +712,7 @@ fn main() -> Result<(), Bin2HexError> {
         }
 
         // Read BIN file
-        let (_header, _events, calseg_data, _app_descriptors) =
+        let (_header, _events, calseg_data, _app_descriptors, _contexts) =
             read_bin_file(&bin_path, args.verbose)?;
 
         if calseg_data.is_empty() {
@@ -720,6 +772,7 @@ mod tests {
                 event_count: 0,
                 calseg_count: segments.len().try_into().unwrap(),
                 app_count: 0,
+                context_count: 0,
                 epk: "test".into(),
             }
             .write_to(&mut file)
@@ -730,6 +783,7 @@ mod tests {
                     size: data.len().try_into().unwrap(),
                     addr: *addr,
                     app_id: 0,
+                    number: index.try_into().unwrap(),
                     name: name.to_string(),
                 }
                 .write_to(&mut file)
@@ -765,7 +819,7 @@ mod tests {
     }
 
     fn segment_data(path: &PathBuf) -> Vec<Vec<u8>> {
-        let (_, _, segments, _) = read_bin_file(path, false).unwrap();
+        let (_, _, segments, _, _) = read_bin_file(path, false).unwrap();
         segments.into_iter().map(|(_, data)| data).collect()
     }
 
@@ -1000,7 +1054,7 @@ mod tests {
                 &[("first", 0x1000, &[0xAA; 4]), ("second", second_addr, &[0xBB; 4])],
             );
             let hex = fixture.0.join("source.hex");
-            let (_, _, segments, _) = read_bin_file(&source, false).unwrap();
+            let (_, _, segments, _, _) = read_bin_file(&source, false).unwrap();
             write_hex_file(&hex, &segments, false).unwrap();
 
             apply_hex_to_bin(&target, &hex, false).unwrap();

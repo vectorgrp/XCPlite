@@ -27,18 +27,34 @@
 #include "a2l.h"       // for A2lGetAppFilename
 #include "dbg_print.h" // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
-#include "shm.h"       // for shared memory management
 #include "xcp.h"       // for CRC_XXX
 #include "xcp_cfg.h"   // for XCP_xxx
 #include "xcplite.h"   // for tXcpDaqLists, XcpXxx, ApplXcpXxx, XcpGetEcuEpk
 #include "xcptl_cfg.h" // for XCPTL_xxx
+#ifdef OPTION_SHM_MODE
+#include "shm.h" // for shared memory management
+#endif
+#ifdef OPTION_DAQ_CONTEXT_LIST
+#include "ctx.h" // for XcpCreateContext, XcpGetContextName
+#endif
 
 #if !defined(XCP_ENABLE_DAQ_EVENT_LIST) || !defined(XCP_ENABLE_CALSEG_LIST)
 #error "XCP_ENABLE_DAQ_EVENT_LIST and XCP_ENABLE_CALSEG_LIST must be enabled for calibration segment persistence"
 #endif
 
 #define BIN_SIGNATURE "XCPLITE__BINARY"
-#define BIN_VERSION 0x0205
+#define BIN_VERSION 0x0206        // Context list after the header, events reference their context by id
+// Version 0x0205 has no context list and is still loaded, the layout is the same with context_count = 0:
+// context_count is in header bytes which were reserved and always written as 0, a nonzero tBinEvent.context is the index of an
+// anonymous event instance, which is not supported anymore and fails as an invalid context
+#define BIN_VERSION_LEGACY 0x0205
+
+// File layout:
+//   tBinHeader
+//   tBinContext[context_count]                 in context id order
+//   tBinEvent[event_count]                     in event id order
+//   (tBinCalSeg + page data)[calseg_count]     in calibration segment index order
+//   tBinApp[app_count]                         SHM mode only
 
 #pragma pack(push, 1)
 
@@ -48,7 +64,8 @@ typedef struct {
     uint16_t event_count;                            // Number of events, tBinEvent
     uint16_t calseg_count;                           // Number of calibration segments, tBinCalSeg
     uint16_t app_count;                              // Number of applications (processes) in SHM mode, 0 in local mode
-    uint8_t reserved[128 - 16 - 2 - 2 - 2 - 2];      // Reserved for future use
+    uint16_t context_count;                          // Number of contexts, tBinContext, 0 in version 0x0205
+    uint8_t reserved[128 - 16 - 2 - 2 - 2 - 2 - 2];  // Reserved for future use
     char Epk[XCP_EPK_MAX_LENGTH + 1];                // EPK string, 0 terminated
     uint8_t padding[128 - (XCP_EPK_MAX_LENGTH + 1)]; // Reserved for longer EPK strings up to 128 bytes
 } tBinHeader;
@@ -57,12 +74,12 @@ static_assert(sizeof(tBinHeader) == 256, "Size of tBinHeader must be 256 bytes")
 
 typedef struct {
     uint16_t id;                                     // Event ID
-    uint16_t index;                                  // Event index
+    uint16_t context;                                // Context id of the event, 0 = no context (version 0x0205: index of an event instance, not supported anymore)
     uint32_t cycle_time_ns;                          // Cycle time in ns
     uint8_t priority;                                // Priority 0 = queued, 1 = pushing, 2 = realtime
     uint8_t app_id;                                  // App ID of the event owner in SHM mode, 0 in local mode
     uint8_t reserved[128 - 2 - 2 - 4 - 1 - 1];       // Reserved for future use
-    char name[XCP_MAX_EVENT_NAME + 1];               // Event name, 0 terminated
+    char name[XCP_MAX_EVENT_NAME + 1];               // Event name without the context name, 0 terminated
     uint8_t padding[128 - (XCP_MAX_EVENT_NAME + 1)]; // Reserved for longer event names up to 128 bytes
 } tBinEvent;
 
@@ -91,6 +108,18 @@ typedef struct {
 } tBinApp;
 
 static_assert(sizeof(tBinApp) == 256, "Size of tBinApp must be 256 bytes");
+
+// The context list follows the header, the contexts are stored in id order and loaded before the events
+// The context ids are restored exactly, because they are visible in the A2L file (conv.contexts) and in measurement data
+typedef struct {
+    uint16_t id;                                       // Context id 1..n, the position in the list + 1
+    uint8_t app_id;                                    // App ID of the context owner (the scope of the context name) in SHM mode, 0 in local mode
+    uint8_t reserved[128 - 2 - 1];                     // Reserved for future use
+    char name[XCP_MAX_CONTEXT_NAME + 1];               // Context name, 0 terminated
+    uint8_t padding[128 - (XCP_MAX_CONTEXT_NAME + 1)]; // Reserved for longer context names up to 128 bytes
+} tBinContext;
+
+static_assert(sizeof(tBinContext) == 256, "Size of tBinContext must be 256 bytes");
 
 #pragma pack(pop)
 
@@ -131,7 +160,7 @@ static void printCalsegPage(const uint8_t *page, uint16_t size) {
 #endif
 
 // Write the BIN file header
-static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint16_t calseg_count, uint8_t app_count) {
+static bool writeHeader(FILE *file, const char *epk, uint16_t context_count, uint16_t event_count, uint16_t calseg_count, uint8_t app_count) {
 
     memset(&gBinHeader, 0, sizeof(tBinHeader));
     strncpy(gBinHeader.signature, BIN_SIGNATURE, sizeof(gBinHeader.signature) - 1);
@@ -142,6 +171,7 @@ static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint1
     gBinHeader.event_count = event_count;
     gBinHeader.calseg_count = calseg_count;
     gBinHeader.app_count = app_count;
+    gBinHeader.context_count = context_count;
     size_t written = fwrite(&gBinHeader, sizeof(tBinHeader), 1, file);
     if (written != 1) {
         DBG_PRINT_ERROR("Failed to write header to BIN file\n");
@@ -162,7 +192,8 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     desc.cycle_time_ns = event->cycle_time_ns;
     desc.priority = event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY ? 0xFF : 0x00;
     desc.id = event_id;
-    desc.index = XcpGetEventIndex(event_id);
+    // An event which belongs to a context references it by context id, the context list is written before the events
+    desc.context = event->context;
     size_t written = fwrite(&desc, sizeof(tBinEvent), 1, file);
     if (written != 1) {
         DBG_PRINT_ERROR("Failed to write event descriptor to BIN file\n");
@@ -237,6 +268,33 @@ static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const
 
 #endif // SHM_MODE
 
+#ifdef OPTION_DAQ_CONTEXT_LIST // write a context descriptor to BIN file
+
+// Write a context descriptor
+static bool writeContext(FILE *file, uint16_t context) {
+    const char *name = XcpGetContextName(context);
+    assert(name != NULL);
+    if (name == NULL) {
+        return false;
+    }
+    tBinContext desc;
+    memset(&desc, 0, sizeof(tBinContext));
+    desc.id = context;
+#ifdef OPTION_SHM_MODE // save the app_id of the context owner
+    desc.app_id = XcpGetContextAppId(context);
+#endif
+    strncpy(desc.name, name, XCP_MAX_CONTEXT_NAME);
+    size_t written = fwrite(&desc, sizeof(tBinContext), 1, file);
+    if (written != 1) {
+        DBG_PRINT_ERROR("Failed to write context descriptor to BIN file\n");
+        return false;
+    }
+    DBG_PRINTF4("Writing context %u:'%s', app_id=%u\n", context, name, desc.app_id);
+    return true;
+}
+
+#endif // OPTION_DAQ_CONTEXT_LIST
+
 //--------------------------------------------------------------------------------------------------------------------------------
 
 // Create the binary persistence file.
@@ -267,13 +325,29 @@ bool XcpBinWrite(const char *epk) {
 #else
     uint8_t app_count = 0;
 #endif
+#ifdef OPTION_DAQ_CONTEXT_LIST // write context count to BIN file header
+    uint16_t context_count = XcpGetContextCount();
+#else
+    uint16_t context_count = 0;
+#endif
     uint16_t event_count = XcpGetEventCount();
     uint16_t calseg_count = XcpGetCalSegCount();
 
-    if (!writeHeader(file, epk, event_count, calseg_count, app_count)) {
+    if (!writeHeader(file, epk, context_count, event_count, calseg_count, app_count)) {
         fclose(file);
         return false;
     }
+
+    // Write contexts
+    // The context list is complete at this point, all contexts referenced by the events exist
+#ifdef OPTION_DAQ_CONTEXT_LIST // write context descriptors to BIN file
+    for (uint16_t i = 1; i <= context_count; i++) {
+        if (!writeContext(file, i)) {
+            fclose(file);
+            return false;
+        }
+    }
+#endif
 
     // Write events
     for (tXcpEventId i = 0; i < event_count; i++) {
@@ -398,7 +472,7 @@ static bool load(const char *filename, const char *epk) {
         fclose(file);
         return false;
     }
-    if (gBinHeader.version != BIN_VERSION) {
+    if (gBinHeader.version != BIN_VERSION && gBinHeader.version != BIN_VERSION_LEGACY) {
         DBG_PRINTF_ERROR("Unsupported BIN file version 0x%04X in '%s'\n", gBinHeader.version, filename);
         fclose(file);
         return false;
@@ -412,6 +486,49 @@ static bool load(const char *filename, const char *epk) {
     }
 
     DBG_PRINTF3("Loading '%s'\n", filename);
+
+    // Load the context list
+    // The contexts are created in id order in the empty context list, so they get exactly the ids they had when the file was written
+    if (gBinHeader.context_count > 0) {
+#ifdef OPTION_DAQ_CONTEXT_LIST
+        // Context list must be empty at this point
+        if (XcpGetContextCount() != 0) {
+            DBG_PRINT_ERROR("Context list not empty prior to loading persistence file\n");
+            fclose(file);
+            assert(0 && "Sequence problem");
+            return false;
+        }
+        for (uint16_t i = 1; i <= gBinHeader.context_count; i++) {
+            tBinContext desc;
+            read = fread(&desc, sizeof(tBinContext), 1, file);
+            if (read != 1 || desc.id != i) {
+                DBG_PRINT_ERROR("Failed to read context descriptor from BIN file\n");
+                fclose(file);
+                return false;
+            }
+            desc.name[XCP_MAX_CONTEXT_NAME] = 0;
+#ifdef OPTION_SHM_MODE // the context belongs to the application which created it
+            uint16_t context = XcpCreateAppContext(desc.name, desc.app_id);
+#else
+            uint16_t context = XcpCreateContext(desc.name);
+#endif
+            if (context != desc.id) { // Should not happen, the list was empty, unless the file contains duplicate or invalid names
+                DBG_PRINTF_ERROR("Failed to create context %u:'%s' from persistence file\n", desc.id, desc.name);
+                fclose(file);
+                return false;
+            }
+            DBG_PRINTF4("Loaded context %u:'%s', app_id=%u\n", desc.id, desc.name, desc.app_id);
+        }
+#else
+        // Written by a build with OPTION_DAQ_CONTEXT_LIST, skip the contexts, the events which belong to a context fail below
+        DBG_PRINTF_WARNING("Persistence file '%s' contains %u contexts, OPTION_DAQ_CONTEXT_LIST is not enabled\n", filename, gBinHeader.context_count);
+        if (fseek(file, (long)(sizeof(tBinContext) * gBinHeader.context_count), SEEK_CUR) != 0) {
+            DBG_PRINT_ERROR("Failed to seek in BIN file\n");
+            fclose(file);
+            return false;
+        }
+#endif
+    }
 
     // Load events
     // Event list must be empty at this point
@@ -438,7 +555,27 @@ static bool load(const char *filename, const char *epk) {
         // XcpCreateIndexedEvent does not check for duplicate event names, the application id will be set below
         // Not thread safe, but called in XcpInit() before XCP is activated, so no concurrent access to event list here, and no need to lock the event list mutex
         // @@@@ TODO: Find a process safe solution for SHM mode
-        event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycle_time_ns, desc.priority);
+        // An event which belongs to a context references it by id, the context list was loaded above
+        // Version 0x0205: a nonzero value is the index of an anonymous event instance (<name>_<index>), which is not supported anymore,
+        // it is rejected here as an invalid context, because a 0x0205 file has no contexts
+        uint16_t context = 0;
+        if (desc.context != 0) {
+#ifdef OPTION_DAQ_CONTEXT_LIST
+            if (desc.context <= gBinHeader.context_count) {
+                context = desc.context;
+            }
+#ifdef OPTION_SHM_MODE // the context must belong to the application of the event
+            if (context != 0 && XcpGetContextAppId(context) != desc.app_id) {
+                context = 0;
+            }
+#endif
+#endif
+            if (context == 0) {
+                DBG_PRINTF_ERROR("Invalid context %u of event '%s' in persistence file\n", desc.context, desc.name);
+                error_count++;
+            }
+        }
+        event_id = XcpCreateIndexedEvent(desc.name, context, desc.cycle_time_ns, desc.priority);
         if (event_id == XCP_UNDEFINED_EVENT_ID || event_id != desc.id) { // Should not happen
             DBG_PRINTF_ERROR("Failed to create event '%s' from persistence file\n", desc.name);
             error_count++;

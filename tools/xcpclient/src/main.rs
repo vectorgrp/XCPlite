@@ -31,6 +31,23 @@ mod xcp_test_executor;
 
 mod a2l_fix;
 
+mod daq_writer;
+use daq_writer::{DaqDecoder, DaqWriter};
+
+mod console_writer;
+use console_writer::ConsoleWriter;
+
+mod csv_writer;
+use csv_writer::CsvWriter;
+
+mod perfetto_writer;
+use perfetto_writer::{PerfettoWriter, TraceAuto};
+
+mod mdf_writer;
+use mdf_writer::MdfWriter;
+mod mcap_writer;
+use mcap_writer::McapWriter;
+
 use xcp_registry::McA2mlMode;
 use xcp_registry::McEvent;
 use xcp_test_executor::test_executor;
@@ -273,6 +290,7 @@ struct Args {
     // --upload-bin
     /// Upload all calibration segments working page data from target and store into a binary file.
     /// Requires that the XCP server supports GET_ID A2L upload.
+    /// A .bin file is an XCPlite persistence file with the event list and the context list (conv.contexts in the A2L file), a .hex file contains the segment data only.
     #[arg(long, default_value_t = false)]
     upload_bin: bool,
 
@@ -306,9 +324,41 @@ struct Args {
 
     // --csv
     /// Save measurement data to a CSV file. If not specified, data is printed to the console.
-    /// CSV format: time_ns,daq,name,value  (one row per measurement sample).
+    /// CSV format: time_ns,daq,name,value,unit  (one row per measurement sample).
+    /// Values are physical values (factor and offset applied), the value of an enum is its label.
     #[arg(long, default_value = "")]
     csv: String,
+
+    // --mdf
+    /// Save measurement data to an ASAM MDF 4.1 file. One channel group per DAQ list, the payload of the DAQ packets is stored as received.
+    /// Values are raw values, the MDF file contains the conversions (factor and offset, enum labels) and units.
+    /// May be combined with --csv and --perfetto.
+    #[arg(long, default_value = "", value_name = "FILE")]
+    mdf: String,
+
+    // --mcap
+    /// Save measurement data to an MCAP file (https://mcap.dev). One channel per DAQ list, the topic is the event name, the payload of the
+    /// DAQ packets is stored as received, as ros1 messages. Values are raw values, MCAP has no conversions or units, they are in the
+    /// comments of the message definitions and in the channel metadata. May be combined with --csv, --mdf and --perfetto.
+    #[arg(long, default_value = "", value_name = "FILE")]
+    mcap: String,
+
+    // --perfetto
+    /// Save measurement data to a trace file for Perfetto (Chrome Trace Event JSON format, open it with https://ui.perfetto.dev).
+    /// Spans (DaqSpan) are slices in a track per context and thread, numeric signals are counter tracks, enum signals are state tracks,
+    /// span links (xcp::LinkSpan) are flows (arrows) from the producer span to the consumer span.
+    /// The span and link signals of the contexts needed for the trace are added to the measurement, see --trace-auto.
+    /// May be combined with --csv, the added signals are not written to the CSV file.
+    #[arg(long, default_value = "", value_name = "FILE")]
+    perfetto: String,
+
+    // --trace-auto
+    /// Trace signals added to the measurement with --perfetto: off (none, only hints which signals are missing),
+    /// context (the spans of the contexts of the measured signals), links (also the span links of these contexts and, if there are any,
+    /// the spans of all contexts as possible producers), all (the spans and span links of all contexts).
+    /// The context of a signal is the prefix of its name or of the name of its event (<context>.<name>).
+    #[arg(long, default_value = "links", value_parser = ["off", "context", "links", "all"], value_name = "LEVEL")]
+    trace_auto: String,
 
     // --list-cal
     /// Lists all specified calibration variables (regex) found in the A2L file
@@ -357,198 +407,84 @@ impl ToLogLevelFilter for u8 {
 }
 
 //------------------------------------------------------------------------
-// Handle incoming DAQ data
-// Prints the decoded data to the console
+// Measurement data output
+// The DAQ decoder hands the DAQ packets to writers, one for each output format, see module daq_writer
 
-const MAX_EVENT: usize = 64;
-
-struct DaqDecoder {
-    daq_odt_entries: Option<Vec<Vec<OdtEntry>>>,
-    timestamp_resolution: u64,
-    daq_header_size: u8,
-    event_count: usize,
-    byte_count: usize,
-    daq_timestamp: [u64; MAX_EVENT],
-    log_measurements: bool,
-    csv_writer: Option<std::io::BufWriter<std::fs::File>>,
+// Create the writers for the measurement data output, without an output file the data is printed to the console
+// contexts are the known contexts and trace_signals the signals added to the measurement for --perfetto (see add_trace_signals)
+fn create_daq_writers(
+    csv_filename: &str,
+    mdf_filename: &str,
+    mcap_filename: &str,
+    perfetto_filename: &str,
+    ecu_name: &str,
+    contexts: &[String],
+    trace_signals: &[String],
+) -> Result<Vec<Box<dyn DaqWriter>>, Box<dyn Error>> {
+    let mut writers: Vec<Box<dyn DaqWriter>> = Vec::new();
+    if !csv_filename.is_empty() {
+        let writer = CsvWriter::create(csv_filename).map_err(|e| format!("Failed to create CSV file '{}': {}", csv_filename, e))?;
+        info!("CSV output to file: {}", csv_filename);
+        // The trace signals are not written to the CSV file
+        writers.push(Box::new(writer.with_skip(trace_signals)));
+    }
+    if !mdf_filename.is_empty() {
+        let writer = MdfWriter::create(mdf_filename).map_err(|e| format!("Failed to create MDF file '{}': {}", mdf_filename, e))?;
+        info!("MDF output to file: {}", mdf_filename);
+        writers.push(Box::new(writer.with_ecu_name(ecu_name)));
+    }
+    if !mcap_filename.is_empty() {
+        let writer = McapWriter::create(mcap_filename).map_err(|e| format!("Failed to create MCAP file '{}': {}", mcap_filename, e))?;
+        info!("MCAP output to file: {}", mcap_filename);
+        writers.push(Box::new(writer.with_ecu_name(ecu_name)));
+    }
+    if !perfetto_filename.is_empty() {
+        let mut writer = PerfettoWriter::create(perfetto_filename).map_err(|e| format!("Failed to create Perfetto trace file '{}': {}", perfetto_filename, e))?;
+        info!("Perfetto trace output to file: {}", perfetto_filename);
+        writer.set_ecu_name(ecu_name);
+        writer.set_contexts(contexts);
+        writers.push(Box::new(writer));
+    }
+    if writers.is_empty() {
+        writers.push(Box::new(ConsoleWriter::stdout()));
+    }
+    Ok(writers)
 }
 
-impl DaqDecoder {
-    pub fn new(log_measurements: bool, csv_filename: &str) -> DaqDecoder {
-        let csv_writer = if csv_filename.is_empty() {
-            None
-        } else {
-            match std::fs::File::create(csv_filename) {
-                Ok(f) => {
-                    info!("CSV output to file: {}", csv_filename);
-                    Some(std::io::BufWriter::new(f))
-                }
-                Err(e) => {
-                    error!("Failed to create CSV file '{}': {}", csv_filename, e);
-                    None
-                }
-            }
-        };
-        DaqDecoder {
-            daq_odt_entries: None,
-            timestamp_resolution: 0,
-            daq_header_size: 0,
-            event_count: 0,
-            byte_count: 0,
-            daq_timestamp: [0; MAX_EVENT],
-            log_measurements,
-            csv_writer,
-        }
-    }
-}
+//------------------------------------------------------------------------
+// Trace signals for --perfetto
+// Adds the span and link signals needed for the trace to the measurement list, at the level given with --trace-auto
+// Returns the measurement list, the known contexts (each is a process in the Perfetto trace) and the added signals
 
-impl XcpDaqDecoder for DaqDecoder {
-    // Set start time and init
-    fn start(&mut self, daq_odt_entries: Vec<Vec<OdtEntry>>, timestamp: u64) {
-        // Init
-        self.daq_odt_entries = Some(daq_odt_entries);
-        self.event_count = 0;
-        self.byte_count = 0;
-        for t in self.daq_timestamp.iter_mut() {
-            *t = timestamp;
-        }
-
-        // Write CSV header
-        if let Some(ref mut writer) = self.csv_writer {
-            let _ = writeln!(writer, "time_ns,daq,name,value");
-        }
+fn add_trace_signals(xcp_client: &XcpClient, trace_auto: &str, mut list: Vec<String>) -> (Vec<String>, Vec<String>, Vec<String>) {
+    let level: TraceAuto = trace_auto.parse().unwrap_or(TraceAuto::Links);
+    let measurements: Vec<(String, Option<String>)> = xcp_client
+        .find_measurements(".*")
+        .into_iter()
+        .map(|name| {
+            let event = xcp_client.measurement_event_name(&name);
+            (name, event)
+        })
+        .collect();
+    let contexts = perfetto_writer::find_contexts(measurements.iter().map(|(n, _)| n.as_str()));
+    if contexts.is_empty() {
+        return (list, contexts, Vec::new());
     }
 
-    fn stop(&mut self) {
-        // Flush CSV output
-        if let Some(ref mut writer) = self.csv_writer {
-            let _ = writer.flush();
+    let added = perfetto_writer::trace_signals(level, &measurements, &list);
+    if level == TraceAuto::Off {
+        let missing = perfetto_writer::trace_signals(TraceAuto::Links, &measurements, &list);
+        if !missing.is_empty() {
+            warn!(
+                "Perfetto trace: the spans and span links of the contexts are not measured, add them with --trace-auto links or measure them: {}",
+                missing.join(" ")
+            );
         }
+    } else if !added.is_empty() {
+        info!("Perfetto trace: {} trace signals added (--trace-auto {}): {}", added.len(), trace_auto, added.join(" "));
     }
-
-    // Set timestamp resolution
-    fn set_daq_properties(&mut self, timestamp_resolution: u64, daq_header_size: u8) {
-        self.daq_header_size = daq_header_size;
-        self.timestamp_resolution = timestamp_resolution;
-    }
-
-    // Decode DAQ data
-    fn decode(&mut self, lost: u32, buf: &[u8]) {
-        let daq: u16;
-        let odt: u8;
-        let mut timestamp_raw: u32 = 0;
-        let data: &[u8];
-
-        // Decode header and raw timestamp
-        if self.daq_header_size == 4 {
-            daq = (buf[2] as u16) | ((buf[3] as u16) << 8);
-            odt = buf[0];
-            if odt == 0 {
-                timestamp_raw = (buf[4] as u32) | ((buf[4 + 1] as u32) << 8) | ((buf[4 + 2] as u32) << 16) | ((buf[4 + 3] as u32) << 24);
-                data = &buf[8..];
-            } else {
-                data = &buf[4..];
-            }
-        } else {
-            daq = buf[1] as u16;
-            odt = buf[0];
-            if odt == 0 {
-                timestamp_raw = (buf[2] as u32) | ((buf[2 + 1] as u32) << 8) | ((buf[2 + 2] as u32) << 16) | ((buf[2 + 3] as u32) << 24);
-                data = &buf[6..];
-            } else {
-                data = &buf[2..];
-            }
-        }
-
-        assert!(daq < MAX_EVENT as u16);
-        assert!(odt == 0);
-
-        // Decode full 64 bit daq timestamp
-        let t_last = self.daq_timestamp[daq as usize];
-        let t: u64 = if odt == 0 {
-            let tl = (t_last & 0xFFFFFFFF) as u32;
-            let mut th = (t_last >> 32) as u32;
-            if timestamp_raw < tl {
-                th += 1;
-            }
-            let t = (timestamp_raw as u64) | ((th as u64) << 32);
-            if t < t_last {
-                warn!("Timestamp of daq {} declining {} -> {}", daq, t_last, t);
-            }
-            self.daq_timestamp[daq as usize] = t;
-            t
-        } else {
-            t_last
-        };
-
-        let t_ns = t * self.timestamp_resolution;
-        let delta_us = ((t - t_last) * self.timestamp_resolution) / 1000;
-
-        if self.csv_writer.is_none() {
-            println!("EVENT: daq={}, odt={}, lost={}, t={}ns (+{}us)", daq, odt, lost, t_ns, delta_us);
-        }
-
-        // Decode all odt entries — for terminal (log_level >= 2) and/or CSV output
-        {
-            let daq_list = &self.daq_odt_entries.as_ref().unwrap()[daq as usize];
-
-            for odt_entry in daq_list.iter() {
-                let value_size = odt_entry.a2l_type.size;
-                let mut value_offset = odt_entry.offset as usize + value_size - 1;
-                let mut value: u64 = 0;
-                loop {
-                    value |= data[value_offset] as u64;
-                    if value_offset == odt_entry.offset as usize {
-                        break;
-                    };
-                    value <<= 8;
-                    value_offset -= 1;
-                }
-
-                let value_str = match odt_entry.a2l_type.encoding {
-                    A2lTypeEncoding::Signed => match value_size {
-                        1 => format!("{}", value as u8 as i8),
-                        2 => format!("{}", value as u16 as i16),
-                        4 => format!("{}", value as u32 as i32),
-                        8 => format!("{}", value as i64),
-                        _ => {
-                            warn!("Unsupported signed value size {}", value_size);
-                            String::new()
-                        }
-                    },
-                    A2lTypeEncoding::Unsigned => format!("{}", value),
-                    A2lTypeEncoding::Float => {
-                        if value_size == 4 {
-                            format!("{}", f32::from_bits(value as u32))
-                        } else {
-                            format!("{}", f64::from_bits(value))
-                        }
-                    }
-                    A2lTypeEncoding::Blob => {
-                        warn!("Blob not supported");
-                        String::new()
-                    }
-                };
-
-                if let Some(ref mut writer) = self.csv_writer {
-                    let _ = writeln!(writer, "{},{},{},{}", t_ns, daq, odt_entry.name, value_str);
-                } else {
-                    println!(" {} = {}", odt_entry.name, value_str);
-                }
-            }
-        }
-
-        self.byte_count += data.len(); // overall payload byte count
-        self.event_count += 1; // overall event count
-    }
-
-    fn get_byte_count(&self) -> usize {
-        self.byte_count
-    }
-
-    fn get_event_count(&self) -> usize {
-        self.event_count
-    }
+    list.extend(added.iter().cloned());
+    (list, contexts, added)
 }
 
 //------------------------------------------------------------------------
@@ -608,6 +544,10 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
         time,
         cal: cal_args,
         csv: csv_filename,
+        mdf: mdf_filename,
+        mcap: mcap_filename,
+        perfetto: perfetto_filename,
+        trace_auto,
         yes,
         ..
     } = args;
@@ -632,6 +572,9 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
     // Calibration segment relative addressing mode
     let mut segment_relative = false;
 
+    // DAQ decoder, the measurement data writers are set at measurement start
+    let mut daq_decoder_handle: Option<Arc<Mutex<DaqDecoder>>> = None;
+
     // Execute main logic and capture the result
     let result = async {
         //----------------------------------------------------------------
@@ -641,7 +584,8 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
             // Connect to the XCP server
             // Print protocol information
             info!("XCP Connect using {}", protocol);
-            let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new(true, &csv_filename)));
+            let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new()));
+            daq_decoder_handle = Some(Arc::clone(&daq_decoder));
             match xcp_client.connect(connect_mode, Arc::clone(&daq_decoder), ServTextDecoder::new()).await {
                 Ok(_) => {
                     info!("Connected to XCP server at {}", dest_addr);
@@ -1164,7 +1108,15 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 return Err("XCP client not connected, cannot upload or download calibration segment data".into());
             }
             if upload_bin {
-                xcp_client.save_calibration_segments_to_file(&path).await?;
+                // The context list of the target is the enum conversion table conv.contexts in the A2L file
+                let contexts = std::fs::read_to_string(&a2l_path)
+                    .ok()
+                    .and_then(|a2l_text| bin_reader::parse_a2l_context_table(&a2l_text))
+                    .unwrap_or_default();
+                if !contexts.is_empty() {
+                    info!("{} contexts found in A2L file {}", contexts.len(), a2l_path.display());
+                }
+                xcp_client.save_calibration_segments_to_file(&path, &contexts).await?;
             } else {
                 xcp_client.load_calibration_segments_from_file(&path).await?;
             }
@@ -1227,6 +1179,12 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 // Just a list of names given on the command line
                 measurement_list
             };
+            // Trace signals for --perfetto
+            let (list, contexts, trace_signals) = if perfetto_filename.is_empty() {
+                (list, Vec::new(), Vec::new())
+            } else {
+                add_trace_signals(&xcp_client, &trace_auto, list)
+            };
             if list.is_empty() {
                 warn!("No measurement variables found");
             }
@@ -1240,6 +1198,12 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                     if let Some(o) = xcp_client.create_measurement_object(name) {
                         info!(r#"  {}: {}"#, o.0, name);
                     }
+                }
+
+                // Measurement data output
+                let writers = create_daq_writers(&csv_filename, &mdf_filename, &mcap_filename, &perfetto_filename, &ecu_name, &contexts, &trace_signals)?;
+                if let Some(daq_decoder) = &daq_decoder_handle {
+                    daq_decoder.lock().set_writers(writers);
                 }
 
                 // Measure
@@ -1261,26 +1225,37 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                 let mut last_report = tokio::time::Instant::now();
                 let mut last_events = 0usize;
                 let mut last_bytes = 0usize;
+                let mut last_lost = 0usize;
                 loop {
                     tokio::select! {
                         _ = ticker.tick() => {
                             if let Some(ref d) = stats_decoder {
-                                let (events, bytes) = {
+                                let (events, bytes, lost) = {
                                     let g = d.lock();
-                                    (g.get_event_count(), g.get_byte_count())
+                                    (g.get_event_count(), g.get_byte_count(), g.get_lost_count())
                                 };
                                 let now = tokio::time::Instant::now();
                                 let dt = now.duration_since(last_report).as_secs_f64();
                                 if dt > 0.0 {
-                                    info!(
-                                        "Measurement: {:.0} event/s, {:.3} Mbyte/s",
-                                        (events - last_events) as f64 / dt,
-                                        (bytes - last_bytes) as f64 / dt / 1_000_000.0
-                                    );
+                                    if lost > last_lost {
+                                        warn!(
+                                            "Measurement: {:.0} event/s, {:.3} Mbyte/s, {} packets lost",
+                                            (events - last_events) as f64 / dt,
+                                            (bytes - last_bytes) as f64 / dt / 1_000_000.0,
+                                            lost - last_lost
+                                        );
+                                    } else {
+                                        info!(
+                                            "Measurement: {:.0} event/s, {:.3} Mbyte/s",
+                                            (events - last_events) as f64 / dt,
+                                            (bytes - last_bytes) as f64 / dt / 1_000_000.0
+                                        );
+                                    }
                                 }
                                 last_report = now;
                                 last_events = events;
                                 last_bytes = bytes;
+                                last_lost = lost;
                             }
                         }
                         _ = async {
@@ -1308,12 +1283,22 @@ async fn xcp_client(args: Args, protocol: &'static str, dest_addr: std::net::Soc
                         let daq_decoder = daq_decoder.lock();
                         let event_count = daq_decoder.get_event_count();
                         let byte_count = daq_decoder.get_byte_count();
+                        let lost_count = daq_decoder.get_lost_count();
                         info!(
-                            "Measurement done, {} events, {:.0} event/s, {:.3} Mbytes/s",
+                            "Measurement done, {} events, {:.0} event/s, {:.3} Mbytes/s, {} packets lost",
                             event_count,
                             event_count as f64 * 1_000_000.0 / elapsed_time as f64,
-                            byte_count as f64 / elapsed_time as f64
+                            byte_count as f64 / elapsed_time as f64,
+                            lost_count
                         );
+                        if lost_count > 0 {
+                            warn!(
+                                "{} of {} DAQ packets lost ({:.3}%), in the transmit queue of the XCP server or in the UDP receive buffer",
+                                lost_count,
+                                event_count + lost_count,
+                                lost_count as f64 * 100.0 / (event_count + lost_count) as f64
+                            );
+                        }
                     }
                 }
             }
@@ -1390,6 +1375,10 @@ struct ConfigFile {
     default_event: Option<DefaultEvent>,
     time: Option<u64>,
     csv: Option<String>,
+    mdf: Option<String>,
+    mcap: Option<String>,
+    perfetto: Option<String>,
+    trace_auto: Option<String>,
     list_cal: Option<String>,
     cal: Option<Vec<String>>,
     elf_skip_no_metadata: Option<bool>,
@@ -1447,6 +1436,10 @@ fn merge_config(matches: &clap::ArgMatches, config: ConfigFile, args: &mut Args)
     }
     apply!(time);
     apply!(csv);
+    apply!(mdf);
+    apply!(mcap);
+    apply!(perfetto);
+    apply!(trace_auto);
     apply!(list_cal);
     apply!(cal);
     apply!(elf_skip_no_metadata);

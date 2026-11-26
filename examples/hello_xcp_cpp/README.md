@@ -87,6 +87,7 @@ More advanced topics are covered by the other examples:
 
 - **c_demo** — complex calibration objects (maps, curves), consistent atomic updates, polling
 - **multi_thread_demo** — thread-local events, shared calibration, context/span instrumentation
+- **thread_context_demo** — experimental: multiple class instances and threads separated by context and spans
 - **cpp_demo** — signal generators, lookup tables with shared axis, two class instances
 - **struct_demo** — nested structs, arrays of structs, typedef-based measurement types
 
