@@ -1,0 +1,35 @@
+{
+  "configById": {
+    "Plot!2w0zgkk": {
+      "paths": [
+        {
+          "timestampMethod": "receiveTime",
+          "value": "\"/SigGen1.siggen\".SigGen1_value_",
+          "enabled": true
+        },
+        {
+          "timestampMethod": "receiveTime",
+          "value": "\"/SigGen2.siggen\".SigGen2_value_",
+          "enabled": true,
+          "color": "#f5774d"
+        }
+      ],
+      "minYValue": -100,
+      "maxYValue": 100,
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "left",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 376.8515625
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": "Plot!2w0zgkk"
+}

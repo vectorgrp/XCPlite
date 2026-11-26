@@ -37,13 +37,15 @@ cmake --build build --target thread_context_demo
 Test
 
 ```bash
-Measure all signals with xcpclient for 5 seconds into a CSV file:
+# Measure all signals with xcpclient for 5 seconds into a CSV, MDF or MCAP file:
 xcpclient --udp --mea '.*' --time 5 --csv trace.csv
 xcpclient --udp --mea '.*' --time 5 --mdf trace.mdf
+xcpclient --udp --mea '.*' --time 5 --mcap trace.mcap
 
-Calibrate 
-xcpclient --udp --cal SigGen2.sample_time_us 25 
-xcpclient --udp --cal Mainloop.idle_sleep_us 25
+# Calibrate task cycle times
+xcpclient --udp --cal SigGen2.sample_time_us 5 
+xcpclient --udp --cal SigGen1.sample_time_us 5
+xcpclient --udp --cal Mainloop.idle_sleep_us 10
 
 ```
 
@@ -129,6 +131,22 @@ xcpclient --udp --mea 'Mainloop.channel1' --perfetto trace.json --trace all
 It measures only 'Mainloop.channel1' and with '--trace all' xcpclient added all required context, span and link information, which leads to about 0.5 million events per second.    
 
 <img src="perfetto3.png" alt="Perfetto zoomed in: Link" width="900">
+
+
+---
+
+## Using Lichtblick
+
+xcpclient can write the measurement as an [MCAP](https://mcap.dev) file, which can be opened with [Lichtblick](https://github.com/lichtblick-suite/lichtblick) or Foxglove:
+
+```bash
+xcpclient --udp --mea '.*' --time 5 --mcap trace.mcap
+```
+
+Each event is a topic (`/SigGen1.siggen`, `/SigGen2.siggen`, `/Mainloop.mainloop`, `/Mainloop.sample1`, ...), the signals are the message fields, with `.` replaced by `_` (`SigGen1.value_` is the field `SigGen1_value_`). The values are raw values, see the [xcpclient README](../../tools/xcpclient/README.md) for details.
+The screenshot below shows a Plot panel with the message paths `"/SigGen1.siggen".SigGen1_value_` and `"/SigGen2.siggen".SigGen2_value_`:
+
+<img src="lichtblick.png" alt="Lichtblick plot: SigGen1 and SigGen2 values" width="900">
 
 
 ---
