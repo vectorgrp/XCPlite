@@ -95,7 +95,7 @@ cmake -B build -S . -DFETCHCONTENT_SOURCE_DIR_XCPLITE=../.. \
 
 A local sil-kit checkout needs its submodules (`git submodule update --init --recursive`).  
 Other versions are selected with `-DSILKIT_GIT_TAG=<tag>` and `-DXCPLITE_GIT_REPOSITORY=<url>` `-DXCPLITE_GIT_TAG=<tag>`.  
-The demo needs an XCPlite version later than V2.2.2 (it creates and triggers events in different scopes), the default is the `dev-2.2.3` branch.
+The demo needs an XCPlite version later than V2.2.2 (it creates and triggers events in different scopes), the default is the `master` branch of <https://github.com/vectorgrp/XCPlite>.
 
 ---
 
