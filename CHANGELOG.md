@@ -36,6 +36,16 @@ Changes in `xcpclient` (xcpclient V4.2.0):
 - Measurement reports a signal which is too large for the XCP server and more than 1024 DAQ lists as an error. These cases paniced before.
 - Fixed reporting of lost DAQ packets.
 - The UDP socket requests an 8 MB receive buffer to reduce UDP packet loss on high data rate.
+- Fixed A2L and ELF upload of files smaller than the maximum command size, they were reported as not available. `GET_ID` size 0 is reported as file not available without sending `UPLOAD`.
+
+Bugfixes in A2L and ELF file upload (#151, contributed by pamirmundt):
+
+- An empty or unreadable A2L or ELF file no longer aborts the XCP server with an assertion in debug builds, `GET_ID` returns size 0 (file not available).
+- A new `GET_ID` upload request restarts an unfinished upload instead of asserting.
+- `UPLOAD` reads from the MTA offset instead of the current file position. `SET_MTA` with address extension `XCP_ADDR_EXT_FILE` (0xFD) is accepted, so retries and out of order reads work, see `docs/TECHNICAL.md`. An out of range read is refused without ending the upload, a short read has its own error message.
+- The upload file is closed by the new function `ApplXcpCloseFile()` on the next upload `GET_ID`, an accepted `CONNECT`, `DISCONNECT`, `XcpDeinit()` or an I/O error, instead of after the last block.
+- `A2L_MODE_WRITE_ONCE`: an empty cached A2L file (for example left by a crashed run) is generated again instead of being provided for upload.
+- New unit tests `file_upload_test` and `a2l_cache_test` (CTest `a2l_cache_empty`, `a2l_cache_nonempty`).
 
 Changed core files for events with named context:
 * a2l_writer.c: handle event context. 

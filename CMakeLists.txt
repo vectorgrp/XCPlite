@@ -536,7 +536,7 @@ if(XCPLITE_BUILD_TESTS)
             add_test(NAME a2l_cache_${_cache_case} COMMAND a2l_cache_test ${_cache_case})
             set_tests_properties(a2l_cache_${_cache_case} PROPERTIES LABELS "unit" TIMEOUT 60)
         endforeach()
-        
+
         # Test registration (default configuration)
         foreach(_xcp_unit_test
                 type_detection_test_c
@@ -551,8 +551,7 @@ if(XCPLITE_BUILD_TESTS)
                 passive_test_cpp
                 persistence_test
                 context_test
-                file_upload_test
-                )
+                file_upload_test)
             add_test(NAME ${_xcp_unit_test} COMMAND ${_xcp_unit_test})
             set_tests_properties(${_xcp_unit_test} PROPERTIES LABELS "unit" TIMEOUT 60)
         endforeach()
