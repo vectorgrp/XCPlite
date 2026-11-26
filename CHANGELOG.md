@@ -6,8 +6,7 @@ All notable changes to XCPlite are documented in this file.
 ## [V2.4.3]
 
 - Breaking change:
-    * Functions in platform.h `clockGetLast`, `clockGetMonotonicNsLast`, `clockGetMonotonicUsLast`, `clockGetRealtimeNsLast` and `clockGetRealtimeUsLast` have been removed. 
-    * Fixed a data race in the POSIX clock functions (Linux, macOS, QNX), so the timestamps of one thread could go backwards by several µs.
+    * Functions in platform.h `clockGetLast`, `clockGetMonotonicNsLast`, `clockGetMonotonicUsLast`, `clockGetRealtimeNsLast` and `clockGetRealtimeUsLast` have been removed to fixed a data race in the POSIX clock functions (Linux, macOS, QNX), so the timestamps of one thread could go backwards by several µs.
     * New unit test `clock_race_test`: several threads call the clock concurrently for 2 s and check that the values of each thread never go backwards.
 
 - Breaking change: (impact only on use cases with run-time A2L generation using event instances)
@@ -22,14 +21,13 @@ Additions for contexts, spans and span links:
 - Span names are registered at link time (`OPTION_DAQ_SPAN_SECTION_REGISTRATION`, default), or at runtime where linker sections are not available (Windows, SHM mode).
 - New option `OPTION_DAQ_SPAN_THREAD` (not defined by default): records the thread index with each span, for several threads in one context. Experimental, might be removed again.
 
-
 Changes in `xcpclient` (xcpclient V4.2.0):
 
-- New option `--perfetto <file>`: writes spans, span links and signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`. 
-- The span and link signals needed for the trace are added to the measurement (option `--trace-auto`).
+- New option `--perfetto <file>`: writes spans, span links and signals as a trace file for Perfetto (Chrome Trace Event JSON format), see `tools/xcpclient/README.md`. The span and link signals needed for the trace are automatically added to the measurement (option `--trace-auto`).
 - Print values in physical unit or as enum strings in console and csv. Enum conversion is used to display span names. 
 - The CSV file has a new column `unit`.
-- `--upload-bin` with a `.bin` file writes the new context list and the events of a context with their context id.
+- New option `--mdf <file>`: writes an MDF4 file.
+- `--upload-bin` writes the new context list and events with their context id, if there are any.
 - `tools/bintool` and the BIN reader of xcpclient show the context list and the memory segment numbers.
 - Improved timestamp wraparound detection for very sporadic events.
 - The console output of `--mea` shows events by name, `EVENT: <event> (id=<id>, daq=<daq>), ...`.
@@ -39,9 +37,9 @@ Changes in `xcpclient` (xcpclient V4.2.0):
 - Fixed reporting of lost DAQ packets.
 - The UDP socket requests an 8 MB receive buffer to reduce UDP packet loss on high data rate.
 
-Changed core files:
-* a2l_writer.c: handle event context, create name with getEventBaseName() 
-* persistence.c: write and load the context list, an event references its context by id instead of the event instance index
+Changed core files for events with named context:
+* a2l_writer.c: handle event context. 
+* persistence.c: write and load the context list, an event references its context by id instead of the former event instance index
 * xcplite.c: added context list, tXcpContext, tXcpContextList, XcpCreateEventWithIndex; removed `XcpCreateEventInstance`, `DaqCreateEventInstance`, `DaqGetEventInstanceId` and `XcpGetEventIndex`
 
 

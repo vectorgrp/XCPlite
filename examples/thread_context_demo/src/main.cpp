@@ -3,10 +3,15 @@
 #include <atomic>     // for std::atomic
 #include <csignal>    // for signal(), SIGINT, SIGTERM
 #include <cstdint>    // for uintxx_t
+#include <cstdio>     // for perror
 #include <filesystem> // for std::filesystem::exists
 #include <iostream>   // for std::cout
 #include <memory>     // for std::unique_ptr
 #include <thread>     // for std::thread
+
+#ifdef __linux__
+#include <sys/prctl.h> // for prctl(), PR_SET_TIMERSLACK
+#endif
 
 // Include XCPlite/libxcplite C++ headers
 #include "a2l.hpp"    // for A2l generation application programming interface
@@ -26,6 +31,14 @@ static void sig_handler(int) { running = false; }
 static void sleep_us(uint32_t us) {
     sleepUs(us); // from xcplib
 }
+
+// Timer slack of all threads on Linux (in ns)
+// Linux may end each nanosleep up to the timer slack later, the default is 50us, which would make every short sleep of the demo last at least about 50us
+// Threads inherit the timer slack of the thread that creates them, so it is set at the start of main(), before any thread is created
+// 0 is not possible, prctl(PR_SET_TIMERSLACK, 0) resets the timer slack to the default
+#ifdef __linux__
+constexpr unsigned long kTimerSlackNs = 1;
+#endif
 
 // Main loop parameters
 struct MainloopParametersT {
@@ -116,6 +129,13 @@ int main() {
     std::cout << "\nXCP on Ethernet telemetry_demo C++ demo\n" << std::endl;
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
+
+#ifdef __linux__
+    // Set the timer slack before init_xcp() and the signal generators create their threads
+    if (prctl(PR_SET_TIMERSLACK, kTimerSlackNs, 0, 0, 0) != 0) {
+        perror("prctl(PR_SET_TIMERSLACK)");
+    }
+#endif
 
     init_xcp();
 #ifdef OPTION_OBSERVE_STARTUP

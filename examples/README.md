@@ -55,6 +55,23 @@ An example in C++ using more idiomatic C++ to demonstrate the capabilities of th
 - Instrument a member function: Register and measure local function variables and parameters.  
 
 
+### [multi_thread_demo](multi_thread_demo/README.md)
+
+Shows measurement of work distributed over a fixed set of worker threads.  
+Worker threads fetch work items from a shared lock-free counter, the main loop starts batches of work on a calibration request.  
+A single global event, triggered by any worker thread, measures each completed work item from the stack of the triggering thread.  
+Measures work item duration, start latency and the speedup of parallel execution.  
+Example work: renders the Mandelbrot set line by line into a PNG file, the area is a calibration parameter.  
+
+
+### [thread_context_demo](thread_context_demo/README.md)
+
+Shows how to separate the measurement data of the same code running for multiple class instances and in multiple threads.  
+Uses context, scope, span and span-links (`xcp::Context`, `xcp::Scope`, `xcp::LinkSpan`, `DaqContext`, `DaqSpan`, `DaqEventCtxVar`).  
+Concept inspired by OpenTelemetry: instrumented code gets its instance from the current context of the thread, events are named `<context>.<event>`.  
+Measures span begin, end, nesting and duration for each context.    
+
+
 ### [no_a2l_demo](no_a2l_demo/README.md)
 
 Demonstrates using XCPlite without on-target runtime A2L generation.  
@@ -104,7 +121,6 @@ Demonstrates building libxcplite from source on Github as part of your own proje
 - Typical workflow for CI builds, cross-compiling and projects which want the xcplite version pinned in code.  
 
 
-
 ### [udp_raw_demo](udp_raw_demo/README.md)
 
 Demonstrates XCP on UDP/IPv4 without any TCP/IP stack: 
@@ -124,8 +140,6 @@ Demonstrates supplying your own Ethernet HAL backend from outside the library:
 - Implements the six `eth_hal_*` functions of `src/socket_raw_hal.h` in the application; the built in AF_PACKET backend is then never pulled from the static library.  
 - The CMP envelope itself is not implemented yet and is a pass through, so the HAL plumbing is testable on its own.  
 - Linux only, needs `CAP_NET_RAW`. Not built from the root CMakeLists.  
-
-
 
 
 ### [c_demo](c_demo/README.md)
@@ -151,23 +165,6 @@ Shows how to define measurement variables in nested structs, multidimensional fi
 Pure measurement demo, does not have any calibration parameters.
 
 
-### [multi_thread_demo](multi_thread_demo/README.md)
-
-Shows measurement of work distributed over a fixed set of worker threads.  
-Worker threads fetch work items from a shared lock-free counter, the main loop starts batches of work on a calibration request.  
-A single global event, triggered by any worker thread, measures each completed work item from the stack of the triggering thread.  
-Measures work item duration, start latency and the speedup of parallel execution.  
-Example work: renders the Mandelbrot set line by line into a PNG file, the area is a calibration parameter.  
-
-
-### [thread_context_demo](thread_context_demo/README.md)
-
-Shows how to separate the measurement data of the same code running for multiple class instances and in multiple threads.  
-Uses context, scope and span (`xcp::Context`, `xcp::Scope`, `xcp::LinkSpan`, `DaqContext`, `DaqSpan`, `DaqEventCtxVar`).  
-Concept inspired by OpenTelemetry: instrumented code gets its instance from the current context of the thread, events are named `<context>.<event>`.  
-Measures span begin, end, nesting and duration for each context.    
-
-
 ### [point_cloud_demo](point_cloud_demo/README.md)
 
 Demonstrates how to visualize dynamic data structures in the CANape 3D scene window.  
@@ -189,13 +186,14 @@ The examples demonstrate various advanced topics:
 - Safely share parameters among different threads
 - Measure instances of complex types, such as structs, arrays, nested structs and arrays of structs by using typedefs
 - Create complex parameters, like maps, curves and lookup tables with fixed or shared axis
-- Measure thread local instances of variables, create event instances
+- Measure thread local instances of variables, create named event instances
 - Create physical conversion rules and enumerations
 - Create additional groups
 - Use consistent atomic parameter modification
 - Make parameter changes persistent (freeze)
 - Use the API to create context and span, measure durations
 - Separate the measurement data of multiple class instances with a thread context
+- Measure causal relations as well as time series
 
 
 

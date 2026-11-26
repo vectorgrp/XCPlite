@@ -120,21 +120,22 @@ Created with:
 xcpclient --udp --mea 'Mainloop.channel1' 'SigGen1.queue_level' 'SigGen1.overflows_' --perfetto trace.json  --trace-auto all
 ```
 
+It measures only 'Mainloop.channel1' and with '--trace all' xcpclient added all required context, span and link information, which leads to about 0.5 million events per second.
+
 
 #### Producer consumer links
 
-The screenshot below zoomed into a 5us time range, shows a span link in more detail.   
-The arrows connects the producer span calc in the thread of signal generator instance 1, to the consumer span 'poll' in the mainloop thread, when it got a new value. 
+The screenshot below zoomed into a 7us time range shows span links.   
+The arrows connects the producer spans calc in the thread of signal generator instance, to the consumer span 'poll' in the mainloop thread, when it got a new value. 
 It was created with:
 
 ```bash
-xcpclient --udp --mea 'Mainloop.channel1' --perfetto trace.json --trace all
+xcpclient --udp --mea '.*' --perfetto trace.json --trace all
 ```
-
-It measures only 'Mainloop.channel1' and with '--trace all' xcpclient added all required context, span and link information, which leads to about 0.5 million events per second.    
 
 <img src="perfetto3.png" alt="Perfetto zoomed in: Link" width="900">
 
+With decreased sampling time parameters, to increase the probality that SigGen1 and SigGen2 run in parallel, the demo creates up to 5 million events per second (50% cpu load on a raspberry pi 5 with xcpclient on target localhost)
 
 ---
 
@@ -346,7 +347,7 @@ The demo produces a lot of DAQ packets: each span sends one packet at its begin 
 | Transmit queue size | `OPTION_QUEUE_SIZE` in [src/main.cpp](src/main.cpp), parameter of `XcpEthServerInit` | about 4 MB, `1024 * 4024` (was 64 KB) | Must hold at least 10 ms of traffic. When less than one UDP datagram is ready and the queue is less than 50% full, the transmit thread sleeps 1 ms (`MAX_SLEEP_TIME_MS` in [src/xcpethtl.c](../../src/xcpethtl.c)). On macOS this sleep lasts longer under load. If the queue fills up in the meantime, packets are lost and the server prints `Transmit queue overflow`. 64 KB is about 4 ms at 15 MB/s and about 1 ms at 60 MB/s. |
 | MTU | `OPTION_MTU` in [src/xcplib_cfg.h](../../src/xcplib_cfg.h) | 1500 | One UDP datagram carries up to `OPTION_MTU - 28` bytes (1472 or 7968 bytes). Jumbo frames (8000) need about 5 times fewer `sendmsg` calls. On macOS this halves the CPU load of the transmit thread and of xcpclient. On Linux (Raspberry Pi 5) it saves only about 15% of the xcpclient CPU load at the same rate, but it raises the maximum rate by about 15% and reduces the losses. The path MTU must allow it: localhost works (macOS `lo0` 16384, Linux `lo` 65536), on Ethernet all network interfaces and switches need jumbo frames enabled, and a WLAN connection does not support them. xcpclient receives datagrams of up to 8000 bytes, so do not set `OPTION_MTU` above 8000 for xcpclient. |
 | Task delays | Calibration parameters `SigGen1.sample_time_us`, `SigGen2.sample_time_us`, `Mainloop.idle_sleep_us` | 25, 1000, 100 µs | Set the packet rate. Short sleeps are inaccurate: on macOS `sleepUs(20)` sleeps about 28 µs. 0 turns the threads into busy loops on macOS, which produce more packets than the transmit path can send. On Linux see timer slack. |
-| Timer slack (Linux) | `prctl(PR_SET_TIMERSLACK, ...)` or `/proc/self/timerslack_ns` before the threads are created; new threads inherit it, and it is kept across `exec` | 50 µs | Linux may delay the end of each `nanosleep` by up to the timer slack. With the default 50 µs, every sleep of the demo lasts at least about 50 µs, even `sleepUs(0)`, and the rate stays below 0.8 M packets/s for every delay setting. With 1 ns the delays work as on macOS. For the tests the demo was started with `bash -c "echo 1 > /proc/self/timerslack_ns; exec ./thread_context_demo"`. Threads with a real-time policy (`SCHED_FIFO`, `SCHED_RR`) have no timer slack. |
+| Timer slack (Linux) | `kTimerSlackNs` in [src/main.cpp](src/main.cpp), set with `prctl(PR_SET_TIMERSLACK, ...)` at the start of `main()`, before any thread is created; new threads inherit it | 1 ns (Linux default 50 µs) | Linux may delay the end of each `nanosleep` by up to the timer slack. With the Linux default of 50 µs, every sleep of the demo lasts at least about 50 µs, even `sleepUs(0)`, and the rate stays below 0.8 M packets/s for every delay setting. With 1 ns the delays work as on macOS. 0 is not possible, `prctl` then restores the default. Threads with a real-time policy (`SCHED_FIFO`, `SCHED_RR`) have no timer slack. |
 | UDP receive buffer | xcpclient requests 8 MB (`SO_RCVBUF`). Limit on the receiving host: Linux `net.core.rmem_max`, macOS `kern.ipc.maxsockbuf` | 8 MB on macOS, 416 KB on Linux with the default `rmem_max` | When xcpclient is late and the buffer is full, the system drops whole datagrams (up to about 75 packets with MTU 1500, about 400 with MTU 8000). The demo does not notice it. xcpclient reports these packets as lost, together with the packets lost in the transmit queue of the demo, from the gaps of the transport layer counter. On Linux allow 8 MB with `sudo sysctl -w net.core.rmem_max=8388608`, xcpclient warns when it gets less. Older xcpclient versions used the system default (Linux 208 KB, macOS 768 KB) and did not report lost packets. |
 | Simulated work | `OPTION_SIMULATE_WORK` in [src/sig_gen.hpp](src/sig_gen.hpp) | off | When defined, the spans sleep to give nicer Gantt charts. Keep it off for performance tests. |
 | Measured signals | xcpclient `--mea` | | The span signals (`<context>.span`, `.level`, `.span_dt`) produce most of the packets. Measuring fewer of them reduces the load. |
@@ -403,7 +404,7 @@ Without a measurement running, the demo needs about 7% CPU with the default dela
 
 #### Raspberry Pi 5 (Linux)
 
-Raspberry Pi 5 Model B, 4 × Cortex-A76, 8 GB, Raspberry Pi OS (Debian 12, kernel 6.12). Demo started with a timer slack of 1 ns. CPU is the `utime + stime` difference from `/proc` over 2 s. The busiest demo thread is the transmit thread.
+Raspberry Pi 5 Model B, 4 × Cortex-A76, 8 GB, Raspberry Pi OS (Debian 12, kernel 6.12). Timer slack 1 ns (the tests were run before the demo set it itself, it was started with `bash -c "echo 1 > /proc/self/timerslack_ns; exec ./thread_context_demo"`, which has the same effect). CPU is the `utime + stime` difference from `/proc` over 2 s. The busiest demo thread is the transmit thread.
 
 | Delays | MTU | Packets/s | MB/s | Lost in the demo | Receive drops (datagrams) | Demo CPU | xcpclient CPU | Busiest demo thread |
 |---|---|---|---|---|---|---|---|---|
@@ -420,7 +421,7 @@ Raspberry Pi 5 Model B, 4 × Cortex-A76, 8 GB, Raspberry Pi OS (Debian 12, kerne
 
 On Linux, timer slack is the amount of time the kernel may add to a timer before it fires. It is set per thread. A thread that asks to sleep 10 µs may sleep anywhere from 10 µs to 10 µs plus the slack. For normal threads the default slack is 50 µs.
 
-With the default timer slack of 50 µs, the same delay settings gave only 0.33 M (default delays), 0.56 to 0.57 M (20 µs), 0.65 M (10 µs), 0.71 M (5 µs) and 0.78 M packets/s (0 µs), at 6 to 15 MB/s, with both MTUs, without any loss, and with at most 31% demo CPU and 9% xcpclient CPU. The threads sleep at least about 50 µs per cycle, so the demo is limited by its sleeps, not by XCP.
+With the Linux default timer slack of 50 µs (`kTimerSlackNs` = 50000), the same delay settings gave only 0.33 M (default delays), 0.56 to 0.57 M (20 µs), 0.65 M (10 µs), 0.71 M (5 µs) and 0.78 M packets/s (0 µs), at 6 to 15 MB/s, with both MTUs, without any loss, and with at most 31% demo CPU and 9% xcpclient CPU. The threads sleep at least about 50 µs per cycle, so the demo is limited by its sleeps, not by XCP.
 
 Compared with the Mac:
 
