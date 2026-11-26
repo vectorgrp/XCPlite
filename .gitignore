@@ -29,6 +29,7 @@ test_bintool
 *.bak
 *.log
 *.pcap
+*.mcap
 
 # Other
 TODO.md
@@ -40,4 +41,3 @@ TODO.md
 wlan.h
 /test.txt
 /trace.json
-/thread_context_demo.json

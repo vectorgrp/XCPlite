@@ -34,18 +34,26 @@ cmake --build build --target thread_context_demo
 ./build/thread_context_demo
 ```
 
-Test
+Test with xcpclient
 
 ```bash
+
+# Build xcpclient
+./build.sh release rust_tools cargo_install
+
 # Measure all signals with xcpclient for 5 seconds into a CSV, MDF or MCAP file:
 xcpclient --udp --mea '.*' --time 5 --csv trace.csv
 xcpclient --udp --mea '.*' --time 5 --mdf trace.mdf
 xcpclient --udp --mea '.*' --time 5 --mcap trace.mcap
 
-# Calibrate task cycle times
+# or remote
+xcpclient --udp --dest-addr 192.168.0.206 --upload-a2l --mea 'SigGen1.value_' 'SigGen2.value_' --time 5 --perfetto trace.json
+
+# Calibrate task cycle times for performance testing
+# Measuring all signal with these calibrations will produce 3.5 million span-events and 30 MByte/s per second
 xcpclient --udp --cal SigGen2.sample_time_us 5 
 xcpclient --udp --cal SigGen1.sample_time_us 5
-xcpclient --udp --cal Mainloop.idle_sleep_us 10
+xcpclient --udp --cal Mainloop.idle_sleep_us 5
 
 ```
 
@@ -53,7 +61,7 @@ xcpclient --udp --cal Mainloop.idle_sleep_us 10
 
 ## Using CANape
 
-The CANape project included, can measure the span event signal, but can not provide a Gantt-Chart with nested spans in a context. It is perfectly suited to visualize the individual signal time series. The screenshot was taken at a 100Hz sampling rate.
+The CANape project included, can measure the span event signal, but can not provide a Gantt-Chart with nested spans in a context. It is perfectly suited to visualize the individual signal time series.  
 
 <img src="CANape.png" alt="CANape overview: signals and span tracks" width="900">
 
@@ -66,11 +74,6 @@ xcpclient can write the measurement as a trace file (Chrome JSON trace format) f
 
 ```bash
 xcpclient --udp --mea '.*' --time 5 --perfetto trace.json
-```
-or remote
-
-```bash
-xcpclient --udp --dest-addr 192.168.0.206 --upload-a2l --mea '.*' --time 5 --perfetto trace.json
 ```
 
 It is enough to measure the signals of interest, xcpclient adds the span and link signals of the contexts automatically (`--trace-auto` is default):
