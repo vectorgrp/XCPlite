@@ -19,6 +19,7 @@ This directory contains detailed documentation for XCPlite.
 - **[Building](BUILDING.md)** - Detailed build instructions and troubleshooting
 - **[SHM](SHM.md)** - Shared memory transport layer details and usage
 - **[RCU](CAL_RCU.md)** - Read-Copy-Update (RCU) mechanism details and usage
+- **[Transmit Queue](QUEUE.md)** - The two lock-free 64 bit transmit queues compared: classification aspects, which one to use when, influence of the configuration parameters
 
 
 

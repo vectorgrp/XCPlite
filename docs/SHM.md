@@ -5,8 +5,8 @@ This document contains advanced technical information about XCPlite's multi appl
 
 ## Overview
 
-When compiled in multi application mode, all application processes use a shared transmit queue, calibration RCU shared XCP state.  
-Exaclty one application is the XCP server, this may be the first one running (XCP leader) or a dedicated application (XCP daemon).  
+When compiled in multi application mode, all application processes use a shared transmit queue, shared calibration RCU, and shared XCP state.  
+Exactly one application is the XCP server, this may be the first one running (XCP leader) or a dedicated application (XCP daemon).  
 Even in the later case, the applications may start in any order.  
 Requires a POSIX-compliant platform (Linux / macOS / QNX). Not supported on Windows.  
 
@@ -16,7 +16,7 @@ Requires a POSIX-compliant platform (Linux / macOS / QNX). Not supported on Wind
 This is possible, because the complete XCP state shared among threads in a single application is memory-safe and lock-less.  
 The contention between threads in different application is exactly the same as the contention between threads in a single application, so no additional locking or synchronization is needed.  
 The contention for read access to calibration parameters is zero, unless they would be shared between applications.  
-In this simple implementation, all applications share the same transmit queue for measurement data acquisition, so the contention for write access to the transmit queue is caused by sharing a cache line for the queue head and tail offsets. This could easily changed by introducing an individial queue for every application.  
+In this simple implementation, all applications share the same transmit queue for measurement data acquisition, so the contention for write access to the transmit queue is caused by sharing a cache line for the queue head and tail offsets. This could easily be changed by introducing an individual queue for every application.  
 
 The shared memory mode is enabled by defining `XCP_SHM_MODE` in the configuration file `xcplib_cfg.h`.  
 
@@ -51,7 +51,6 @@ Contexts and spans (`OPTION_DAQ_CONTEXT_LIST`, C++ API `xcp::Context`, `xcp::Sco
 - Span names and span ids are common to all applications, the server writes one enum conversion `conv.spans`.
 - `OPTION_DAQ_CONTEXT_COUNT`, `OPTION_DAQ_SPAN_COUNT` and `OPTION_DAQ_EVENT_COUNT` are limits for all applications together.
 - The persistence file stores the context list with the owning application of each context, the contexts are restored with their ids on load, before the events.
-- Like event creation, context creation is protected by a process local mutex only: two applications must not create contexts or events at the same time.
 - `shmtool status -v` lists the contexts and span names. 
 
 Using the binary persistence mode is mandatory for the shared memory mode, because the shared memory state is initialized from the persistence file by the leader.  
@@ -73,14 +72,15 @@ There are tools included for working with or demonstrating the shared memory tra
 
 - `shmtool` - A helper tool to check and clear the state of the XCPlite shared memory and to trigger A2L file generation in the instrumented applications
 - `xcpdaemon` - An XCP on Ethernet server, which can attach to multiple XCP on SHM instrumented applications. This is just another (empty) application in XCP_MODE_SHM_SERVER, assuming all user applications are in mode XCP_MODE_SHM.  
-- `xcpclient` - An XCP client which supports XCP on ETH and XCP on SHM for testing, debugging, logging to local files and creating A2L files (taken from Rust xcp-lite)
 
 See the readme files in the [tools](tools/) folder for more information about how to use these tools.
 
 
 ## Known limitations
 
-The shared memory mode is experimental. This list covers the problems which are known and not solved yet.
+The shared memory mode is experimental. Context and span has not been tested yet.
+
+This list covers limitations and problems which are known and not solved yet.
 
 ### General
 
@@ -89,7 +89,6 @@ The shared memory mode is experimental. This list covers the problems which are 
 - **A full event list aborts the application.** When the event list is full, `DaqEventVar` and the other macros which register measurements for a new event end in an assertion in the A2L generator (`A2lGetAddr_`). The context-aware `DaqEventCtxVar` skips the measurement instead.
 - **Event creation is not process safe.** The event list is protected by a process local mutex only. Two applications must not create events at the same time, in practice: do not start applications which register at startup at the same moment. The context list and the span name list are lock-free name lists ([NAMELIST.md](NAMELIST.md)), which are designed for concurrent registration by several processes, but an `xcp::Context` also creates its `spans` event, so the restriction applies to contexts as well. Concurrent registration by several processes has not been tested.
 - **Event names by protocol are not unique.** `GET_DAQ_EVENT_INFO` returns the event name without the application name, only the A2L file has `<app>.<event>`. Equal event names in two applications, for example `mainloop`, give duplicate names. xcpclient without `--upload-a2l` stops with a `Duplicate` error in this case (observed with context events, expected for any equal event name). Use `--upload-a2l`.
-- **xcpclient reports the addressing scheme as unsupported.** xcpclient prints an error for `XCPLITE__CXSDD`. Measurement with an uploaded A2L file works nevertheless, the consequences for calibration and for the A2L tools of xcpclient (`--fix-a2l`, `--elf`) are not checked.
 - **The server does not migrate.** If the server application ends, the shared memory is recreated by the next application in mode `XCP_MODE_SHM_AUTO` or `XCP_MODE_SHM_SERVER`, see above.
 - **A2L timing.** Each application must have registered all its events and measurements before the server finalizes the main A2L file. Later registrations are not in the A2L file.
 - **Layout version.** All applications and tools (`shmtool`, `xcpdaemon`) must be built from the same XCPlite version and configuration. The layout version `SHM_VERSION` is checked, a mismatch needs `shmtool clean`.
@@ -98,7 +97,6 @@ The shared memory mode is experimental. This list covers the problems which are 
 
 ### Contexts and spans
 
-- **No process safe creation of contexts**, see above: a context needs its `spans` event. Span names can be registered by several applications at the same time (by design of the name list, not tested with several processes).
 - **Span names are registered at runtime.** Link time registration (`OPTION_DAQ_SPAN_SECTION_REGISTRATION`) is not available in SHM mode, each process would have its own span ids.
 - **Span ids are shared.** Span names of all applications are in one list and one conversion `conv.spans`. A span name used by two applications has one id. The limit `OPTION_DAQ_SPAN_COUNT` is reached sooner with several applications.
 - **Span names are not persisted.** Span ids are assigned in the order of first execution and may differ between runs, when the applications start in a different order. An existing A2L file (`A2L_MODE_WRITE_ONCE`) then shows wrong span names.
@@ -109,10 +107,9 @@ The shared memory mode is experimental. This list covers the problems which are 
 - **A full context list** makes further contexts behave as "no context": their code measures on the events without context, mixed with other instances.
 - **Name length.** Context and event names are limited to 15 characters each, the application name is prepended in the A2L file.
 
+
+
 ### Not tested
 
 - `xcpdaemon` as the XCP server for applications which use contexts. The tests used an application in mode `XCP_MODE_SHM_AUTO` as server.
-- Linux and QNX. Contexts in SHM mode were tested on macOS only.
-- More than two applications, applications in different languages, and an application which is restarted while the others keep running.
-- CANape. The tests used xcpclient.
 - `thread_context_demo` is built in the default configuration only, there is no SHM example which uses contexts in the repository.
