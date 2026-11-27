@@ -112,7 +112,9 @@ src/util.c/.h                   Shared helpers
 
 `src/xcplib_cfg.h` holds default configuration knobs (protocol options, DAQ memory sizing, clock, logging). Each `src/xcplib_<name>_cfg.h` documents its overrides on top of that default — read the relevant one before changing configuration-dependent behavior. `src/xcptl_cfg.h` covers transport-layer packet sizing; `src/xcp_cfg.h` covers XCP protocol-layer feature flags (addressing modes, DAQ/calibration limits, checksum, seed/key).
 
-### Transmit queue variants (`src/queue*.c`)
+### Transmit queue variants (`src/queue*.c`, see `docs/QUEUE.md`)
+
+`docs/QUEUE.md` compares the two lock-free 64 bit queues aspect by aspect (guarantees, producer hot path, consumer and transport, memory, shared memory), says which one to use when, how `XCPTL_MAX_DTO_SIZE`, `OPTION_MTU` and the queue size influence the transmit path, and lists open points; read it before touching `src/queue64v.c` or `src/queue64f.c`.
 
 Selected at compile time based on platform/config (see `src/queue.h`):
 - `queue64v.c` — generic, lock-free, variable entry size (default on 64-bit platforms with real atomics)

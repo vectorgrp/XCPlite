@@ -46,6 +46,7 @@ use or benchmark against the fixed-size queue implementation.
 #include <inttypes.h>  // for PRIu64
 #include <stdatomic.h> // for atomic_
 #include <stdbool.h>   // for bool
+#include <stddef.h>    // for offsetof
 #include <stdint.h>    // for uint32_t, uint64_t, uint8_t, int64_t
 #include <stdlib.h>    // for free, malloc
 #include <string.h>    // for memcpy, strcmp
@@ -239,28 +240,38 @@ typedef struct {
 #define QUEUE_ENTRY_HEADER_SIZE sizeof(atomic_uint_least32_t)
 
 // Queue header
-// Aligned to cache line size
-typedef union QueueHeader {
-    struct {
-        // Shared state
-        atomic_uint_fast64_t head;         // Consumer reads from head
-        atomic_uint_fast64_t tail;         // Producers write to tail
-        atomic_uint_fast32_t packets_lost; // Packet lost counter, incremented by producers when a queue entry could not be acquired
-        atomic_uint_fast64_t flush_offset; // Flush request head, set by producers to request the consumer to prioritize packets
+// Two cache lines
+// The first one is shared between the producers and the consumer
+// The second one is private to the consumer, it is written on every peek and must not share a cache line with the head, which the producers need for their CAS
+// (CACHE_LINE_SIZE is 64, on targets with 128 byte cache lines, like Apple Silicon, both parts may still end up in the same line)
+typedef struct QueueHeader {
+    union {
+        struct {
+            // Shared state
+            atomic_uint_fast64_t head;         // Consumer reads from head
+            atomic_uint_fast64_t tail;         // Producers write to tail
+            atomic_uint_fast32_t packets_lost; // Packet lost counter, incremented by producers when a queue entry could not be acquired
+            atomic_uint_fast64_t flush_offset; // Flush request head, set by producers to request the consumer to prioritize packets
 
-        // Consumer state for optimized peek loop
-        uint32_t cached_peek_index; // Cached index for optimized peek loop
-        uint64_t cached_peek_tail;  // Cached offset for optimized peek loop
-
-        // Constant
-        uint64_t magic;       // Magic value for sanity checks
-        uint32_t buffer_size; // Size of queue data buffer in bytes (for entry offset wrapping, with wrap around space at the end)
-        bool from_memory;     // Indicates whether the queue was initialized from user provided memory (true) or allocated by the queue implementation (false)
+            // Constant
+            uint64_t magic;       // Magic value for sanity checks
+            uint32_t buffer_size; // Size of queue data buffer in bytes (for entry offset wrapping, with wrap around space at the end)
+            bool from_memory;     // Indicates whether the queue was initialized from user provided memory (true) or allocated by the queue implementation (false)
+        };
+        uint8_t padding[CACHE_LINE_SIZE]; //  Padding to cache line size
     };
-    uint8_t padding[CACHE_LINE_SIZE]; //  Padding to cache line size
+    union {
+        struct {
+            // Consumer state for optimized peek loop, only written by the consumer and by queueClear
+            uint32_t cached_peek_index; // Cached index for optimized peek loop
+            uint64_t cached_peek_tail;  // Cached offset for optimized peek loop
+        };
+        uint8_t consumer_padding[CACHE_LINE_SIZE]; //  Padding to cache line size
+    };
 } tQueueHeader;
 
-static_assert(sizeof(tQueueHeader) == CACHE_LINE_SIZE, "QueueHeader size must be CACHE_LINE_SIZE");
+static_assert(sizeof(tQueueHeader) == 2 * CACHE_LINE_SIZE, "QueueHeader size must be 2 * CACHE_LINE_SIZE");
+static_assert(offsetof(tQueueHeader, cached_peek_index) == CACHE_LINE_SIZE, "Consumer state must start in the second cache line");
 
 // Queue memory size limits (including the queue header)
 // Header, wrap around space for a maximum size entry at the end of the buffer and at least one maximum size entry in the buffer
@@ -330,11 +341,11 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
                 QUEUE_PAYLOAD_SIZE_ALIGNMENT, queue->h.buffer_size, QUEUE_MAX_ENTRY_SIZE - QUEUE_ENTRY_USER_HEADER_SIZE,
                 (uint32_t)((queue->h.buffer_size + sizeof(tQueueHeader)) / 1024));
 
+    // Clear the queue, this resets the peek cache of the consumer as well
+    // When attaching to an initialized queue, the peek cache is not touched, it belongs to the consumer, which may be in the middle of a peek sequence
     if (clear_queue) {
-        queueClear((tQueueHandle)queue); // Clear the queue
+        queueClear((tQueueHandle)queue);
     }
-    queue->h.cached_peek_index = 0;
-    queue->h.cached_peek_tail = 0;
 
     if (out_buffer_size) {
         *out_buffer_size = 0;
@@ -538,8 +549,13 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
     // DBG_PRINTF6("queuePeek: peek_index=%u\n", peek_index);
 
     // Return the number of packets lost since the last call
+    // Load first and exchange only if there is something to reset
+    // An unconditional exchange would be a write to the cache line with the head on every peek, which the producers need for their CAS
     if (packets_lost != NULL) {
-        uint32_t lost = (uint32_t)atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_relaxed);
+        uint32_t lost = 0;
+        if (atomic_load_explicit(&queue->h.packets_lost, memory_order_relaxed) != 0) {
+            lost = (uint32_t)atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_relaxed);
+        }
         *packets_lost = lost;
         if (lost) {
             DBG_PRINTF6("queuePeek: packets lost since last call: %u\n", lost);

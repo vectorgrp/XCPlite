@@ -25,17 +25,14 @@ with a release-store to entry_header. The consumer acquire-loads entry_header
 before reading the payload. When the consumer releases a slot, it clears that
 same slot's entry_header before advancing tail.
 
-By default, tail is used as queue capacity metadata. It tells producers which
-slot indices may be reused, but it is intentionally not used as an
-acquire/release fence for slot contents. The reset of a slot is local to that
-slot's entry_header, while tail only publishes capacity. This keeps the
-ownership protocol explicit and avoids adding acquire/release ordering to the
-shared tail cache line.
-
-Define OPTION_QUEUE_64_FIX_SIZE_SYNC_TAIL to benchmark the alternative scheme:
-the consumer clears entry_header relaxed and publishes slot reuse with a release
-update to tail, while producers acquire-load tail.
-@@@@ TODO Remove, no measurable difference in performance
+The consumer publishes a released slot to the producers with a release update of
+tail, and producers acquire-load tail. This pair gives the happens-before from the
+consumer's reset of entry_header to the next producer's stores to the same
+entry_header. It is load-bearing on ARM: a release store to entry_header followed
+by a relaxed update of tail is NOT sufficient, the update of tail may become
+visible to another core before the store to entry_header, and the late reset then
+overwrites the header a producer has already committed. This was observed on a
+Cortex-A76 with a litmus test of the instruction sequence, see docs/QUEUE.md.
 
 Because all possible entry_header locations are fixed, initialization and clear
 operations can reset those atomic headers with atomic stores and only use
@@ -81,16 +78,6 @@ memset to clear the non-atomic entry data area.
 // Including the user header and payload and the internal atomic queue entry state of 4 bytes
 // Should be a multiple of cache line size to optimize performance and to avoid false sharing
 #define QUEUE_ENTRY_SIZE (QUEUE_ENTRY_USER_SIZE + 4) // Includes entry_header sizeof(atomic_uint_least32_t) = 4 bytes
-
-#ifdef OPTION_QUEUE_64_FIX_SIZE_SYNC_TAIL
-#define QUEUE64F_TAIL_LOAD_ORDER memory_order_acquire
-#define QUEUE64F_TAIL_RELEASE_ORDER memory_order_release
-#define QUEUE64F_ENTRY_RELEASE_ORDER memory_order_relaxed
-#else
-#define QUEUE64F_TAIL_LOAD_ORDER memory_order_relaxed
-#define QUEUE64F_TAIL_RELEASE_ORDER memory_order_relaxed
-#define QUEUE64F_ENTRY_RELEASE_ORDER memory_order_release
-#endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Checks
@@ -453,7 +440,8 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     // Prepare a new entry in reserved state
     tQueueEntry *entry = NULL;
 
-    uint64_t tail = atomic_load_explicit(&queue->h.tail, QUEUE64F_TAIL_LOAD_ORDER);
+    // The tail acquire load makes sure the entry headers reset by the consumer are visible, before a slot is reused
+    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
 
     // CAS loop
@@ -478,7 +466,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
         }
 
         // Refresh tail
-        tail = atomic_load_explicit(&queue->h.tail, QUEUE64F_TAIL_LOAD_ORDER);
+        tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
 
         // No hint, spin count is usually very low and we prefer the locked sequence as fast as possible
         // spin_loop_hint();
@@ -582,8 +570,13 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t index, uint32_t *pack
     assert(queue != NULL);
 
     // Return the number of packets lost in the queue
+    // Load first and exchange only if there is something to reset
+    // An unconditional exchange would be a write to the cache line with the head on every peek, which the producers need for their CAS
     if (packets_lost != NULL) {
-        uint32_t lost = (uint32_t)atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_relaxed);
+        uint32_t lost = 0;
+        if (atomic_load_explicit(&queue->h.packets_lost, memory_order_relaxed) != 0) {
+            lost = (uint32_t)atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_relaxed);
+        }
         *packets_lost = lost;
         if (lost) {
             DBG_PRINTF6("queuePeek: packets lost since last call: %u\n", lost);
@@ -676,10 +669,12 @@ void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_size) {
     // Clear the entries commit state
     tQueueEntry *entry = (tQueueEntry *)(queue_size->buffer - 4);                 // Get the pointer to the queue entry from the user header buffer pointer
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0); // Check that the entry pointer is correctly aligned to the entry size
-    atomic_store_explicit(&entry->entry_header, 0, QUEUE64F_ENTRY_RELEASE_ORDER);
+    atomic_store_explicit(&entry->entry_header, 0, memory_order_relaxed);
 
-    //  Increment the tail
-    atomic_fetch_add_explicit(&queue->h.tail, QUEUE_ENTRY_SIZE, QUEUE64F_TAIL_RELEASE_ORDER);
+    // Increment the tail
+    // Release update, to make the reset of the entry header visible to the producers before they can reuse the slot
+    // This synchronizes with the acquire load of the tail in the producers
+    atomic_fetch_add_explicit(&queue->h.tail, QUEUE_ENTRY_SIZE, memory_order_release);
 }
 
 #endif // OPTION_QUEUE_64_FIX_SIZE
