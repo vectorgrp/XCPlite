@@ -7,31 +7,13 @@
 |   Multi producer single consumer (producer side is thread safe and lockless)
 |   Designed for x86 strong and ARM weak memory model
 |
+|   The design, the guarantees, the memory ordering and the comparison with queue64f.c are
+|   described in docs/QUEUE.md. Read it before changing the synchronisation in this file.
+|
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | See LICENSE file in the project root for details.
 |
  ----------------------------------------------------------------------------*/
-
-/*
-Note on this variable-size lockless queue implementation:
-
-This implementation intentionally treats the queue buffer as raw aligned
-storage. To support variable-size entries, the consumer clears released entry
-memory with memset before publishing the updated tail. A later producer may
-reserve a new entry at any suitably aligned position inside that cleared
-region, and the consumer may read that position as an atomic 32-bit entry
-header before the producer has written the reserved state.
-
-On the supported targets (x86/ARM with lock-free naturally aligned 32-bit
-atomics), we rely on byte-cleared storage being observed as atomic zero in
-practice. This is a low-level implementation assumption and should not be
-treated as a fully portable C11 atomic-object pattern.
-
-The tail release/acquire synchronization publishes the clear to producers.
-However, the clear also adds cache-coherency traffic because the consumer
-writes the released entry memory. For medium/large payloads at high rates,
-use or benchmark against the fixed-size queue implementation.
-*/
 
 #include "platform.h"   // for PLATFORM_64BIT
 #include "xcplib_cfg.h" // for OPTION_QUEUE_64_VAR_SIZE and OPTION_ENABLE_DBG_PRINTS

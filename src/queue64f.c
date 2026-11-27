@@ -7,37 +7,13 @@
 |   Multi producer single consumer (producer side is thread safe and lockless)
 |   Designed for x86 strong and ARM weak memory model
 |
+|   The design, the guarantees, the memory ordering and the comparison with queue64v.c are
+|   described in docs/QUEUE.md. Read it before changing the synchronisation in this file.
+|
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | See LICENSE file in the project root for details.
 |
  ----------------------------------------------------------------------------*/
-
-/*
-Note on this fixed-size lockless queue implementation:
-
-Each queue slot has a permanent, naturally aligned atomic entry_header. This is
-the main difference to the variable-size queue: entry state is never located at
-an arbitrary future position inside previously used payload bytes.
-
-The entry_header is the per-slot state and publication object. Producers reserve
-slot indices by advancing head, write the payload, and publish committed data
-with a release-store to entry_header. The consumer acquire-loads entry_header
-before reading the payload. When the consumer releases a slot, it clears that
-same slot's entry_header before advancing tail.
-
-The consumer publishes a released slot to the producers with a release update of
-tail, and producers acquire-load tail. This pair gives the happens-before from the
-consumer's reset of entry_header to the next producer's stores to the same
-entry_header. It is load-bearing on ARM: a release store to entry_header followed
-by a relaxed update of tail is NOT sufficient, the update of tail may become
-visible to another core before the store to entry_header, and the late reset then
-overwrites the header a producer has already committed. This was observed on a
-Cortex-A76 with a litmus test of the instruction sequence, see docs/QUEUE.md.
-
-Because all possible entry_header locations are fixed, initialization and clear
-operations can reset those atomic headers with atomic stores and only use
-memset to clear the non-atomic entry data area.
-*/
 
 #include "platform.h"   // for PLATFORM_64BIT
 #include "xcplib_cfg.h" // for OPTION_QUEUE_64_FIX_SIZE  and OPTION_ENABLE_DBG_PRINTS

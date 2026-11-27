@@ -359,7 +359,7 @@ Lock time histogram (25230468 events):
 
 ## Benchmarking queue64f.c, tail synchronisation versus entry_header synchronisation
 
-Note: the entry_header synchronisation scheme and the option `OPTION_QUEUE_64_FIX_SIZE_SYNC_TAIL` were removed from `queue64f.c` after these runs, tail release/acquire is now the only scheme. The entry_header scheme does not order the reuse of a slot on ARM, see chapter 10.1 in [docs/QUEUE.md](../../docs/QUEUE.md) and the litmus test in [litmus/slot_reuse.c](litmus/slot_reuse.c). The results below are kept as the record that the change costs nothing measurable.
+Note: the entry_header synchronisation scheme and the option `OPTION_QUEUE_64_FIX_SIZE_SYNC_TAIL` were removed from `queue64f.c` after these runs, tail release/acquire is now the only scheme. The entry_header scheme does not order the reuse of a slot on ARM, see the memory model in chapter 6.2 of [docs/QUEUE.md](../../docs/QUEUE.md) and the litmus test in [litmus/slot_reuse.c](litmus/slot_reuse.c). The results below are kept as the record that the change costs nothing measurable.
 
 Done on a MacBook Air M2 16G
 

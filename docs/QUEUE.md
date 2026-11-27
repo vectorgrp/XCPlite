@@ -4,7 +4,7 @@ This document describes the two lock-free multi producer, single consumer (MPSC)
 
 The mutex and critical section based queues `queue32.c` and `queue32m.c` (32 bit platforms, Windows, FreeRTOS, raw Ethernet) are not covered. They use a different consumer interface (`queuePop` with message accumulation) and a different transmit path.
 
-Status: this is an analysis of the code. No throughput benchmark was run for this document, chapter 9 cites the existing results in `test/queue_test/README.md`. Chapter 10 lists the findings: 10.1 and 10.2 led to changes in the queues and describe the tests behind them, the others are candidates for a change.
+Status: this is an analysis of the code. Chapter 9 cites the existing benchmark results in `test/queue_test/README.md`. Chapter 10 lists the open points, which are candidates for a change.
 
 Contents:
 1. Role of the queue in XCPlite
@@ -87,7 +87,7 @@ Both files implement the API in `src/queue.h` and share most of their design.
 - Producers do not reload `tail` after a failed CAS. A stale `tail` only makes the free space check more pessimistic.
 - `queueLevel` returns bytes.
 
-The clear with `memset` treats bytes which are later accessed as an atomic object as plain memory. The file header documents this as an assumption for the supported targets, it is not a portable C11 pattern.
+The clear with `memset` treats bytes which are later accessed as an atomic object as plain memory. The implementation relies on byte cleared storage being read as an atomic zero. This holds on the supported targets (x86 and ARM with lock-free, naturally aligned 32 bit atomics), it is an assumption and not a portable C11 pattern.
 
 
 ## 4. `queue64f.c`: fixed entry size
@@ -186,7 +186,7 @@ Aspects which are not relevant here, and why:
 
 - Commit: the producer's release store to `entry_header` and the consumer's acquire load make the payload visible. Identical in both.
 - `head`: relaxed in both. Ownership of the reserved range follows from the atomicity of the CAS, not from ordering. The consumer may see `head` advanced before the entry header is written, it then reads state 0 and stops.
-- Reuse of released memory: both use the `tail` release/acquire pair, which gives a happens-before from the consumer's reset to the next producer's write. The pair is load-bearing on ARM, see 10.1.
+- Reuse of released memory: both use the `tail` release/acquire pair, which gives a happens-before from the consumer's reset to the next producer's write. The pair is load-bearing on ARM. A release store to `entry_header` followed by a relaxed update of `tail` is not sufficient: the update of `tail` may become visible to another core before the reset, and the late reset then overwrites a header which the next producer has already committed. This was observed on a Cortex-A76 with the litmus test `test/queue_test/litmus/slot_reuse.c`.
 - ABA: not possible, `head` and `tail` are monotonic 64 bit values.
 
 **6. Portability.** Both require 64 bit atomics which are always lock-free (`ATOMIC_LLONG_LOCK_FREE == 2`, checked at compile time), a 64 bit POSIX platform and a cache line of 64 bytes. `queue64v.c` in addition relies on `memset` cleared bytes being read as an atomic zero. `queue64f.c` resets its headers with atomic stores only.
@@ -199,7 +199,7 @@ Aspects which are not relevant here, and why:
 
 **9. False sharing.**
 
-- Queue header line: the producers need this line for their CAS on `head`. The consumer reads it in every `queuePeek` and writes to it once per released entry, when it advances `tail`. It does not write to it while peeking, see 10.2. `head` and `tail` share the line in both variants.
+- Queue header line: the producers need this line for their CAS on `head`. The consumer reads it in every `queuePeek` and writes to it once per released entry, when it advances `tail`. It does not write to it while peeking. `head` and `tail` share the line in both variants, see 10.2.
 - Entries: in `queue64f.c` every slot starts on a cache line boundary when the queue is allocated by `queueInit`, and in the `shm` configuration, where the queue memory follows a 64 byte header. Two producers never write to the same line. In `queue64v.c` consecutive entries share a line at their boundary, so two producers which fill neighbouring entries at the same time disturb each other.
 
 **10. Coherency traffic caused by the consumer.** This is the main structural difference.
@@ -316,26 +316,43 @@ A measurement on the target decides borderline cases. `queue_test` gives the acq
 | `queue64v.c` | Raspberry Pi 5 | 64 to 1024 | 559 k | 780 ns |
 | `queue64v.c` | macOS | 64 | 2132 k | 85 ns |
 | `queue64v.c` | macOS | 64 to 1024 | 1869 k | 256 ns |
-| `queue64f.c`, removed scheme (10.1) | MacBook Air M2, release | 64 to 248 | 1322 k | 204 ns |
+| `queue64f.c`, `entry_header` release, relaxed `tail` (removed) | MacBook Air M2, release | 64 to 248 | 1322 k | 204 ns |
 | `queue64f.c`, `tail` release/acquire | MacBook Air M2, release | 64 to 248 | 1302 k | 200 ns |
 
-These runs use different machines, build types and payload ranges, so they do not compare the two variants. 10.2 has one run of both variants on the same Raspberry Pi 5 as release builds (212 ns and about 122 ns), but with the payload range each variant uses by default, 64 to 1024 against 64 to 248 bytes, so it is not a like for like comparison either. The README draws the conclusion that the fixed size queue performs significantly better with large payloads. A run of both variants on one machine with the same payload range, which would quantify this, is not recorded there.
+These runs use different machines, build types and payload ranges, so they do not compare the two variants. A run of both variants on the same Raspberry Pi 5 as release builds gave 212 ns for `queue64v.c` and about 122 ns for `queue64f.c`, but with the payload range each variant uses by default, 64 to 1024 against 64 to 248 bytes, so it is not a like for like comparison either. The README draws the conclusion that the fixed size queue performs significantly better with large payloads. A run of both variants on one machine with the same payload range, which would quantify this, is not recorded there.
 
-The two `queue64f.c` rows compare the removed synchronisation scheme with the current one (10.1). In the release build there is no measurable difference.
+The two `queue64f.c` rows compare a removed synchronisation scheme, which did not order the reuse of a slot (see aspect 5), with the current one. In the release build there is no measurable difference.
 
 
 ## 10. Open points
 
+These are proposals for improvement. None of them is implemented.
 
 ### 10.1 Blocked queue after a producer failure
 
 See aspect 2. `queue64v.c` has a TODO for a timeout in `queuePeek`. To skip a reserved entry the consumer needs its length. In `queue64f.c` the slot size is constant. In `queue64v.c` the length is in the entry header only after the producer's first store (length with state 0), a producer which stopped right after its CAS leaves a header which reads 0. In both variants the entry must not be reused while the stalled producer may still write to it, which is the hard part.
 
-### 10.2 Smaller items
+### 10.2 Contention on the queue header line
+
+All producers and the consumer share the cache line with `head` and `tail` (aspects 8 and 9). Removing the consumer's write to this line in `queuePeek` made no measurable difference in `queue_test` on a Raspberry Pi 5, with 1, 2 and 10 producers, because the consumer still writes to the line once per message when it advances `tail`. The candidates which remain:
+
+- **Separate cache lines for `head` and `tail`.** The consumer's update of `tail` would no longer invalidate the line the producers need for their CAS, at the price of a second line each producer has to read.
+- **Advance `tail` once per transmitted segment** instead of once per released entry. This needs a release function for several entries in `queue.h`.
+- **One queue per application or per thread.** This removes the contention between producers on `head` altogether, the consumer then has to merge several queues. `docs/SHM.md` mentions it for the `shm` configuration, where all processes share one queue.
+- **Cache line size of the target.** `CACHE_LINE_SIZE` is 64 in both files. On a target with 128 byte cache lines, such as Apple Silicon, the peek cache of `queue64v.c` can still share a physical line with `head`, and two slots of `queue64f.c` can share a line when the queue memory starts in the middle of one.
+
+### 10.3 Smaller items
 
 - The first store to `entry_header` in `queueAcquire` (length with state 0) uses release ordering in both variants. Nothing is published by it, relaxed would be sufficient.
+- Both variants compute `head % buffer_size` with a 64 bit division by a runtime value, in `queueAcquire` and in `queuePeek`. A buffer size which is a power of two would allow a mask, in `queue64f.c` a slot index would do as well.
+- `flush_offset` holds the offset of an entry in the buffer. A stale value triggers a flush again whenever an entry starts at this offset after a wrap around, in `queue64f.c` once per wrap (aspect 14). Storing the 64 bit `head` position of the entry instead would make the value unique.
 - `queue64v.c`: `queuePeek` does not set `*flush_requested` to false, `queue64f.c` does. The only caller initialises the variable itself.
+- `queue64f.c` checks the cache line alignment of the queue memory only when it allocates the memory itself, and only asserts on a wrong magic value in `queueInitFromMemory`, where `queue64v.c` returns NULL.
 - Stale comments: `queue64v.c` describes the CAS as "acq_rel/acq", it is relaxed. `xcpethtl.c` says the MTU is set to 8000, the default `OPTION_MTU` is 1500.
-- The shared memory mode of `queue_test` (`TEST_QUEUE_SHM`, `--producer` and `--consumer`) does not compile any more, it refers to types which no longer exist. There is no multi process test of the queue.
-- `head` and `tail` share one cache line in both variants, and the consumer advances `tail` once per released entry. Separate lines would keep the consumer's update of `tail` from invalidating the line the producers need for their CAS, at the price of a second line each producer has to read. Advancing `tail` once for all entries of a transmitted segment would reduce the number of writes. After the result in 10.2 this is the candidate for reducing the contention on the header line, it has not been tried.
-- `queue64f.c` checks the cache line alignment of the queue memory only when it allocates the memory itself, and only asserts on a wrong magic value in `queueInitFromMemory`.
+- TODOs in the code around the queue: `xcpethserver.c` notes a possible race when a process attaches to the shared memory queue before the leader has initialised it. `xcpethtl.c` marks the array of `MAX_BUFFERS` queue buffers on the stack of the transmit thread, `socketSendToV` adds an `iovec` array of the same length.
+
+### 10.4 Tests and measurements
+
+- The shared memory mode of `queue_test` (`TEST_QUEUE_SHM`, `--producer` and `--consumer`) does not compile any more, it refers to types which no longer exist. There is no multi process test of the queue. The attach path of `queueInitFromMemory` is therefore not tested.
+- There is no benchmark of both variants on one machine with the same payload range (chapter 9). It would quantify the statement that the fixed size queue is faster for large payloads.
+- The slot reuse problem described under aspect 5 was shown with a litmus test only, it was not reproduced in the queue itself. `queue_test` on a Raspberry Pi 5 did not show it, the Apple M2 does not show it at all. A regression in the memory ordering of the queues will not be found by the existing tests.

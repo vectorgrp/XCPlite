@@ -1,4 +1,4 @@
-// Litmus test for the slot reuse ordering of queue64f.c ("S" shape), see docs/QUEUE.md chapter 10.1
+// Litmus test for the slot reuse ordering of queue64f.c ("S" shape), see docs/QUEUE.md, chapter 6.2, memory model
 //
 // Not part of the build. Two threads run the instruction sequences of the consumer (queueRelease)
 // and of a producer (queueAcquire, queuePush) on the same slot, on many independent slots per round:
