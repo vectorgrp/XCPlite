@@ -94,7 +94,6 @@ Uses the offline A2L generator tool (xcpclient).
 ### [silkit_demo](silkit_demo/README.md)
 
 Demonstrates the use of XCPlite in a SILKIT simulation with multiple participants.
-Builds against a pre-built libxcplite and silkit library
 
 
 ### [ptp4l_demo](ptp4l_demo/README.md)
